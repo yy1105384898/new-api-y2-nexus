@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
@@ -51,6 +52,10 @@ type responseTask struct {
 	Seconds            string `json:"seconds,omitempty"`
 	Size               string `json:"size,omitempty"`
 	RemixedFromVideoID string `json:"remixed_from_video_id,omitempty"`
+	Usage              *struct {
+		Seconds    float64 `json:"seconds"`
+		VideoCount int     `json:"video_count"`
+	} `json:"usage,omitempty"`
 	Error              *struct {
 		Message string `json:"message"`
 		Code    string `json:"code"`
@@ -305,6 +310,10 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	case "completed":
 		taskResult.Status = model.TaskStatusSuccess
 		// Url intentionally left empty — the caller constructs the proxy URL using the public task ID
+		if seconds := usageSecondsFromResponseTask(resTask); seconds > 0 {
+			taskResult.CompletionTokens = seconds
+			taskResult.TotalTokens = seconds
+		}
 	case "failed", "cancelled":
 		taskResult.Status = model.TaskStatusFailure
 		if resTask.Error != nil {
@@ -319,6 +328,72 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	}
 
 	return &taskResult, nil
+}
+
+// AdjustBillingOnComplete 按 usage.seconds 与 ModelPrice（秒单价）结算实际额度。
+func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int {
+	bc := task.PrivateData.BillingContext
+	if bc == nil || bc.ModelPrice <= 0 {
+		return 0
+	}
+	if _, ok := bc.OtherRatios["seconds"]; !ok {
+		return 0
+	}
+
+	actualSeconds := usageSecondsFromTaskData(task.Data)
+	if actualSeconds <= 0 && taskResult != nil {
+		actualSeconds = taskResult.CompletionTokens
+	}
+	if actualSeconds <= 0 {
+		return 0
+	}
+
+	groupRatio := bc.GroupRatio
+	if groupRatio <= 0 {
+		groupRatio = 1
+	}
+
+	multiplier := 1.0
+	for key, ratio := range bc.OtherRatios {
+		if key == "seconds" || ratio == 1.0 || ratio <= 0 {
+			continue
+		}
+		multiplier *= ratio
+	}
+
+	return int(bc.ModelPrice * common.QuotaPerUnit * groupRatio * float64(actualSeconds) * multiplier)
+}
+
+func usageSecondsFromResponseTask(res responseTask) int {
+	if res.Usage != nil && res.Usage.Seconds > 0 {
+		return int(math.Round(res.Usage.Seconds))
+	}
+	return parsePositiveIntString(res.Seconds)
+}
+
+func usageSecondsFromTaskData(data []byte) int {
+	if len(data) == 0 {
+		return 0
+	}
+	var res responseTask
+	if err := common.Unmarshal(data, &res); err != nil {
+		return 0
+	}
+	return usageSecondsFromResponseTask(res)
+}
+
+func parsePositiveIntString(raw string) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	if seconds, err := strconv.Atoi(raw); err == nil && seconds > 0 {
+		return seconds
+	}
+	if seconds, err := strconv.ParseFloat(raw, 64); err == nil && seconds > 0 {
+		return int(math.Round(seconds))
+	}
+	return 0
 }
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {

@@ -14,6 +14,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ShouldTaskPerCallBilling 判断任务是否按固定次价计费（完成后不再按 usage.seconds 差额结算）。
+// 配置了 ModelPrice 且带 seconds 倍率的视频模型视为按秒单价，完成后再结算。
+func ShouldTaskPerCallBilling(modelName string, usePrice bool, otherRatios map[string]float64) bool {
+	if common.StringsContains(constant.TaskPricePatches, modelName) {
+		return true
+	}
+	if !usePrice {
+		return false
+	}
+	if seconds, ok := otherRatios["seconds"]; ok && seconds > 0 {
+		return false
+	}
+	return true
+}
+
 // LogTaskConsumption 记录任务消费日志和统计信息（仅记录，不涉及实际扣费）。
 // 实际扣费已由 BillingSession（PreConsumeBilling + SettleBilling）完成。
 func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
