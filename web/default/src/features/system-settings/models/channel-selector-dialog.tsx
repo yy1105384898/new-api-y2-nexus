@@ -16,8 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { type ColumnDef, type RowSelectionState } from '@tanstack/react-table'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ColumnDef } from '@tanstack/react-table'
 import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -78,25 +78,55 @@ export function ChannelSelectorDialog({
 }: ChannelSelectorDialogProps) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [pendingSelection, setPendingSelection] = useState<number[]>([])
+  const hasInitializedSelectionRef = useRef(false)
 
+  const toggleChannelSelection = useCallback(
+    (channelId: number, checked: boolean) => {
+      setPendingSelection((prev) => {
+        if (checked) {
+          return prev.includes(channelId) ? prev : [...prev, channelId]
+        }
+        return prev.filter((id) => id !== channelId)
+      })
+    },
+    []
+  )
+
+  const togglePageSelection = useCallback(
+    (pageChannelIds: number[], checked: boolean) => {
+      setPendingSelection((prev) => {
+        if (checked) {
+          return Array.from(new Set([...prev, ...pageChannelIds]))
+        }
+        const pageIdSet = new Set(pageChannelIds)
+        return prev.filter((id) => !pageIdSet.has(id))
+      })
+    },
+    []
+  )
+
+  // Restore persisted selection once when the dialog opens and channel data is
+  // available. Manage selection explicitly instead of TanStack rowSelection so
+  // checkbox cells always reflect pendingSelection.
   useEffect(() => {
-    if (!selectedChannelIds.length) {
-      setRowSelection({})
+    if (!open) {
+      hasInitializedSelectionRef.current = false
+      setPendingSelection([])
       return
     }
 
+    if (hasInitializedSelectionRef.current || channels.length === 0) {
+      return
+    }
+
+    hasInitializedSelectionRef.current = true
+
     const availableChannelIds = new Set(channels.map((channel) => channel.id))
-    const newSelection: RowSelectionState = {}
-
-    selectedChannelIds.forEach((id) => {
-      if (availableChannelIds.has(id)) {
-        newSelection[id.toString()] = true
-      }
-    })
-
-    setRowSelection(newSelection)
-  }, [selectedChannelIds, channels])
+    setPendingSelection(
+      selectedChannelIds.filter((id) => availableChannelIds.has(id))
+    )
+  }, [open, selectedChannelIds, channels])
 
   const updateEndpoint = useCallback(
     (channelId: number, endpoint: string) => {
@@ -117,25 +147,42 @@ export function ChannelSelectorDialog({
     () => [
       {
         id: 'select',
-        header: ({ table }) => (
-          <Checkbox
-            checked={table.getIsAllPageRowsSelected()}
-            indeterminate={table.getIsSomePageRowsSelected()}
-            onCheckedChange={(value) =>
-              table.toggleAllPageRowsSelected(!!value)
-            }
-            aria-label='Select all'
-          />
-        ),
+        header: ({ table }) => {
+          const pageChannelIds = table
+            .getRowModel()
+            .rows.map((row) => row.original.id)
+          const allSelected =
+            pageChannelIds.length > 0 &&
+            pageChannelIds.every((id) => pendingSelection.includes(id))
+          const someSelected =
+            pageChannelIds.some((id) => pendingSelection.includes(id)) &&
+            !allSelected
+
+          return (
+            <Checkbox
+              checked={allSelected}
+              indeterminate={someSelected}
+              onCheckedChange={(value) =>
+                togglePageSelection(pageChannelIds, !!value)
+              }
+              aria-label='Select all'
+              className='translate-y-[2px] rounded-[4px]'
+            />
+          )
+        },
         cell: ({ row }) => (
           <Checkbox
-            checked={row.getIsSelected()}
-            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            checked={pendingSelection.includes(row.original.id)}
+            onCheckedChange={(value) =>
+              toggleChannelSelection(row.original.id, !!value)
+            }
             aria-label='Select row'
+            className='translate-y-[2px] rounded-[4px]'
           />
         ),
         enableSorting: false,
         enableHiding: false,
+        size: 40,
       },
       {
         accessorKey: 'name',
@@ -144,9 +191,14 @@ export function ChannelSelectorDialog({
           const name = row.getValue('name') as string
           const channel = row.original
           const isOfficial = isOfficialChannel(channel)
+          const selected = pendingSelection.includes(channel.id)
 
           return (
-            <div className='flex items-center gap-2'>
+            <button
+              type='button'
+              className='flex w-full items-center gap-2 text-left'
+              onClick={() => toggleChannelSelection(channel.id, !selected)}
+            >
               <span className='font-medium'>{name}</span>
               {isOfficial && (
                 <StatusBadge
@@ -156,7 +208,7 @@ export function ChannelSelectorDialog({
                   copyable={false}
                 />
               )}
-            </div>
+            </button>
           )
         },
       },
@@ -259,7 +311,7 @@ export function ChannelSelectorDialog({
         },
       },
     ],
-    [channelEndpoints, t, updateEndpoint]
+    [channelEndpoints, pendingSelection, t, toggleChannelSelection, togglePageSelection, updateEndpoint]
   )
 
   const filteredChannels = useMemo(() => {
@@ -286,21 +338,16 @@ export function ChannelSelectorDialog({
   const { table } = useDataTable({
     data: sortedChannels,
     columns,
-    rowSelection,
     getRowId: (row) => row.id.toString(),
-    enableRowSelection: true,
-    onRowSelectionChange: setRowSelection,
     initialPagination: { pageIndex: 0, pageSize: 10 },
     withSortedRowModel: false,
     withFacetedRowModel: false,
   })
 
   const handleConfirm = () => {
-    const selectedRows = table.getSelectedRowModel().rows
-    const selectedIds = selectedRows.map((row) => row.original.id)
-    onSelectedChannelIdsChange(selectedIds)
+    onSelectedChannelIdsChange(pendingSelection)
     onOpenChange(false)
-    onConfirm(selectedIds)
+    onConfirm(pendingSelection)
   }
 
   return (
@@ -338,7 +385,10 @@ export function ChannelSelectorDialog({
 
         <DataTableView
           table={table}
-          containerClassName='flex-1 overflow-auto rounded-md'
+          applyHeaderSize
+          splitHeader
+          splitHeaderScrollClassName='max-h-[min(52vh,560px)]'
+          containerClassName='flex-1 overflow-hidden rounded-md'
           emptyContent={t('No channels found')}
           emptyCellClassName='h-24 text-center'
         />

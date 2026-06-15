@@ -51,13 +51,7 @@ function DataTableRowInner<TData>({
   )
 }
 
-export const DataTableRow = React.memo(DataTableRowInner, (prev, next) => {
-  // Skip re-render when only the getColumnClassName reference changed but the
-  // row identity and selection state are the same — callers rarely stabilize
-  // this callback, so excluding it from comparison avoids unnecessary renders.
-  return (
-    prev.row === next.row &&
-    prev.className === next.className &&
-    prev.row.getIsSelected() === next.row.getIsSelected()
-  )
-}) as typeof DataTableRowInner
+// TanStack Row#getIsSelected() reads live table state, so it cannot be used in a
+// memo comparator — both prev and next would observe the same post-update value
+// and skip re-renders while checkbox cells stay stale.
+export const DataTableRow = DataTableRowInner
