@@ -1,6 +1,7 @@
 package model
 
 import (
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -182,6 +183,27 @@ func InitOptionMap() {
 
 	common.OptionMapRWMutex.Unlock()
 	loadOptionsFromDatabase()
+}
+
+// BootstrapServerAddress seeds ServerAddress from FRONTEND_BASE_URL when the
+// database still has the localhost default. Docker stacks set the env var but
+// payment/OAuth return URLs read ServerAddress from options.
+func BootstrapServerAddress() {
+	frontend := strings.TrimRight(strings.TrimSpace(os.Getenv("FRONTEND_BASE_URL")), "/")
+	if frontend == "" {
+		return
+	}
+
+	addr := strings.TrimRight(strings.TrimSpace(system_setting.ServerAddress), "/")
+	if addr != "" && addr != "http://localhost:3000" && !strings.Contains(strings.ToLower(addr), "localhost") {
+		return
+	}
+
+	if err := UpdateOption("ServerAddress", frontend); err != nil {
+		common.SysLog("failed to bootstrap ServerAddress from FRONTEND_BASE_URL: " + err.Error())
+		return
+	}
+	common.SysLog("bootstrapped ServerAddress from FRONTEND_BASE_URL: " + frontend)
 }
 
 func loadOptionsFromDatabase() {

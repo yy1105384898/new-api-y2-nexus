@@ -292,6 +292,7 @@ func InitResources() error {
 
 	// Initialize options, should after model.InitDB()
 	model.InitOptionMap()
+	model.BootstrapServerAddress()
 
 	// 清理旧的磁盘缓存文件
 	common.CleanupOldCacheFiles()
