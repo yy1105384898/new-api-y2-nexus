@@ -9,7 +9,6 @@ License, or (at your option) any later version.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '@/stores/auth-store'
 import { cn } from '@/lib/utils'
 import {
   Carousel,
@@ -20,7 +19,7 @@ import {
   type CarouselApi,
 } from '@/components/ui/carousel'
 import { DEFAULT_CANVAS_BASE_URL } from '@/features/canvas/lib/canvas-config'
-import { useCanvasEntryUrl } from '@/features/canvas/hooks/use-canvas-entry-url'
+import { useCanvasKeyPicker } from '@/features/canvas/hooks/use-canvas-key-picker'
 import { mkt } from '../lib/marketing-theme'
 import { INSPIRATION_SLIDES } from '../lib/site-assets'
 
@@ -49,10 +48,7 @@ function slideFrameSize(
 
 export function FreeImageCarousel() {
   const { t } = useTranslation()
-  const isAuthenticated = !!useAuthStore((state) => state.auth.user)
-  const canvasUrl = useCanvasEntryUrl(DEFAULT_CANVAS_BASE_URL, {
-    withTrust: isAuthenticated,
-  })
+  const { requestOpen, dialog } = useCanvasKeyPicker(DEFAULT_CANVAS_BASE_URL)
   const containerRef = useRef<HTMLDivElement>(null)
   const [api, setApi] = useState<CarouselApi>()
   const [active, setActive] = useState(0)
@@ -129,12 +125,18 @@ export function FreeImageCarousel() {
                 key={slide.id}
                 className='h-full basis-full pl-0'
               >
-                <a
-                  href={canvasUrl}
-                  target='_blank'
-                  rel='noopener noreferrer'
+                <div
+                  role='button'
+                  tabIndex={0}
+                  onClick={() => requestOpen()}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      requestOpen()
+                    }
+                  }}
                   className={cn(
-                    'group relative block size-full overflow-hidden rounded-2xl',
+                    'group relative block size-full cursor-pointer overflow-hidden rounded-2xl',
                     mkt.mediaCard
                   )}
                 >
@@ -168,7 +170,7 @@ export function FreeImageCarousel() {
                       <ArrowRight className='size-4' />
                     </span>
                   </div>
-                </a>
+                </div>
               </CarouselItem>
             ))}
           </CarouselContent>
@@ -193,6 +195,7 @@ export function FreeImageCarousel() {
           />
         ))}
       </div>
+      {dialog}
     </div>
   )
 }

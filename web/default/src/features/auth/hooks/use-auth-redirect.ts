@@ -22,8 +22,8 @@ import { useAuthStore } from '@/stores/auth-store'
 import {
   isCanvasRedirectUrl,
   isExternalRedirect,
-  resolveCanvasRedirectUrl,
 } from '@/features/canvas/lib/post-auth-redirect'
+import { DEFAULT_CANVAS_BASE_URL } from '@/features/canvas/lib/canvas-config'
 import { getSelf } from '@/lib/api'
 import type { User } from '@/features/users/types'
 import { saveUserId } from '../lib/storage'
@@ -92,14 +92,9 @@ export function useAuthRedirect() {
 
     // Navigate to target page
     const targetPath = redirectTo || '/dashboard'
-    if (redirectTo && isCanvasRedirectUrl(redirectTo)) {
-      try {
-        window.location.href = await resolveCanvasRedirectUrl(redirectTo)
-        return
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.error('Failed to create canvas trust redirect:', error)
-      }
+    if (redirectTo && isCanvasRedirectUrl(redirectTo, DEFAULT_CANVAS_BASE_URL)) {
+      navigate({ to: '/canvas/open', search: { redirect: redirectTo }, replace: true })
+      return
     }
     if (redirectTo && isExternalRedirect(redirectTo)) {
       window.location.href = redirectTo

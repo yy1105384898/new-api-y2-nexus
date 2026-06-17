@@ -8,9 +8,8 @@ License, or (at your option) any later version.
 */
 import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
-import { useAuthStore } from '@/stores/auth-store'
 import { DEFAULT_CANVAS_BASE_URL } from '@/features/canvas/lib/canvas-config'
-import { useCanvasEntryUrl } from '@/features/canvas/hooks/use-canvas-entry-url'
+import { useCanvasKeyPicker } from '@/features/canvas/hooks/use-canvas-key-picker'
 
 type CanvasTopNavLinkProps = {
   className?: string
@@ -20,24 +19,26 @@ type CanvasTopNavLinkProps = {
 
 export function CanvasTopNavLink({ className, style, onClick }: CanvasTopNavLinkProps) {
   const { t } = useTranslation()
-  const isAuthenticated = !!useAuthStore((state) => state.auth.user)
-  const canvasUrl = useCanvasEntryUrl(DEFAULT_CANVAS_BASE_URL, {
-    withTrust: isAuthenticated,
-  })
+  const { requestOpen, dialog } = useCanvasKeyPicker(DEFAULT_CANVAS_BASE_URL)
 
   return (
-    <a
-      href={canvasUrl}
-      target='_blank'
-      rel='noopener noreferrer'
-      onClick={onClick}
-      style={style}
-      className={cn(
-        'hover:text-primary text-sm font-medium transition-colors text-muted-foreground',
-        className
-      )}
-    >
-      {t('Cangyuan Image to Video')}
-    </a>
+    <>
+      <button
+        type='button'
+        style={style}
+        onClick={(event) => {
+          onClick?.()
+          event.preventDefault()
+          requestOpen()
+        }}
+        className={cn(
+          'hover:text-primary text-sm font-medium transition-colors text-muted-foreground',
+          className
+        )}
+      >
+        {t('Cangyuan Image to Video')}
+      </button>
+      {dialog}
+    </>
   )
 }

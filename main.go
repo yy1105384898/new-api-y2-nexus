@@ -275,7 +275,7 @@ func InitResources() error {
 
 	// Initialize model settings
 	ratio_setting.InitRatioSettings()
-	setting.InitCanvasTrustSetting()
+	setting.InitCanvasSetting()
 
 	service.InitHttpClient()
 

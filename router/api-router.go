@@ -54,15 +54,6 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/oauth/:provider", middleware.CriticalRateLimit(), controller.HandleOAuth)
 		apiRouter.GET("/ratio_config", middleware.CriticalRateLimit(), controller.GetRatioConfig)
 
-		canvasTrustRoute := apiRouter.Group("/canvas/trust")
-		canvasTrustRoute.Use(middleware.CanvasTrustSecretAuth())
-		{
-			canvasTrustRoute.POST("/verify", anonymousRequestBodyLimit, controller.VerifyCanvasTrustToken)
-			canvasTrustRoute.POST("/user-self", anonymousRequestBodyLimit, controller.GetCanvasTrustUserSelf)
-			canvasTrustRoute.POST("/tokens", anonymousRequestBodyLimit, controller.ListCanvasTrustTokens)
-			canvasTrustRoute.POST("/token-key", anonymousRequestBodyLimit, controller.GetCanvasTrustTokenKey)
-		}
-
 		apiRouter.POST("/stripe/webhook", anonymousRequestBodyLimit, controller.StripeWebhook)
 		apiRouter.POST("/creem/webhook", anonymousRequestBodyLimit, controller.CreemWebhook)
 		apiRouter.POST("/waffo/webhook", anonymousRequestBodyLimit, controller.WaffoWebhook)
@@ -127,8 +118,6 @@ func SetApiRouter(router *gin.Engine) {
 				// Check-in routes
 				selfRoute.GET("/checkin", controller.GetCheckinStatus)
 				selfRoute.POST("/checkin", middleware.TurnstileCheck(), controller.DoCheckin)
-
-				selfRoute.GET("/canvas/trust-token", controller.CreateCanvasTrustToken)
 
 				// Custom OAuth bindings
 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)

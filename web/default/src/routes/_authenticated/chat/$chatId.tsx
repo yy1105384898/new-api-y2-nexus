@@ -26,7 +26,6 @@ import { useActiveChatKey } from '@/features/chat/hooks/use-active-chat-key'
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import {
   chatLinkRequiresApiKey,
-  chatLinkRequiresTrustToken,
   resolveChatUrlAsync,
 } from '@/features/chat/lib/chat-links'
 
@@ -53,13 +52,7 @@ function ChatRouteComponent() {
 
   const requiresActiveKey = useMemo(() => {
     if (!preset || !isWebLink) return false
-    const template = preset.url ?? ''
-    return chatLinkRequiresApiKey(template) && !chatLinkRequiresTrustToken(template)
-  }, [isWebLink, preset])
-
-  const requiresTrustToken = useMemo(() => {
-    if (!preset || !isWebLink) return false
-    return chatLinkRequiresTrustToken(preset.url ?? '')
+    return chatLinkRequiresApiKey(preset.url ?? '')
   }, [isWebLink, preset])
 
   const {
@@ -134,7 +127,7 @@ function ChatRouteComponent() {
     )
   }
 
-  if ((requiresActiveKey && isPending) || (requiresTrustToken && !iframeSrc && preset)) {
+  if (requiresActiveKey && isPending) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-4'>
         <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
