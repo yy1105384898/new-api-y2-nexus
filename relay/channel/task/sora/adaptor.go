@@ -2,6 +2,7 @@ package sora
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -52,14 +53,13 @@ type responseTask struct {
 	Seconds            string `json:"seconds,omitempty"`
 	Size               string `json:"size,omitempty"`
 	RemixedFromVideoID string `json:"remixed_from_video_id,omitempty"`
+	VideoURL           string `json:"videoUrl,omitempty"`  // GZ / 部分 OpenAI 兼容上游
+	VideoURLSnake      string `json:"video_url,omitempty"` // 部分上游 snake_case
 	Usage              *struct {
 		Seconds    float64 `json:"seconds"`
 		VideoCount int     `json:"video_count"`
 	} `json:"usage,omitempty"`
-	Error              *struct {
-		Message string `json:"message"`
-		Code    string `json:"code"`
-	} `json:"error,omitempty"`
+	Error              json.RawMessage `json:"error,omitempty"`
 }
 
 // ============================
@@ -302,22 +302,31 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		Code: 0,
 	}
 
-	switch resTask.Status {
+	switch strings.ToLower(strings.TrimSpace(resTask.Status)) {
 	case "queued", "pending":
 		taskResult.Status = model.TaskStatusQueued
-	case "processing", "in_progress":
+	case "processing", "in_progress", "running":
 		taskResult.Status = model.TaskStatusInProgress
-	case "completed":
+		if resTask.Progress <= 0 {
+			taskResult.Progress = "50%"
+		}
+	case "completed", "succeeded", "success", "done":
 		taskResult.Status = model.TaskStatusSuccess
-		// Url intentionally left empty — the caller constructs the proxy URL using the public task ID
+		taskResult.Progress = "100%"
+		if videoURL := extractVideoURL(resTask); videoURL != "" {
+			taskResult.Url = videoURL
+		}
 		if seconds := usageSecondsFromResponseTask(resTask); seconds > 0 {
 			taskResult.CompletionTokens = seconds
 			taskResult.TotalTokens = seconds
 		}
-	case "failed", "cancelled":
+	case "failed", "cancelled", "canceled", "error":
 		taskResult.Status = model.TaskStatusFailure
-		if resTask.Error != nil {
-			taskResult.Reason = resTask.Error.Message
+		taskResult.Progress = "100%"
+		if msg, _ := parseErrorField(resTask.Error); msg != "" {
+			taskResult.Reason = msg
+		} else if reason := extractErrorMessage(respBody); reason != "" {
+			taskResult.Reason = reason
 		} else {
 			taskResult.Reason = "task failed"
 		}
@@ -396,11 +405,100 @@ func parsePositiveIntString(raw string) int {
 	return 0
 }
 
+func parseErrorField(raw json.RawMessage) (message, code string) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return "", ""
+	}
+	var asString string
+	if err := json.Unmarshal(raw, &asString); err == nil {
+		return strings.TrimSpace(asString), ""
+	}
+	var asObject struct {
+		Message string `json:"message"`
+		Code    string `json:"code"`
+	}
+	if err := json.Unmarshal(raw, &asObject); err == nil {
+		return strings.TrimSpace(asObject.Message), strings.TrimSpace(asObject.Code)
+	}
+	return "", ""
+}
+
+func extractVideoURL(res responseTask) string {
+	if res.VideoURL != "" {
+		return res.VideoURL
+	}
+	return res.VideoURLSnake
+}
+
+func extractErrorMessage(respBody []byte) string {
+	var raw map[string]any
+	if err := common.Unmarshal(respBody, &raw); err != nil {
+		return ""
+	}
+	errVal, ok := raw["error"]
+	if !ok || errVal == nil {
+		return ""
+	}
+	switch v := errVal.(type) {
+	case string:
+		return strings.TrimSpace(v)
+	case map[string]any:
+		if msg, ok := v["message"].(string); ok {
+			return strings.TrimSpace(msg)
+		}
+	}
+	return ""
+}
+
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
-	data := task.Data
-	var err error
-	if data, err = sjson.SetBytes(data, "id", task.TaskID); err != nil {
-		return nil, errors.Wrap(err, "set id failed")
+	var dResp responseTask
+	if err := common.Unmarshal(task.Data, &dResp); err != nil {
+		return nil, errors.Wrap(err, "unmarshal task data failed")
+	}
+
+	openAIVideo := dto.NewOpenAIVideo()
+	openAIVideo.ID = task.TaskID
+	openAIVideo.TaskID = task.TaskID
+	openAIVideo.Status = task.Status.ToVideoStatus()
+	openAIVideo.SetProgressStr(task.Progress)
+	openAIVideo.Model = task.Properties.OriginModelName
+	openAIVideo.CreatedAt = task.CreatedAt
+	if task.FinishTime > 0 {
+		openAIVideo.CompletedAt = task.FinishTime
+	} else if dResp.CompletedAt > 0 {
+		openAIVideo.CompletedAt = dResp.CompletedAt
+	}
+
+	videoURL := extractVideoURL(dResp)
+	if videoURL == "" {
+		videoURL = task.GetResultURL()
+	}
+	if videoURL != "" {
+		openAIVideo.SetMetadata("url", videoURL)
+	}
+
+	if task.Status == model.TaskStatusFailure {
+		reason := task.FailReason
+		code := ""
+		if reason == "" {
+			reason = extractErrorMessage(task.Data)
+		}
+		if reason == "" {
+			reason, code = parseErrorField(dResp.Error)
+		}
+		if reason != "" {
+			openAIVideo.Error = &dto.OpenAIVideoError{Message: reason, Code: code}
+		}
+	}
+
+	data, err := common.Marshal(openAIVideo)
+	if err != nil {
+		return nil, err
+	}
+	if videoURL != "" {
+		if data, err = sjson.SetBytes(data, "video_url", videoURL); err != nil {
+			return nil, errors.Wrap(err, "set video_url failed")
+		}
 	}
 	return data, nil
 }
