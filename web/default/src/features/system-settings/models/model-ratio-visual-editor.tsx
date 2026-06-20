@@ -492,10 +492,11 @@ const ModelRatioVisualEditorComponent = forwardRef<
       const setIfPresent = (
         target: Record<string, number>,
         name: string,
-        value: string | undefined
+        value: string | number | undefined
       ) => {
-        if (!value || value === '') return
-        const parsed = parseFloat(value)
+        if (value === undefined || value === null || value === '') return
+        const parsed =
+          typeof value === 'number' ? value : parseFloat(String(value))
         if (Number.isFinite(parsed)) target[name] = parsed
       }
 

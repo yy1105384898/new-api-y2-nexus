@@ -1216,7 +1216,7 @@ function RuleGroupCard({ group, index, onChange, onRemove, t }) {
         </Text>
         <Input
           size='small'
-          value={group.multiplier || ''}
+          value={group.multiplier ?? ''}
           placeholder={t('例如 0.5 或 2')}
           suffix='x'
           onChange={(value) => onChange({ ...group, multiplier: value })}

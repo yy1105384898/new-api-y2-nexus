@@ -258,7 +258,10 @@ function buildRequestConditionExpr(cond) {
 // ---------------------------------------------------------------------------
 
 function buildRuleGroupFactor(group) {
-  const multiplier = (group.multiplier || '').trim();
+  const multiplier =
+    group.multiplier === 0 || group.multiplier === '0'
+      ? '0'
+      : String(group.multiplier ?? '').trim();
   if (!NUMERIC_LITERAL_REGEX.test(multiplier)) return '';
   const condExprs = (group.conditions || [])
     .map(buildRequestConditionExpr)

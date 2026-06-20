@@ -148,6 +148,22 @@ export function hasValue(value: unknown): boolean {
   )
 }
 
+/** Preserve numeric zero when converting form/API values to strings. */
+export function formatOptionalNumericField(value: unknown): string {
+  if (value === null || value === undefined || value === '') return ''
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? String(value) : ''
+  }
+  if (typeof value === 'string') return value
+  return ''
+}
+
+export function parseOptionalNumericField(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const num = typeof value === 'number' ? value : parseFloat(String(value))
+  return Number.isFinite(num) ? num : null
+}
+
 export function toNumberOrNull(value: unknown): number | null {
   if (!hasValue(value) && value !== 0) return null
   const num = Number(value)

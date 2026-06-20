@@ -760,7 +760,7 @@ function buildRequestConditionExpr(cond: RequestCondition): string {
 }
 
 function buildRuleGroupFactor(group: RequestRuleGroup): string {
-  const multiplier = (group.multiplier || '').trim()
+  const multiplier = (group.multiplier ?? '').trim()
   if (!NUMERIC_LITERAL_REGEX.test(multiplier)) return ''
   const condExprs = (group.conditions || [])
     .map(buildRequestConditionExpr)

@@ -67,6 +67,7 @@ import {
   buildPreviewRows,
   createInitialLaneState,
   createModelPricingSchema,
+  formatOptionalNumericField,
   hasValue,
   laneConfigs,
   numericDraftRegex,
@@ -176,14 +177,16 @@ export const ModelPricingEditorPanel = forwardRef<
     if (editData) {
       form.reset({
         name: editData.name,
-        price: editData.price || '',
-        ratio: editData.ratio || '',
-        cacheRatio: editData.cacheRatio || '',
-        createCacheRatio: editData.createCacheRatio || '',
-        completionRatio: editData.completionRatio || '',
-        imageRatio: editData.imageRatio || '',
-        audioRatio: editData.audioRatio || '',
-        audioCompletionRatio: editData.audioCompletionRatio || '',
+        price: formatOptionalNumericField(editData.price),
+        ratio: formatOptionalNumericField(editData.ratio),
+        cacheRatio: formatOptionalNumericField(editData.cacheRatio),
+        createCacheRatio: formatOptionalNumericField(editData.createCacheRatio),
+        completionRatio: formatOptionalNumericField(editData.completionRatio),
+        imageRatio: formatOptionalNumericField(editData.imageRatio),
+        audioRatio: formatOptionalNumericField(editData.audioRatio),
+        audioCompletionRatio: formatOptionalNumericField(
+          editData.audioCompletionRatio
+        ),
       })
       setPricingMode(
         editData.billingMode === 'tiered_expr'
@@ -439,14 +442,16 @@ export const ModelPricingEditorPanel = forwardRef<
       const data: ModelRatioData = {
         name: values.name.trim(),
         billingMode: pricingMode,
-        price: values.price || '',
-        ratio: values.ratio || '',
-        cacheRatio: values.cacheRatio || '',
-        createCacheRatio: values.createCacheRatio || '',
-        completionRatio: values.completionRatio || '',
-        imageRatio: values.imageRatio || '',
-        audioRatio: values.audioRatio || '',
-        audioCompletionRatio: values.audioCompletionRatio || '',
+        price: formatOptionalNumericField(values.price),
+        ratio: formatOptionalNumericField(values.ratio),
+        cacheRatio: formatOptionalNumericField(values.cacheRatio),
+        createCacheRatio: formatOptionalNumericField(values.createCacheRatio),
+        completionRatio: formatOptionalNumericField(values.completionRatio),
+        imageRatio: formatOptionalNumericField(values.imageRatio),
+        audioRatio: formatOptionalNumericField(values.audioRatio),
+        audioCompletionRatio: formatOptionalNumericField(
+          values.audioCompletionRatio
+        ),
       }
 
       if (pricingMode === 'tiered_expr') {

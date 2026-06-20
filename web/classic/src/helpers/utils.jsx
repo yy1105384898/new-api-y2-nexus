@@ -914,7 +914,7 @@ export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
     }
   } catch (e) {}
 
-  const gr = groupRatio || 1;
+  const gr = groupRatio ?? 1;
   const exprBody = billingExpr.replace(/^v\d+:/, '');
   const tierMatches = exprBody.match(/tier\(/g) || [];
   const tierCount = tierMatches.length;

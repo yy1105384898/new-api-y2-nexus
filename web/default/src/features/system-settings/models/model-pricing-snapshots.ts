@@ -281,14 +281,20 @@ export const buildModelSnapshots = ({
 export const getSnapshotSignature = (snapshot?: ModelPricingSnapshot) => {
   if (!snapshot) return ''
   return JSON.stringify({
-    price: snapshot.price || '',
-    ratio: snapshot.ratio || '',
-    cacheRatio: snapshot.cacheRatio || '',
-    createCacheRatio: snapshot.createCacheRatio || '',
-    completionRatio: snapshot.completionRatio || '',
-    imageRatio: snapshot.imageRatio || '',
-    audioRatio: snapshot.audioRatio || '',
-    audioCompletionRatio: snapshot.audioCompletionRatio || '',
+    price: hasPricingValue(snapshot.price) ? snapshot.price : '',
+    ratio: hasPricingValue(snapshot.ratio) ? snapshot.ratio : '',
+    cacheRatio: hasPricingValue(snapshot.cacheRatio) ? snapshot.cacheRatio : '',
+    createCacheRatio: hasPricingValue(snapshot.createCacheRatio)
+      ? snapshot.createCacheRatio
+      : '',
+    completionRatio: hasPricingValue(snapshot.completionRatio)
+      ? snapshot.completionRatio
+      : '',
+    imageRatio: hasPricingValue(snapshot.imageRatio) ? snapshot.imageRatio : '',
+    audioRatio: hasPricingValue(snapshot.audioRatio) ? snapshot.audioRatio : '',
+    audioCompletionRatio: hasPricingValue(snapshot.audioCompletionRatio)
+      ? snapshot.audioCompletionRatio
+      : '',
     billingMode: snapshot.billingMode || 'per-token',
     billingExpr: snapshot.billingExpr || '',
     requestRuleExpr: snapshot.requestRuleExpr || '',

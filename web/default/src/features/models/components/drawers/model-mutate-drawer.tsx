@@ -77,6 +77,7 @@ import {
 } from '@/features/system-settings/hooks/use-system-options'
 import { useUpdateOption } from '@/features/system-settings/hooks/use-update-option'
 import { normalizeJsonString } from '@/features/system-settings/models/utils'
+import { hasValue } from '@/features/system-settings/models/model-pricing-core'
 import type { ModelSettings } from '@/features/system-settings/types'
 import { safeJsonParse } from '@/features/system-settings/utils/json-parser'
 import { createModel, updateModel, getModel, getVendors } from '../../api'
@@ -424,16 +425,16 @@ export function ModelMutateDrawer({
           // Handle ratio configuration updates in system settings
           const finalModelName = values.model_name
           const hasRatioConfig =
-            (pricingMode === 'per-request' &&
-              values.price &&
-              values.price !== '') ||
+            (pricingMode === 'per-request' && hasValue(values.price)) ||
             (pricingMode === 'per-token' &&
-              (values.ratio ||
-                values.cacheRatio ||
-                values.completionRatio ||
-                values.imageRatio ||
-                values.audioRatio ||
-                values.audioCompletionRatio))
+              [
+                values.ratio,
+                values.cacheRatio,
+                values.completionRatio,
+                values.imageRatio,
+                values.audioRatio,
+                values.audioCompletionRatio,
+              ].some(hasValue))
 
           // Always process system settings updates if we have modelSettings
           // This ensures we can remove stale entries even when clearing all pricing fields
@@ -491,36 +492,29 @@ export function ModelMutateDrawer({
 
             // Only add new entries if user provided new configuration
             if (hasRatioConfig) {
-              if (
-                pricingMode === 'per-request' &&
-                values.price &&
-                values.price !== ''
-              ) {
-                priceMap[finalModelName] = parseFloat(values.price)
+              if (pricingMode === 'per-request' && hasValue(values.price)) {
+                priceMap[finalModelName] = parseFloat(String(values.price))
               } else if (pricingMode === 'per-token') {
-                if (values.ratio && values.ratio !== '') {
-                  ratioMap[finalModelName] = parseFloat(values.ratio)
+                if (hasValue(values.ratio)) {
+                  ratioMap[finalModelName] = parseFloat(String(values.ratio))
                 }
-                if (values.cacheRatio && values.cacheRatio !== '') {
-                  cacheMap[finalModelName] = parseFloat(values.cacheRatio)
+                if (hasValue(values.cacheRatio)) {
+                  cacheMap[finalModelName] = parseFloat(String(values.cacheRatio))
                 }
-                if (values.completionRatio && values.completionRatio !== '') {
+                if (hasValue(values.completionRatio)) {
                   completionMap[finalModelName] = parseFloat(
-                    values.completionRatio
+                    String(values.completionRatio)
                   )
                 }
-                if (values.imageRatio && values.imageRatio !== '') {
-                  imageMap[finalModelName] = parseFloat(values.imageRatio)
+                if (hasValue(values.imageRatio)) {
+                  imageMap[finalModelName] = parseFloat(String(values.imageRatio))
                 }
-                if (values.audioRatio && values.audioRatio !== '') {
-                  audioMap[finalModelName] = parseFloat(values.audioRatio)
+                if (hasValue(values.audioRatio)) {
+                  audioMap[finalModelName] = parseFloat(String(values.audioRatio))
                 }
-                if (
-                  values.audioCompletionRatio &&
-                  values.audioCompletionRatio !== ''
-                ) {
+                if (hasValue(values.audioCompletionRatio)) {
                   audioCompletionMap[finalModelName] = parseFloat(
-                    values.audioCompletionRatio
+                    String(values.audioCompletionRatio)
                   )
                 }
               }

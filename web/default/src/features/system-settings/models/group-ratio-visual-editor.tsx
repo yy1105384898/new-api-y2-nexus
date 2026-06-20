@@ -992,7 +992,7 @@ function SimpleGroupDialog({
   }, [editData, open])
 
   const handleSave = () => {
-    if (!name.trim() || !value.trim()) return
+    if (!name.trim() || value.trim() === '') return
     onSave(name.trim(), value.trim())
     setName('')
     setValue('')
@@ -1081,9 +1081,9 @@ function GroupOverrideDialog({
   }, [editData, open])
 
   const handleSave = () => {
-    if (!targetGroup.trim() || !ratio.trim()) return
+    if (!targetGroup.trim() || ratio.trim() === '') return
     const parsedRatio = parseFloat(ratio)
-    if (isNaN(parsedRatio)) return
+    if (!Number.isFinite(parsedRatio)) return
 
     onSave(targetGroup.trim(), parsedRatio, editData?.targetGroup)
     setTargetGroup('')
