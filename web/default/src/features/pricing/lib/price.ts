@@ -289,9 +289,20 @@ export function formatRequestPrice(
     usdExchangeRate
   )
 
-  return formatCurrencyFromUSD(priceInUSD, {
+  const formatted = formatCurrencyFromUSD(priceInUSD, {
     digitsLarge: 4,
     digitsSmall: 4,
     abbreviate: false,
   })
+
+  if (model.billing_mode === 'per_second') {
+    return `${formatted}/s`
+  }
+
+  const unit = model.request_unit?.trim() || 'request'
+  if (model.billing_mode === 'per_request' || model.request_unit) {
+    return `${formatted}/${unit}`
+  }
+
+  return formatted
 }
