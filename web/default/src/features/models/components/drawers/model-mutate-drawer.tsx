@@ -108,7 +108,7 @@ const extendedModelFormSchema = z.object({
 
 type ExtendedModelFormValues = z.infer<typeof extendedModelFormSchema>
 
-type PricingMode = 'per-token' | 'per-request'
+type PricingMode = 'per-token' | 'per-request' | 'per-second'
 type PricingSubMode = 'ratio' | 'price'
 
 type ModelMutateDrawerProps = {
@@ -317,10 +317,15 @@ export function ModelMutateDrawer({
           modelSettings.AudioCompletionRatio,
           { fallback: {}, silent: true }
         )
+        const billingModeMap = safeJsonParse<Record<string, string>>(
+          modelSettings['billing_setting.billing_mode'],
+          { fallback: {}, silent: true }
+        )
 
         // Extract ratio config for this model
         const modelName = model.model_name
         const price = priceMap[modelName]
+        const billingMode = billingModeMap[modelName]
         const ratio = ratioMap[modelName]
         const cacheRatio = cacheMap[modelName]
         const completionRatio = completionMap[modelName]
@@ -329,7 +334,13 @@ export function ModelMutateDrawer({
         const audioCompletionRatio = audioCompletionMap[modelName]
 
         // Determine pricing mode
-        if (price !== undefined && price !== null) {
+        if (billingMode === 'per_second' && price !== undefined && price !== null) {
+          setPricingMode('per-second')
+          form.reset({
+            ...baseModelData,
+            price: price.toString(),
+          })
+        } else if (price !== undefined && price !== null) {
           setPricingMode('per-request')
           form.reset({
             ...baseModelData,
@@ -426,6 +437,7 @@ export function ModelMutateDrawer({
           const finalModelName = values.model_name
           const hasRatioConfig =
             (pricingMode === 'per-request' && hasValue(values.price)) ||
+            (pricingMode === 'per-second' && hasValue(values.price)) ||
             (pricingMode === 'per-token' &&
               [
                 values.ratio,
@@ -468,6 +480,10 @@ export function ModelMutateDrawer({
               modelSettings.AudioCompletionRatio,
               { fallback: {}, silent: true }
             )
+            const billingModeMap = safeJsonParse<Record<string, string>>(
+              modelSettings['billing_setting.billing_mode'],
+              { fallback: {}, silent: true }
+            )
 
             // Remove old model name entries if model name changed (always, even if no new config)
             if (isEditing && oldModelName && oldModelName !== finalModelName) {
@@ -478,6 +494,7 @@ export function ModelMutateDrawer({
               delete imageMap[oldModelName]
               delete audioMap[oldModelName]
               delete audioCompletionMap[oldModelName]
+              delete billingModeMap[oldModelName]
             }
 
             // Remove current model name from all maps first (always, to handle mode switches or clearing)
@@ -489,11 +506,20 @@ export function ModelMutateDrawer({
             delete imageMap[finalModelName]
             delete audioMap[finalModelName]
             delete audioCompletionMap[finalModelName]
+            delete billingModeMap[finalModelName]
 
             // Only add new entries if user provided new configuration
             if (hasRatioConfig) {
-              if (pricingMode === 'per-request' && hasValue(values.price)) {
+              if (
+                (pricingMode === 'per-request' || pricingMode === 'per-second') &&
+                hasValue(values.price)
+              ) {
                 priceMap[finalModelName] = parseFloat(String(values.price))
+                if (pricingMode === 'per-second') {
+                  billingModeMap[finalModelName] = 'per_second'
+                } else {
+                  billingModeMap[finalModelName] = 'per_request'
+                }
               } else if (pricingMode === 'per-token') {
                 if (hasValue(values.ratio)) {
                   ratioMap[finalModelName] = parseFloat(String(values.ratio))
@@ -581,6 +607,19 @@ export function ModelMutateDrawer({
               updates.push({
                 key: 'AudioCompletionRatio',
                 value: newAudioCompletionRatio,
+              })
+            }
+
+            const newBillingMode = normalizeJsonString(
+              JSON.stringify(billingModeMap)
+            )
+            if (
+              newBillingMode !==
+              normalizeJsonString(modelSettings['billing_setting.billing_mode'])
+            ) {
+              updates.push({
+                key: 'billing_setting.billing_mode',
+                value: newBillingMode,
               })
             }
 
@@ -909,6 +948,12 @@ export function ModelMutateDrawer({
                       {t('Per-request (fixed price)')}
                     </Label>
                   </div>
+                  <div className='flex items-center space-x-2'>
+                    <RadioGroupItem value='per-second' id='per-second' />
+                    <Label htmlFor='per-second' className='font-normal'>
+                      {t('Per-second (unit price)')}
+                    </Label>
+                  </div>
                 </RadioGroup>
               </div>
 
@@ -935,6 +980,35 @@ export function ModelMutateDrawer({
                       <FormDescription>
                         {t(
                           'Cost in USD per request, regardless of tokens used.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : pricingMode === 'per-second' ? (
+                <FormField
+                  control={form.control}
+                  name='price'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Unit price (USD)')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          type='text'
+                          placeholder='0.01'
+                          {...field}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            if (validateNumber(value)) {
+                              field.onChange(value)
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'Total charge = unit price × upstream seconds (for example usage.seconds). Other multipliers such as resolution still apply.'
                         )}
                       </FormDescription>
                       <FormMessage />

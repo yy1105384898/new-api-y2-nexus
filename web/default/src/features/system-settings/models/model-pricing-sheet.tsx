@@ -48,6 +48,13 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
@@ -72,11 +79,14 @@ import {
   laneConfigs,
   numericDraftRegex,
   ratioFieldByLane,
+  REQUEST_UNIT_OPTIONS,
   toNumberOrNull,
   type LaneKey,
   type ModelPricingFormValues,
   type ModelRatioData,
   type PricingMode,
+  type RequestUnit,
+  resolvePricingModeFromData,
 } from './model-pricing-core'
 import { PriceInput, PriceLane } from './model-pricing-inputs'
 import { formatPricingNumber } from './pricing-format'
@@ -154,6 +164,7 @@ export const ModelPricingEditorPanel = forwardRef<
   })
   const [billingExpr, setBillingExpr] = useState('')
   const [requestRuleExpr, setRequestRuleExpr] = useState('')
+  const [requestUnit, setRequestUnit] = useState<RequestUnit>('request')
   const isEditMode = !!editData
 
   const form = useForm<ModelPricingFormValues>({
@@ -188,15 +199,10 @@ export const ModelPricingEditorPanel = forwardRef<
           editData.audioCompletionRatio
         ),
       })
-      setPricingMode(
-        editData.billingMode === 'tiered_expr'
-          ? 'tiered_expr'
-          : editData.price
-            ? 'per-request'
-            : 'per-token'
-      )
+      setPricingMode(resolvePricingModeFromData(editData))
       setBillingExpr(editData.billingExpr || '')
       setRequestRuleExpr(editData.requestRuleExpr || '')
+      setRequestUnit(editData.requestUnit || 'request')
     } else {
       form.reset({
         name: '',
@@ -212,6 +218,7 @@ export const ModelPricingEditorPanel = forwardRef<
       setPricingMode('per-token')
       setBillingExpr('')
       setRequestRuleExpr('')
+      setRequestUnit('request')
     }
 
     setPromptPrice(nextLaneState.promptPrice)
@@ -337,6 +344,9 @@ export const ModelPricingEditorPanel = forwardRef<
     if (nextMode === 'tiered_expr' && !billingExpr) {
       setBillingExpr('tier("base", p * 0 + c * 0)')
     }
+    if (nextMode === 'per-request' && !requestUnit) {
+      setRequestUnit('request')
+    }
   }
 
   const watchedValues = form.watch()
@@ -347,6 +357,7 @@ export const ModelPricingEditorPanel = forwardRef<
         pricingMode,
         billingExpr,
         requestRuleExpr,
+        requestUnit,
         promptPrice,
         lanePrices,
         laneEnabled,
@@ -359,6 +370,7 @@ export const ModelPricingEditorPanel = forwardRef<
       pricingMode,
       promptPrice,
       requestRuleExpr,
+      requestUnit,
       t,
       watchedValues,
     ]
@@ -452,6 +464,7 @@ export const ModelPricingEditorPanel = forwardRef<
         audioCompletionRatio: formatOptionalNumericField(
           values.audioCompletionRatio
         ),
+        requestUnit: pricingMode === 'per-request' ? requestUnit : undefined,
       }
 
       if (pricingMode === 'tiered_expr') {
@@ -461,7 +474,7 @@ export const ModelPricingEditorPanel = forwardRef<
 
       return data
     },
-    [billingExpr, pricingMode, requestRuleExpr]
+    [billingExpr, pricingMode, requestRuleExpr, requestUnit]
   )
 
   useImperativeHandle(
@@ -545,12 +558,15 @@ export const ModelPricingEditorPanel = forwardRef<
                   onValueChange={handleModeChange}
                   className='gap-4'
                 >
-                  <TabsList className='grid w-full grid-cols-3'>
+                  <TabsList className='grid w-full grid-cols-4'>
                     <TabsTrigger value='per-token'>
                       {t('Per-token')}
                     </TabsTrigger>
                     <TabsTrigger value='per-request'>
                       {t('Per-request')}
+                    </TabsTrigger>
+                    <TabsTrigger value='per-second'>
+                      {t('Per-second')}
                     </TabsTrigger>
                     <TabsTrigger value='tiered_expr'>
                       {t('Expression')}
@@ -623,13 +639,79 @@ export const ModelPricingEditorPanel = forwardRef<
                                     }}
                                   />
                                   <InputGroupAddon align='inline-end'>
-                                    {t('per request')}
+                                    {t('per')}
                                   </InputGroupAddon>
                                 </InputGroup>
                               </FormControl>
                               <FieldDescription>
                                 {t(
-                                  'Cost in USD per request, regardless of tokens used.'
+                                  'Cost in USD per billing unit, regardless of tokens used.'
+                                )}
+                              </FieldDescription>
+                              <FormMessage />
+                            </Field>
+                          </FormItem>
+                        )}
+                      />
+                      <Field>
+                        <FieldLabel>{t('Billing unit')}</FieldLabel>
+                        <Select
+                          value={requestUnit}
+                          onValueChange={(value) =>
+                            setRequestUnit(value as RequestUnit)
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={t('Select unit')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {REQUEST_UNIT_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {t(option.labelKey)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FieldDescription>
+                          {t(
+                            'How this fixed price is labeled and interpreted for clients.'
+                          )}
+                        </FieldDescription>
+                      </Field>
+                    </FieldGroup>
+                  </TabsContent>
+
+                  <TabsContent value='per-second' className='pt-0'>
+                    <FieldGroup className='gap-5'>
+                      <FormField
+                        control={form.control}
+                        name='price'
+                        render={({ field }) => (
+                          <FormItem className='contents'>
+                            <Field>
+                              <FieldLabel>{t('Unit price')}</FieldLabel>
+                              <FormControl>
+                                <InputGroup>
+                                  <InputGroupAddon>$</InputGroupAddon>
+                                  <InputGroupInput
+                                    inputMode='decimal'
+                                    placeholder='0.01'
+                                    {...field}
+                                    onChange={(event) => {
+                                      const value = event.target.value
+                                      if (numericDraftRegex.test(value)) {
+                                        field.onChange(value)
+                                      }
+                                    }}
+                                  />
+                                  <InputGroupAddon align='inline-end'>
+                                    {t('per second')}
+                                  </InputGroupAddon>
+                                </InputGroup>
+                              </FormControl>
+                              <FieldDescription>
+                                {t(
+                                  'Total charge = unit price × upstream seconds (for example usage.seconds). Other multipliers such as resolution still apply.'
                                 )}
                               </FieldDescription>
                               <FormMessage />

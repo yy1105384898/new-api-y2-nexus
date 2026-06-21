@@ -37,7 +37,49 @@ export type ModelPricingFormValues = z.infer<
   ReturnType<typeof createModelPricingSchema>
 >
 
-export type PricingMode = 'per-token' | 'per-request' | 'tiered_expr'
+export type PricingMode = 'per-token' | 'per-request' | 'per-second' | 'tiered_expr'
+
+export type RequestUnit =
+  | 'request'
+  | 'call'
+  | 'image'
+  | 'task'
+  | 'generation'
+
+export const REQUEST_UNIT_OPTIONS: Array<{
+  value: RequestUnit
+  labelKey: string
+}> = [
+  { value: 'request', labelKey: 'request' },
+  { value: 'call', labelKey: 'call' },
+  { value: 'image', labelKey: 'image' },
+  { value: 'task', labelKey: 'task' },
+  { value: 'generation', labelKey: 'generation' },
+]
+
+export function toBackendBillingMode(mode: PricingMode): string {
+  if (mode === 'tiered_expr') return 'tiered_expr'
+  if (mode === 'per-second') return 'per_second'
+  if (mode === 'per-request') return 'per_request'
+  return 'ratio'
+}
+
+export function fromBackendBillingMode(mode?: string): PricingMode | undefined {
+  if (mode === 'tiered_expr') return 'tiered_expr'
+  if (mode === 'per_second') return 'per-second'
+  if (mode === 'per_request') return 'per-request'
+  return undefined
+}
+
+export function resolvePricingModeFromData(data?: Pick<ModelRatioData, 'billingMode' | 'price'> | null): PricingMode {
+  if (!data) return 'per-token'
+  if (data.billingMode === 'tiered_expr') return 'tiered_expr'
+  if (data.billingMode === 'per-second') return 'per-second'
+  if (data.billingMode === 'per-request') return 'per-request'
+  const mapped = fromBackendBillingMode(data.billingMode)
+  if (mapped) return mapped
+  return data.price ? 'per-request' : 'per-token'
+}
 
 export type LaneKey =
   | 'completion'
@@ -60,6 +102,7 @@ export type ModelRatioData = {
   billingMode?: PricingMode
   billingExpr?: string
   requestRuleExpr?: string
+  requestUnit?: RequestUnit
 }
 
 export type PreviewRow = {
@@ -226,6 +269,7 @@ export function buildPreviewRows(
   mode: PricingMode,
   billingExpr: string,
   requestRuleExpr: string,
+  requestUnit: RequestUnit,
   promptPrice: string,
   lanePrices: Record<LaneKey, string>,
   laneEnabled: Record<LaneKey, boolean>,
@@ -245,11 +289,37 @@ export function buildPreviewRows(
   }
 
   if (mode === 'per-request') {
+    const unit = requestUnit || 'request'
     return [
       {
         key: 'price',
         label: 'ModelPrice',
         value: values.price || t('Empty'),
+      },
+      {
+        key: 'unit',
+        label: t('Billing unit'),
+        value: t(unit),
+      },
+    ]
+  }
+
+  if (mode === 'per-second') {
+    return [
+      {
+        key: 'price',
+        label: 'ModelPrice',
+        value: values.price ? `$${values.price}` : t('Empty'),
+      },
+      {
+        key: 'unit',
+        label: t('Billing unit'),
+        value: t('second'),
+      },
+      {
+        key: 'formula',
+        label: t('Formula'),
+        value: t('Unit price × upstream seconds'),
       },
     ]
   }
