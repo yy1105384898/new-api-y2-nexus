@@ -50,12 +50,21 @@ export const REQUEST_UNIT_OPTIONS: Array<{
   value: RequestUnit
   labelKey: string
 }> = [
-  { value: 'request', labelKey: 'request' },
-  { value: 'call', labelKey: 'call' },
-  { value: 'image', labelKey: 'image' },
-  { value: 'task', labelKey: 'task' },
-  { value: 'generation', labelKey: 'generation' },
+  { value: 'request', labelKey: 'billingUnit.request' },
+  { value: 'call', labelKey: 'billingUnit.call' },
+  { value: 'image', labelKey: 'billingUnit.image' },
+  { value: 'task', labelKey: 'billingUnit.task' },
+  { value: 'generation', labelKey: 'billingUnit.generation' },
 ]
+
+export function formatRequestUnitLabel(
+  unit: string | undefined,
+  t: (key: string) => string
+): string {
+  const normalized = (unit?.trim() || 'request') as RequestUnit
+  const option = REQUEST_UNIT_OPTIONS.find((item) => item.value === normalized)
+  return t(option?.labelKey ?? 'billingUnit.request')
+}
 
 export function toBackendBillingMode(mode: PricingMode): string {
   if (mode === 'tiered_expr') return 'tiered_expr'
@@ -289,7 +298,6 @@ export function buildPreviewRows(
   }
 
   if (mode === 'per-request') {
-    const unit = requestUnit || 'request'
     return [
       {
         key: 'price',
@@ -299,7 +307,7 @@ export function buildPreviewRows(
       {
         key: 'unit',
         label: t('Billing unit'),
-        value: t(unit),
+        value: formatRequestUnitLabel(requestUnit, t),
       },
     ]
   }
@@ -314,7 +322,7 @@ export function buildPreviewRows(
       {
         key: 'unit',
         label: t('Billing unit'),
-        value: t('second'),
+        value: t('billingUnit.second'),
       },
       {
         key: 'formula',

@@ -55,6 +55,7 @@ import {
 import { parseTags } from '../lib/filters'
 import { getAvailableGroups, isTokenBasedModel } from '../lib/model-helpers'
 import { inferModelMetadata } from '../lib/model-metadata'
+import { formatRequestUnitLabel } from '@/features/system-settings/models/model-pricing-core'
 import { formatFixedPrice, formatGroupPrice } from '../lib/price'
 import type {
   Modality,
@@ -474,7 +475,9 @@ function PriceSection(props: {
         <SectionTitle>{t('Base Price')}</SectionTitle>
         <div className='flex items-baseline justify-between'>
           <span className='text-muted-foreground text-sm'>
-            {t('Per request')}
+            {t('Fixed price per {{unit}}', {
+              unit: formatRequestUnitLabel(props.model.request_unit, t),
+            })}
           </span>
           <span className='text-foreground font-mono text-sm font-semibold tabular-nums'>
             {formatFixedPrice(
@@ -483,7 +486,8 @@ function PriceSection(props: {
               props.showRechargePrice,
               props.priceRate,
               props.usdExchangeRate,
-              baseGroupRatioMap
+              baseGroupRatioMap,
+              t
             )}
           </span>
         </div>
@@ -800,7 +804,8 @@ function GroupPricingSection(props: {
       showRechargePrice,
       props.priceRate,
       props.usdExchangeRate,
-      props.groupRatio
+      props.groupRatio,
+      t
     )
 
   return (
