@@ -75,6 +75,7 @@ import {
   createInitialLaneState,
   createModelPricingSchema,
   formatOptionalNumericField,
+  formatRequestUnitLabel,
   hasValue,
   laneConfigs,
   numericDraftRegex,
@@ -639,7 +640,8 @@ export const ModelPricingEditorPanel = forwardRef<
                                     }}
                                   />
                                   <InputGroupAddon align='inline-end'>
-                                    {t('per')}
+                                    {t('per')}{' '}
+                                    {formatRequestUnitLabel(requestUnit, t)}
                                   </InputGroupAddon>
                                 </InputGroup>
                               </FormControl>
@@ -662,7 +664,9 @@ export const ModelPricingEditorPanel = forwardRef<
                           }
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder={t('Select unit')} />
+                            <SelectValue placeholder={t('Select unit')}>
+                              {formatRequestUnitLabel(requestUnit, t)}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             {REQUEST_UNIT_OPTIONS.map((option) => (

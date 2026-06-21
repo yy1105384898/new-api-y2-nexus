@@ -19,7 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { splitBillingExprAndRequestRules } from '@/features/pricing/lib/billing-expr'
 import { safeJsonParse } from '../utils/json-parser'
 import { formatPricingNumber } from './pricing-format'
-import { fromBackendBillingMode, type RequestUnit } from './model-pricing-core'
+import {
+  formatRequestUnitLabel,
+  fromBackendBillingMode,
+  type RequestUnit,
+} from './model-pricing-core'
 
 export type ModelPricingSnapshotInput = {
   modelPrice: string
@@ -111,13 +115,13 @@ export const getPriceSummary = (
     return getExpressionSummary(row, t)
   }
   if (row.billingMode === 'per-request') {
-    const unit = row.requestUnit || 'request'
+    const unit = formatRequestUnitLabel(row.requestUnit, t)
     return row.price
-      ? `$${row.price} / ${t(unit)}`
+      ? `$${row.price} / ${unit}`
       : t('Unset price')
   }
   if (row.billingMode === 'per-second') {
-    return row.price ? `$${row.price} / ${t('second')}` : t('Unset price')
+    return row.price ? `$${row.price} / ${t('billingUnit.second')}` : t('Unset price')
   }
 
   const inputPrice = ratioToPrice(row.ratio)
@@ -147,8 +151,8 @@ export const getPriceDetail = (
       : t('Expression based')
   }
   if (row.billingMode === 'per-request') {
-    const unit = row.requestUnit || 'request'
-    return t('Fixed price per {{unit}}', { unit: t(unit) })
+    const unit = formatRequestUnitLabel(row.requestUnit, t)
+    return t('Fixed price per {{unit}}', { unit })
   }
   if (row.billingMode === 'per-second') {
     return t('Unit price multiplied by upstream seconds')

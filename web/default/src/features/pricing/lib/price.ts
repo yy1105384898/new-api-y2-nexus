@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { formatCurrencyFromUSD } from '@/lib/currency'
+import { formatRequestUnitLabel } from '@/features/system-settings/models/model-pricing-core'
 import { QUOTA_TYPE_VALUES, TOKEN_UNIT_DIVISORS } from '../constants'
 import type { PricingModel, TokenUnit, PriceType } from '../types'
 
@@ -232,13 +233,38 @@ export function formatGroupPrice(
 /**
  * Format fixed price for pay-per-request models (with specific group)
  */
+function appendRequestUnitSuffix(
+  formatted: string,
+  model: PricingModel,
+  translate?: (key: string) => string
+): string {
+  if (model.billing_mode === 'per_second') {
+    const secondLabel = translate ? translate('billingUnit.second') : 's'
+    return `${formatted}/${secondLabel}`
+  }
+
+  const unitKey = model.request_unit?.trim()
+  const showUnit =
+    model.billing_mode === 'per_request' ||
+    Boolean(unitKey) ||
+    model.quota_type === QUOTA_TYPE_VALUES.REQUEST
+
+  if (!showUnit) return formatted
+
+  const unitLabel = translate
+    ? formatRequestUnitLabel(unitKey, translate)
+    : unitKey || 'request'
+  return `${formatted}/${unitLabel}`
+}
+
 export function formatFixedPrice(
   model: PricingModel,
   group: string,
   showWithRecharge = false,
   priceRate = 1,
   usdExchangeRate = 1,
-  groupRatio: Record<string, number>
+  groupRatio: Record<string, number>,
+  translate?: (key: string) => string
 ): string {
   if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
     return '-'
@@ -254,11 +280,13 @@ export function formatFixedPrice(
     usdExchangeRate
   )
 
-  return formatCurrencyFromUSD(priceInUSD, {
+  const formatted = formatCurrencyFromUSD(priceInUSD, {
     digitsLarge: 4,
     digitsSmall: 4,
     abbreviate: false,
   })
+
+  return appendRequestUnitSuffix(formatted, model, translate)
 }
 
 /**
@@ -268,7 +296,8 @@ export function formatRequestPrice(
   model: PricingModel,
   showWithRecharge = false,
   priceRate = 1,
-  usdExchangeRate = 1
+  usdExchangeRate = 1,
+  translate?: (key: string) => string
 ): string {
   if (model.quota_type !== QUOTA_TYPE_VALUES.REQUEST) {
     return '-'
@@ -295,14 +324,5 @@ export function formatRequestPrice(
     abbreviate: false,
   })
 
-  if (model.billing_mode === 'per_second') {
-    return `${formatted}/s`
-  }
-
-  const unit = model.request_unit?.trim() || 'request'
-  if (model.billing_mode === 'per_request' || model.request_unit) {
-    return `${formatted}/${unit}`
-  }
-
-  return formatted
+  return appendRequestUnitSuffix(formatted, model, translate)
 }
