@@ -9,7 +9,10 @@ License, or (at your option) any later version.
 import { Link } from '@tanstack/react-router'
 import { CopyBlock } from './components/copy-block'
 import { DocsSection } from './components/docs-section'
-import { DEFAULT_CANVAS_BASE_URL } from '@/features/canvas/lib/canvas-config'
+import {
+  DEFAULT_CANVAS_BASE_URL,
+  DEFAULT_CANVAS_DOCS_URL,
+} from '@/features/canvas/lib/canvas-config'
 
 type UserDocsSectionsProps = {
   siteOrigin: string
@@ -259,7 +262,7 @@ export function UserDocsSections(props: UserDocsSectionsProps) {
         <p>
           画布详细操作见{' '}
           <a
-            href={`${DEFAULT_CANVAS_BASE_URL}/docs/tutorials/quick-guide`}
+            href={DEFAULT_CANVAS_DOCS_URL}
             target='_blank'
             rel='noopener noreferrer'
             className='text-primary hover:underline'

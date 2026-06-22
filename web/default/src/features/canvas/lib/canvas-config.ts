@@ -8,3 +8,4 @@ License, or (at your option) any later version.
 */
 
 export const DEFAULT_CANVAS_BASE_URL = 'https://canvas.cangyuansuanli.cn'
+export const DEFAULT_CANVAS_DOCS_URL = `${DEFAULT_CANVAS_BASE_URL}/docs`
