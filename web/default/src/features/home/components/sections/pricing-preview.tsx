@@ -270,9 +270,6 @@ export function PricingPreview() {
           <p className={cn('mt-1 text-sm', mkt.muted)}>
             {t('Home pricing preview subtitle')}
           </p>
-          <p className={cn('mt-1 text-xs', mkt.muted)}>
-            {t('Home pricing preview split hint')}
-          </p>
         </AnimateInView>
 
         <AnimateInView animation='fade-up' className='space-y-10'>
@@ -351,18 +348,16 @@ export function PricingPreview() {
             </p>
           ) : null}
 
-          <div className='space-y-1 text-center'>
-            <p className={cn('text-xs leading-relaxed', mkt.muted)}>
-              {t(
-                'Fixed pricing — what you see is what you pay. No fluctuation with network load, no hidden coefficient.'
-              )}
-            </p>
-            {sections.text.length > 0 ? (
-              <p className={cn('text-xs', mkt.muted)}>
-                {t('Home official pricing footnote')}
-              </p>
-            ) : null}
-          </div>
+          <p
+            className={cn(
+              'text-center text-xs leading-relaxed',
+              mkt.muted
+            )}
+          >
+            {t(
+              'Fixed pricing — what you see is what you pay. No fluctuation with network load, no hidden coefficient.'
+            )}
+          </p>
 
           <div className='flex justify-center'>
             <Button

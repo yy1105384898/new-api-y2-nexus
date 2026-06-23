@@ -42,6 +42,19 @@ function stripDoubaoPrefix(key: string): string {
   return key.startsWith('doubao-') ? key.slice('doubao-'.length) : key
 }
 
+/** Strip -thinking / -nothinking / -thinking-{budget} suffixes for official price lookup. */
+function stripThinkingSuffix(key: string): string | null {
+  if (key.endsWith('-nothinking')) {
+    return key.slice(0, -'-nothinking'.length)
+  }
+  if (key.endsWith('-thinking')) {
+    return key.slice(0, -'-thinking'.length)
+  }
+  const budgetMatch = key.match(/^(.+)-thinking-\d+$/)
+  if (budgetMatch) return budgetMatch[1]
+  return null
+}
+
 function registerLookupAlias(
   index: Record<string, ModelsDevCost>,
   alias: string,
@@ -74,6 +87,11 @@ export function expandModelLookupAliases(modelName: string): string[] {
   const aliases = new Set<string>([raw])
   const normalized = normalizeModelLookupKey(raw)
   aliases.add(normalized)
+
+  const withoutThinking = stripThinkingSuffix(normalized)
+  if (withoutThinking && withoutThinking !== normalized) {
+    aliases.add(withoutThinking)
+  }
 
   const withoutDoubao = stripDoubaoPrefix(normalized)
   if (withoutDoubao !== normalized) {
