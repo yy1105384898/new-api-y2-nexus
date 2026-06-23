@@ -16,13 +16,12 @@ import { SITE_BRAND } from './lib/site-assets'
 import { HomeBackground } from './components/home-background'
 import {
   CTA,
-  Features,
   Hero,
-  Highlights,
   HowItWorks,
-  ProductTools,
+  PricingPreview,
   ProviderLogos,
-  Stats,
+  ShowcaseGallery,
+  WhyUs,
 } from './components'
 import { useHomePageContent } from './hooks'
 
@@ -82,12 +81,11 @@ export function Home() {
       <div className={`marketing-home relative min-h-svh ${mkt.page}`}>
         <HomeBackground />
         <Hero isAuthenticated={isAuthenticated} />
-        <ProviderLogos />
-        <Highlights />
-        <ProductTools />
-        <Stats />
-        <Features />
+        <PricingPreview />
+        <ShowcaseGallery />
+        <WhyUs />
         <HowItWorks />
+        <ProviderLogos />
         <CTA isAuthenticated={isAuthenticated} />
         <Footer className={mkt.footer} />
       </div>
