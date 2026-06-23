@@ -7,6 +7,7 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { QUOTA_TYPE_VALUES } from '@/features/pricing/constants'
+import { formatRequestPrice } from '@/features/pricing/lib/price'
 import type { PricingModel, PriceType } from '@/features/pricing/types'
 
 export interface FeaturedModelSpec {
@@ -15,8 +16,8 @@ export interface FeaturedModelSpec {
   official?: { input: number; output: number }
 }
 
-/** Frontier models shown on the home pricing table, in display order */
-export const FEATURED_MODEL_ORDER: FeaturedModelSpec[] = [
+/** Official API pricing for optional save-% enrichment only */
+const OFFICIAL_PRICE_SPECS: FeaturedModelSpec[] = [
   {
     display: 'Claude Opus 4',
     pattern: /claude-opus-4(?:\.\d|-)/i,
@@ -59,6 +60,11 @@ export const FEATURED_MODEL_ORDER: FeaturedModelSpec[] = [
   },
 ]
 
+export interface HomePricingSelectOptions {
+  limit?: number
+  maxPerPrefix?: number
+}
+
 function getMinGroupRatio(
   enableGroups: string[],
   groupRatio: Record<string, number>
@@ -100,11 +106,50 @@ function calculateTokenPriceUSD(
   }
 }
 
+function findOfficialSpec(modelName: string): FeaturedModelSpec | undefined {
+  return OFFICIAL_PRICE_SPECS.find((spec) => spec.pattern.test(modelName))
+}
+
+/** Strip date / variant suffixes so model family variants share one prefix key */
+export function getModelFamilyPrefix(modelName: string): string {
+  let name = modelName.trim().toLowerCase()
+  name = name.replace(/(-latest|-preview|-exp|-experimental)$/i, '')
+  name = name.replace(/-\d{4}-\d{2}-\d{2}$/, '')
+  name = name.replace(/-\d{8}$/, '')
+  name = name.replace(/-\d{4}-\d{2}$/, '')
+  return name
+}
+
+export function selectHomePricingModels(
+  models: PricingModel[],
+  options: HomePricingSelectOptions = {}
+): PricingModel[] {
+  const { limit = 20, maxPerPrefix = 2 } = options
+  const sorted = [...models].sort((a, b) =>
+    a.model_name.localeCompare(b.model_name)
+  )
+  const prefixCounts = new Map<string, number>()
+  const selected: PricingModel[] = []
+
+  for (const model of sorted) {
+    const prefix = getModelFamilyPrefix(model.model_name)
+    const count = prefixCounts.get(prefix) ?? 0
+    if (count >= maxPerPrefix) continue
+    prefixCounts.set(prefix, count + 1)
+    selected.push(model)
+    if (selected.length >= limit) break
+  }
+
+  return selected
+}
+
 export interface HomePricingRow {
   display: string
   modelName: string
-  input: number
-  output: number
+  isRequestBased: boolean
+  input: number | null
+  output: number | null
+  requestPrice: string | null
   cacheRead: number | null
   cacheWrite: number | null
   officialInput: number | null
@@ -119,49 +164,61 @@ export function formatUsdPerM(value: number | null): string {
   return `$${value.toFixed(4)}`
 }
 
-export function pickFeaturedPricingRows(
-  models: PricingModel[]
-): HomePricingRow[] {
-  const tokenModels = models.filter(
-    (m) => m.quota_type === QUOTA_TYPE_VALUES.TOKEN
-  )
-  const rows: HomePricingRow[] = []
+function modelToHomeRow(model: PricingModel): HomePricingRow {
+  const spec = findOfficialSpec(model.model_name)
+  const enableGroups = Array.isArray(model.enable_groups)
+    ? model.enable_groups
+    : []
+  const groupRatio = model.group_ratio || {}
+  const minRatio = getMinGroupRatio(enableGroups, groupRatio)
 
-  for (const spec of FEATURED_MODEL_ORDER) {
-    const model = tokenModels.find((m) => spec.pattern.test(m.model_name))
-    if (!model) continue
-
-    const enableGroups = Array.isArray(model.enable_groups)
-      ? model.enable_groups
-      : []
-    const groupRatio = model.group_ratio || {}
-    const minRatio = getMinGroupRatio(enableGroups, groupRatio)
-
-    const input = calculateTokenPriceUSD(model, 'input', minRatio)!
-    const output = calculateTokenPriceUSD(model, 'output', minRatio)!
-    const cacheRead = calculateTokenPriceUSD(model, 'cache', minRatio)
-    const cacheWrite = calculateTokenPriceUSD(model, 'create_cache', minRatio)
-
-    let savePercent: number | null = null
-    if (spec.official && input > 0) {
-      const avgOur = (input + output) / 2
-      const avgOfficial = (spec.official.input + spec.official.output) / 2
-      savePercent = Math.round((1 - avgOur / avgOfficial) * 100)
-      if (savePercent < 0) savePercent = null
-    }
-
-    rows.push({
-      display: spec.display,
+  if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
+    return {
+      display: model.model_name,
       modelName: model.model_name,
-      input,
-      output,
-      cacheRead,
-      cacheWrite,
-      officialInput: spec.official?.input ?? null,
-      officialOutput: spec.official?.output ?? null,
-      savePercent,
-    })
+      isRequestBased: true,
+      input: null,
+      output: null,
+      requestPrice: formatRequestPrice(model),
+      cacheRead: null,
+      cacheWrite: null,
+      officialInput: null,
+      officialOutput: null,
+      savePercent: null,
+    }
   }
 
-  return rows
+  const input = calculateTokenPriceUSD(model, 'input', minRatio)!
+  const output = calculateTokenPriceUSD(model, 'output', minRatio)!
+  const cacheRead = calculateTokenPriceUSD(model, 'cache', minRatio)
+  const cacheWrite = calculateTokenPriceUSD(model, 'create_cache', minRatio)
+
+  let savePercent: number | null = null
+  if (spec?.official && input > 0) {
+    const avgOur = (input + output) / 2
+    const avgOfficial = (spec.official.input + spec.official.output) / 2
+    savePercent = Math.round((1 - avgOur / avgOfficial) * 100)
+    if (savePercent < 0) savePercent = null
+  }
+
+  return {
+    display: model.model_name,
+    modelName: model.model_name,
+    isRequestBased: false,
+    input,
+    output,
+    requestPrice: null,
+    cacheRead,
+    cacheWrite,
+    officialInput: spec?.official?.input ?? null,
+    officialOutput: spec?.official?.output ?? null,
+    savePercent,
+  }
+}
+
+export function buildHomePricingRows(
+  models: PricingModel[],
+  options: HomePricingSelectOptions = {}
+): HomePricingRow[] {
+  return selectHomePricingModels(models, options).map(modelToHomeRow)
 }

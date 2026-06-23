@@ -22,19 +22,8 @@ interface PromptListResponse {
   items: PromptListItem[]
 }
 
-const CDN_HOST =
-  (import.meta.env.VITE_STATIC_CDN || 'https://assets.cangyuansuanli.cn')
-    .replace(/^https?:\/\//, '')
-    .replace(/\/$/, '')
-
-function isCdnAssetUrl(url: string): boolean {
-  try {
-    const host = new URL(url).hostname
-    return host === CDN_HOST || host.endsWith('.cangyuansuanli.cn')
-  } catch {
-    return false
-  }
-}
+const DEFAULT_ASPECT_RATIO = 3 / 4
+const SHOWCASE_PAGE_SIZE = 100
 
 function fallbackAssets(): ShowcaseAsset[] {
   return INSPIRATION_SLIDES.map((slide) => ({
@@ -46,36 +35,64 @@ function fallbackAssets(): ShowcaseAsset[] {
   }))
 }
 
-function dedupeByImage(assets: ShowcaseAsset[]): ShowcaseAsset[] {
-  const seen = new Set<string>()
-  return assets.filter((asset) => {
-    if (seen.has(asset.image)) return false
-    seen.add(asset.image)
-    return true
+function isValidCoverUrl(url: string): boolean {
+  return url.startsWith('http://') || url.startsWith('https://')
+}
+
+function probeImageAspectRatio(url: string): Promise<number> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const { naturalWidth, naturalHeight } = img
+      if (naturalWidth > 0 && naturalHeight > 0) {
+        resolve(naturalWidth / naturalHeight)
+      } else {
+        resolve(DEFAULT_ASPECT_RATIO)
+      }
+    }
+    img.onerror = () => resolve(DEFAULT_ASPECT_RATIO)
+    img.src = url
   })
 }
 
+async function enrichAssetsWithAspectRatio(
+  assets: Omit<ShowcaseAsset, 'aspectRatio'>[]
+): Promise<ShowcaseAsset[]> {
+  const ratios = await Promise.all(
+    assets.map((asset) => probeImageAspectRatio(asset.image))
+  )
+  return assets.map((asset, index) => ({
+    ...asset,
+    aspectRatio: ratios[index],
+  }))
+}
+
 async function fetchShowcaseAssets(): Promise<ShowcaseAsset[]> {
-  const url = new URL('/api/prompts', DEFAULT_CANVAS_BASE_URL)
-  url.searchParams.set('modality', 'image')
-  url.searchParams.set('previewType', 'image')
-  url.searchParams.set('pageSize', '48')
+  try {
+    const url = new URL('/api/prompts', DEFAULT_CANVAS_BASE_URL)
+    url.searchParams.set('modality', 'image')
+    url.searchParams.set('previewType', 'image')
+    url.searchParams.set('pageSize', String(SHOWCASE_PAGE_SIZE))
 
-  const res = await fetch(url.toString())
-  if (!res.ok) return fallbackAssets()
+    const res = await fetch(url.toString())
+    if (!res.ok) return fallbackAssets()
 
-  const data = (await res.json()) as PromptListResponse
-  const fromPrompts = (data.items ?? [])
-    .filter((item) => item.coverUrl && isCdnAssetUrl(item.coverUrl))
-    .map((item) => ({
-      id: item.id,
-      image: item.coverUrl,
-      title: item.title,
-      tags: (item.tags ?? []).slice(0, 3).join(' / '),
-    }))
+    const data = (await res.json()) as PromptListResponse
+    const baseAssets = (data.items ?? [])
+      .filter((item) => item.coverUrl && isValidCoverUrl(item.coverUrl))
+      .map((item) => ({
+        id: item.id,
+        image: item.coverUrl,
+        title: item.title,
+        tags: (item.tags ?? []).slice(0, 3).join(' / '),
+      }))
 
-  const merged = dedupeByImage([...fromPrompts, ...fallbackAssets()])
-  return merged.length >= 6 ? merged : fallbackAssets()
+    if (baseAssets.length === 0) return fallbackAssets()
+
+    return enrichAssetsWithAspectRatio(baseAssets)
+  } catch {
+    return fallbackAssets()
+  }
 }
 
 export function useShowcaseAssets() {
@@ -83,7 +100,6 @@ export function useShowcaseAssets() {
     queryKey: ['home-showcase-assets'],
     queryFn: fetchShowcaseAssets,
     staleTime: 30 * 60 * 1000,
-    placeholderData: fallbackAssets(),
   })
 }
 
@@ -105,7 +121,7 @@ export function splitShowcaseRows(assets: ShowcaseAsset[]) {
   return { rowA, rowB }
 }
 
-export function loopShowcaseRow(assets: ShowcaseAsset[]) {
-  if (assets.length === 0) return []
-  return [...assets, ...assets]
+/** Scale animation duration by item count so scroll speed stays comfortable */
+export function showcaseMarqueeDuration(itemCount: number, baseSec = 45): number {
+  return Math.max(baseSec, Math.round(itemCount * 2.5))
 }

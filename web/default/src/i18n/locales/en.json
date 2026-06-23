@@ -4677,6 +4677,7 @@
     "Save = discount vs. official Anthropic / OpenAI API pricing.": "Save = discount vs. official Anthropic / OpenAI API pricing.",
     "View all models": "View all models",
     "Pricing data unavailable": "Pricing data unavailable",
+    "Showing up to {{count}} public models; at most {{max}} per model family. See the model marketplace for the full list.": "Showing up to {{count}} public models; at most {{max}} per model family. See the model marketplace for the full list.",
     "Why {{brand}}": "Why {{brand}}",
     "The simplest way to use frontier AI models — no barriers, no subscriptions, no restrictions.": "The simplest way to use frontier AI models — no barriers, no subscriptions, no restrictions.",
     "No barriers, no restrictions": "No Restrictions, No Bans",

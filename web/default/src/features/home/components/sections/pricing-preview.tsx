@@ -16,16 +16,23 @@ import { AnimateInView } from '@/components/animate-in-view'
 import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 import { mkt } from '../../lib/marketing-theme'
 import {
+  buildHomePricingRows,
   formatUsdPerM,
-  pickFeaturedPricingRows,
 } from '../../lib/pricing-preview'
+
+const HOME_PRICING_LIMIT = 20
+const HOME_PRICING_MAX_PER_PREFIX = 2
 
 export function PricingPreview() {
   const { t } = useTranslation()
   const { models, isLoading } = usePricingData()
 
   const rows = useMemo(
-    () => pickFeaturedPricingRows(models),
+    () =>
+      buildHomePricingRows(models, {
+        limit: HOME_PRICING_LIMIT,
+        maxPerPrefix: HOME_PRICING_MAX_PER_PREFIX,
+      }),
     [models]
   )
 
@@ -41,6 +48,15 @@ export function PricingPreview() {
           </h2>
           <p className={cn('mt-1 text-sm', mkt.muted)}>
             {t('USD per 1M tokens')}
+          </p>
+          <p className={cn('mt-1 text-xs', mkt.muted)}>
+            {t(
+              'Showing up to {{count}} public models; at most {{max}} per model family. See the model marketplace for the full list.',
+              {
+                count: HOME_PRICING_LIMIT,
+                max: HOME_PRICING_MAX_PER_PREFIX,
+              }
+            )}
           </p>
         </AnimateInView>
 
@@ -75,7 +91,7 @@ export function PricingPreview() {
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    Array.from({ length: 6 }).map((_, i) => (
+                    Array.from({ length: 8 }).map((_, i) => (
                       <tr key={i} className={cn('border-b last:border-0', mkt.sectionBorder)}>
                         {Array.from({ length: 7 }).map((__, j) => (
                           <td key={j} className='px-4 py-3.5'>
@@ -103,13 +119,17 @@ export function PricingPreview() {
                         )}
                       >
                         <td className={cn('px-5 py-3.5 font-medium', mkt.heading)}>
-                          {row.display}
+                          <span className='font-mono text-xs sm:text-sm'>
+                            {row.display}
+                          </span>
                         </td>
                         <td className={cn('px-4 py-3.5 tabular-nums', mkt.body)}>
-                          {formatUsdPerM(row.input)}
+                          {row.isRequestBased
+                            ? row.requestPrice
+                            : formatUsdPerM(row.input)}
                         </td>
                         <td className={cn('px-4 py-3.5 tabular-nums', mkt.body)}>
-                          {formatUsdPerM(row.output)}
+                          {row.isRequestBased ? '—' : formatUsdPerM(row.output)}
                         </td>
                         <td className={cn('hidden px-4 py-3.5 tabular-nums sm:table-cell', mkt.body)}>
                           {formatUsdPerM(row.cacheRead)}

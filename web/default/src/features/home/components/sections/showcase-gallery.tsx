@@ -17,7 +17,7 @@ import { useCanvasKeyPicker } from '@/features/canvas/hooks/use-canvas-key-picke
 import { mkt } from '../../lib/marketing-theme'
 import { ShowcaseMarqueeRow } from '../showcase-marquee-row'
 import {
-  loopShowcaseRow,
+  showcaseMarqueeDuration,
   splitShowcaseRows,
   useShowcaseAssets,
 } from '../../hooks/use-showcase-assets'
@@ -25,11 +25,21 @@ import {
 export function ShowcaseGallery() {
   const { t } = useTranslation()
   const { requestOpen, dialog } = useCanvasKeyPicker(DEFAULT_CANVAS_BASE_URL)
-  const { data: assets = [], isLoading } = useShowcaseAssets()
+  const { data: assets, isLoading, isSuccess } = useShowcaseAssets()
 
-  const { rowA, rowB } = useMemo(() => splitShowcaseRows(assets), [assets])
-  const marqueeA = useMemo(() => loopShowcaseRow(rowA), [rowA])
-  const marqueeB = useMemo(() => loopShowcaseRow(rowB), [rowB])
+  const { rowA, rowB } = useMemo(
+    () => splitShowcaseRows(assets ?? []),
+    [assets]
+  )
+  const durationA = useMemo(
+    () => showcaseMarqueeDuration(rowA.length, 50),
+    [rowA.length]
+  )
+  const durationB = useMemo(
+    () => showcaseMarqueeDuration(rowB.length, 55),
+    [rowB.length]
+  )
+  const marqueeReady = isSuccess && (assets?.length ?? 0) > 0
 
   return (
     <section
@@ -53,27 +63,29 @@ export function ShowcaseGallery() {
       </div>
 
       <AnimateInView animation='fade-up' className='space-y-3 sm:space-y-4'>
-        {isLoading && assets.length === 0 ? (
+        {isLoading || !marqueeReady ? (
           <div className='flex gap-3 overflow-hidden px-6 sm:gap-4'>
             {Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
-                className='h-48 w-40 shrink-0 animate-pulse rounded-xl bg-slate-200/80 dark:bg-white/10 sm:h-52 sm:w-48'
+                className='h-[clamp(160px,20vh,220px)] w-40 shrink-0 animate-pulse rounded-xl bg-slate-200/80 dark:bg-white/10 sm:w-48'
               />
             ))}
           </div>
         ) : (
           <>
             <ShowcaseMarqueeRow
-              assets={marqueeA}
+              assets={rowA}
               direction='left'
-              durationSec={50}
+              durationSec={durationA}
+              ready={marqueeReady}
               onSelect={() => requestOpen()}
             />
             <ShowcaseMarqueeRow
-              assets={marqueeB}
+              assets={rowB}
               direction='right'
-              durationSec={55}
+              durationSec={durationB}
+              ready={marqueeReady}
               onSelect={() => requestOpen()}
             />
           </>
