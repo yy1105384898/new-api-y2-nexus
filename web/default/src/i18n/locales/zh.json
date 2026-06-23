@@ -4694,6 +4694,7 @@
     "Save = discount vs. official Anthropic / OpenAI API pricing.": "节省 = 相对 Anthropic / OpenAI 官方 API 定价的折扣。",
     "View all models": "查看全部模型",
     "Pricing data unavailable": "暂无定价数据",
+    "Showing up to {{count}} public models; at most {{max}} per model family. See the model marketplace for the full list.": "展示最多 {{count}} 个公开模型，同系列最多 {{max}} 个；完整列表请见模型广场。",
     "Why {{brand}}": "为什么选择 {{brand}}",
     "The simplest way to use frontier AI models — no barriers, no subscriptions, no restrictions.": "使用前沿 AI 模型最简单的方式 — 无门槛、无订阅、无限制。",
     "No barriers, no restrictions": "无限制、无封禁",
