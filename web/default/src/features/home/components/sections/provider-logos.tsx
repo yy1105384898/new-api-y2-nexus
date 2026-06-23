@@ -13,33 +13,31 @@ import { getLobeIcon } from '@/lib/lobe-icon'
 import { mkt } from '../../lib/marketing-theme'
 import { PROVIDER_ICONS } from '../../constants'
 
+const COMPACT_PROVIDERS = PROVIDER_ICONS.slice(0, 12)
+
 export function ProviderLogos() {
   const { t } = useTranslation()
 
   return (
-    <section className={cn('relative z-10 px-6 py-14 md:py-20', mkt.sectionBorder)}>
-      <div className='mx-auto max-w-6xl'>
-        <AnimateInView className='mb-8 text-center md:mb-10'>
-          <p className={cn('text-base font-light md:text-lg', mkt.body)}>
-            {t('Supports a wide range of model providers')}
-          </p>
-        </AnimateInView>
+    <section className={cn('relative z-10 px-6 py-10 md:py-12', mkt.sectionBorder)}>
+      <div className='mx-auto max-w-4xl'>
         <AnimateInView
           animation='fade-up'
-          className='flex flex-wrap items-center justify-center gap-4 sm:gap-5 md:gap-6 lg:gap-8'
+          className='flex flex-wrap items-center justify-center gap-5 sm:gap-6'
         >
-          {PROVIDER_ICONS.map((iconName) => (
+          {COMPACT_PROVIDERS.map((iconName) => (
             <div
               key={iconName}
-              className='flex size-10 items-center justify-center sm:size-11 md:size-12'
+              className='flex size-9 items-center justify-center opacity-70 transition-opacity hover:opacity-100 sm:size-10'
             >
-              {getLobeIcon(iconName, 40)}
+              {getLobeIcon(iconName, 32)}
             </div>
           ))}
-          <div className={cn('flex size-10 items-center justify-center text-xl font-bold sm:size-11 md:size-12 md:text-2xl', mkt.muted)}>
-            30+
-          </div>
+          <div className={cn('text-sm font-medium', mkt.muted)}>30+</div>
         </AnimateInView>
+        <p className={cn('mt-4 text-center text-xs', mkt.muted)}>
+          {t('Supports a wide range of model providers')}
+        </p>
       </div>
     </section>
   )
