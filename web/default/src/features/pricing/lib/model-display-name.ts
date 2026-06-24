@@ -15,7 +15,7 @@ import { getPricingSignature } from './price'
  * 与 infinite-canvas docs/dev/model-names.md 及 NewAPI 渠道注册名对齐。
  */
 const MODEL_VENDOR_PREFIX =
-  /^(?:gz|oairegbox|yunwu|119337|byte|niming|zeabur|happyhorse|ctlove)-/i
+  /^(?:gz|oairegbox|yunwu|119337|byte|niming|zeabur|happyhorse|ctlove|aini|czeq)-/i
 
 export function stripModelVendorPrefix(modelName: string) {
   return modelName.replace(MODEL_VENDOR_PREFIX, '')
