@@ -143,3 +143,25 @@ When creating a pull request:
 - First compare the current git user (`git config user.name` / `git config user.email`) with the repository's historical core developers (for example, the recurring top authors in `git log`). Do not change git config.
 - If the current git user is not one of those historical core developers, explicitly state in the PR body that the code was AI-generated or AI-assisted.
 - Always use the repository PR template at `.github/PULL_REQUEST_TEMPLATE.md` when drafting the PR title/body. Preserve the template structure and fill in the relevant sections instead of replacing it with an ad hoc format.
+
+## Git 闭环
+
+When the user invokes `/git-close-loop` or asks for a closed-loop commit, read and follow **`.agents/skills/git-close-loop/SKILL.md`** (same content as `~/.agents/skills/git-close-loop`).
+
+For coordinated changes with **`infinite-canvas/`** in this workspace: use the **same branch name** and **same feature commit header** in both repos; mention `配合：infinite-canvas …` in the commit body.
+
+### 文档影响面
+
+| Change | Sync |
+|--------|------|
+| Frontend feature / fix | `web/default/AGENTS.md` conventions; commit body lists doc paths or `文档：无` |
+| Backend relay / billing | `pkg/billingexpr/expr.md` and related pkg docs when contracts change |
+| i18n user strings | `web/default/src/i18n/locales/*.json` |
+
+### verify（合并 main 前）
+
+- Changes under `web/default/**`: `cd web/default && bun run typecheck`
+- Go backend changes: `go test` on affected packages (or `./...` when scope is unclear)
+- Doc-only: confirm commit body documents paths; no typecheck required
+
+Frontend detailed conventions: `web/default/AGENTS.md`.
