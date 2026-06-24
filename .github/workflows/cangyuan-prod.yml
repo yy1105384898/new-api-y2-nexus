@@ -22,7 +22,7 @@ permissions:
   packages: write
 
 env:
-  IMAGE: ghcr.io/lao-guo-luantanqin/new-api
+  IMAGE: ghcr.io/cangyuansuanli/new-api
   STACK_PROFILE: newapi
   GHCR_PACKAGE: new-api
 

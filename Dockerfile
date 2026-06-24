@@ -45,7 +45,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates tzdata wget su-exec \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata wget gosu \
     && rm -rf /var/lib/apt/lists/* \
     && update-ca-certificates \
     && groupadd -r -g 1001 newapi \
