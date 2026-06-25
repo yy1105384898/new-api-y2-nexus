@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * Build /home/showcase.json for the marketing homepage marquee and upload to R2.
+ * Build homepage marquee manifest from canvas prompt API and publish to R2 CDN.
+ * Runtime reads https://{CDN}/home/showcase.json — single JSON overwrite, no object accumulation.
  *
  * Usage:
- *   node scripts/generate-home-showcase.mjs --upload
- *   node scripts/generate-home-showcase.mjs --out public/home/showcase.json --no-upload
- *   node scripts/generate-home-showcase.mjs --upload --env-file ../../../cangyuan-stack/.env
+ *   node scripts/generate-home-showcase.mjs --env-file ../../../cangyuan-stack/.env
+ *   node scripts/generate-home-showcase.mjs --out /tmp/showcase.json --no-upload
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
@@ -36,9 +36,9 @@ const EXCLUDED_COVER_PATTERNS = [
 
 function parseArgs() {
   const args = process.argv.slice(2)
-  let out = resolve(WEB_ROOT, 'public/home/showcase.json')
+  let out = ''
   let envFile = ''
-  let upload = false
+  let upload = true
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--out' && args[i + 1]) {
       out = resolve(args[i + 1])
@@ -137,6 +137,30 @@ function isValidCoverUrl(url) {
   return !EXCLUDED_COVER_PATTERNS.some((pattern) => pattern.test(url))
 }
 
+/** Skip covers that no longer resolve (stale GitHub raw links, etc.). */
+async function isReachableCoverUrl(url) {
+  try {
+    const res = await fetch(url, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(12_000),
+      headers: { 'User-Agent': 'new-api-showcase-generator/1.0' },
+      redirect: 'follow',
+    })
+    if (res.ok) return true
+    if (res.status === 405 || res.status === 403) {
+      const getRes = await fetch(url, {
+        signal: AbortSignal.timeout(12_000),
+        headers: { 'User-Agent': 'new-api-showcase-generator/1.0' },
+        redirect: 'follow',
+      })
+      return getRes.ok
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
 function coverPriority(url) {
   if (url.includes('assets.cangyuansuanli.cn')) return 0
   if (url.includes('raw.githubusercontent.com')) return 1
@@ -222,6 +246,10 @@ async function buildAssets(canvasBase, cdnBase) {
       const mirrored = mirrorCoverUrl((item.coverUrl || '').trim(), mediaMap)
       if (!mirrored || !isValidCoverUrl(mirrored)) continue
       if (seenImages.has(mirrored)) continue
+      if (!(await isReachableCoverUrl(mirrored))) {
+        console.warn(`[skip] unreachable cover: ${mirrored}`)
+        continue
+      }
       seenImages.add(mirrored)
       baseAssets.push({
         id: item.id,
@@ -271,12 +299,16 @@ async function main() {
   }
   const body = `${JSON.stringify(manifest, null, 2)}\n`
 
-  await mkdir(dirname(out), { recursive: true })
-  await writeFile(out, body, 'utf8')
-  console.log(`Wrote ${assets.length} assets to ${out}`)
+  if (out) {
+    await mkdir(dirname(out), { recursive: true })
+    await writeFile(out, body, 'utf8')
+    console.log(`Wrote ${assets.length} assets to ${out}`)
+  }
 
   if (!upload) {
-    console.log(`Skip upload (pass --upload to publish ${R2_OBJECT_KEY})`)
+    if (!out) {
+      console.log('Nothing written (pass --out for local file or omit --no-upload to publish R2)')
+    }
     return
   }
 
@@ -289,7 +321,7 @@ async function main() {
   }
 
   const publicUrl = await uploadToR2(body, r2)
-  console.log(`Uploaded to R2: ${publicUrl}`)
+  console.log(`Uploaded ${assets.length} assets to R2: ${publicUrl}`)
 }
 
 main().catch((err) => {

@@ -15,8 +15,7 @@
     "copyright:check": "node scripts/add-copyright.mjs --check",
     "copyright": "node scripts/add-copyright.mjs",
     "i18n:sync": "node scripts/sync-i18n.mjs",
-    "showcase:generate": "node scripts/generate-home-showcase.mjs --no-upload",
-    "showcase:sync": "node scripts/generate-home-showcase.mjs --upload --env-file ../../../cangyuan-stack/.env",
+    "showcase:sync": "node scripts/generate-home-showcase.mjs --env-file ../../../cangyuan-stack/.env",
     "knip": "knip"
   },
   "dependencies": {

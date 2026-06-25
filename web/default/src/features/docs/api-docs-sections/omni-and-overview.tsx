@@ -13,15 +13,27 @@ import { DocsTable } from '../components/docs-table'
 import type { ApiDocsContext } from './context'
 import { pricingNote } from './context'
 
+function videoApiLink() {
+  return (
+    <a href='#api-video-api' className='text-primary font-medium hover:underline'>
+      视频生成 API（通用）
+    </a>
+  )
+}
+
 export function OmniVideoSection(props: ApiDocsContext) {
   const { base } = props
 
   return (
     <DocsSection
       id='api-omni-video'
-      title='Omni 视频生成'
-      description='基于 Gemini Veo 的视频生成，支持文生视频、图生视频（最多 5 张参考图）、视频转视频。'
+      title='Gemini Veo · Omni 系列'
+      description='基于 Gemini Veo 的视频生成。参数与调用方式见通用文档，本节仅列可用模型与厂商特性。'
     >
+      <p className='text-muted-foreground text-sm'>
+        完整参数说明与能力对照见 {videoApiLink()}。
+      </p>
+
       <DocsTable
         headers={['模型', '能力', '计费']}
         rows={[
@@ -32,114 +44,28 @@ export function OmniVideoSection(props: ApiDocsContext) {
         ]}
       />
       <p className='text-muted-foreground text-sm'>{pricingNote()}</p>
-      <p>无水印模型输出经自动清洗，完成前可能多一个 processing 阶段，稍慢。</p>
 
-      <DocsTable
-        headers={['项', '说明']}
-        rows={[
-          ['提交任务', 'POST /v1/videos（JSON 或 multipart）'],
-          ['轮询进度', 'GET /v1/videos/{task_id}'],
-          ['下载成片', 'GET /v1/videos/{task_id}/content 或 data[0].url'],
-          ['鉴权', 'Authorization: Bearer sk-你的令牌'],
-        ]}
-      />
-
-      <DocsTable
-        headers={['参数', '类型', '必填', '默认', '说明']}
-        rows={[
-          ['model', 'string', '是', '-', '见上表'],
-          ['prompt', 'string', '是', '-', '视频描述'],
-          ['aspect_ratio', 'string', '否', '16:9', '16:9（横）或 9:16（竖）'],
-          ['seconds / duration', 'string/int', '否', '10', '时长（Gemini 固定输出约 10 秒）'],
-          ['image_url', 'string', '否', '-', '单张参考图 URL 或 base64'],
-          ['first_image_url', 'string', '否', '-', '首帧参考图'],
-          ['last_image_url', 'string', '否', '-', '末帧参考图'],
-          ['video_url', 'string', '否', '-', 'V2V 源视频 URL（≤5MB、1920×1080 内）'],
-        ]}
-      />
-
-      <h3 className='text-lg font-semibold'>Multipart 文件上传</h3>
-      <DocsTable
-        headers={['字段', '说明']}
-        rows={[
-          ['input_reference', '参考图文件（最多 5 张，每张 ≤5MB）'],
-          ['input_video', 'V2V 源视频文件（≤5MB）'],
-        ]}
-      />
-
-      <CodeBlock
-        title='文生视频'
-        code={`curl -X POST ${base}/videos \\
-  -H "Authorization: Bearer sk-xxx" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "model": "omni-fast",
-    "prompt": "雨夜霓虹街道，镜头缓慢推进，电影感光影",
-    "aspect_ratio": "16:9"
-  }'`}
-      />
-      <CodeBlock
-        title='图生视频'
-        code={`curl -X POST ${base}/videos \\
-  -H "Authorization: Bearer sk-xxx" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "model": "omni-fast",
-    "prompt": "保持人物一致，缓慢走动",
-    "image_url": "https://your-cdn.com/photo.jpg",
-    "aspect_ratio": "16:9"
-  }'`}
-      />
-      <CodeBlock
-        title='视频转视频（V2V）'
-        code={`curl -X POST ${base}/videos \\
-  -H "Authorization: Bearer sk-xxx" \\
-  -F "model=omni-fast-v2v" \\
-  -F "prompt=将画面风格转换为赛博朋克风" \\
-  -F "input_video=@source.mp4"`}
-      />
-      <CodeBlock
-        title='轮询取片'
-        code={`curl ${base}/videos/{task_id} \\
-  -H "Authorization: Bearer sk-xxx"
-
-# 完成后: {"status":"completed","data":[{"url":"/v1/videos/{task_id}/content"}]}`}
-      />
-      <CodeBlock
-        title='Python 完整示例'
-        code={`import time, requests
-
-BASE = "${base}"
-H = {"Authorization": "Bearer sk-xxx", "Content-Type": "application/json"}
-
-task = requests.post(f"{BASE}/videos", headers=H, json={
-    "model": "omni-fast",
-    "prompt": "雨夜霓虹街道，镜头缓慢推进",
-    "aspect_ratio": "16:9"
-}).json()
-task_id = task["task_id"]
-
-while True:
-    time.sleep(8)
-    s = requests.get(f"{BASE}/videos/{task_id}", headers=H).json()
-    if s["status"] == "completed":
-        print("下载:", s["data"][0]["url"])
-        break
-    if s["status"] == "failed":
-        print("失败:", s.get("error"))
-        break
-    print(f"进度: {s.get('progress', 0)}%")`}
-      />
-
+      <h3 className='text-lg font-semibold'>厂商特性</h3>
       <ul className='list-disc space-y-2 pl-5'>
-        <li>视频生成通常 1–5 分钟，轮询间隔建议 5–10 秒</li>
-        <li>画幅仅支持 16:9 与 9:16，输出分辨率固定 720p</li>
+        <li>画幅仅 16:9 与 9:16，输出固定 720p、约 10 秒</li>
+        <li>图生最多 5 张参考图；V2V 源视频 ≤5MB、1920×1080 内</li>
+        <li>无水印版输出经自动清洗，完成前可能多一个 processing 阶段，稍慢</li>
         <li>含可识别真人面孔的参考图可能触发内容策略，见{' '}
           <a href='#api-video-guide' className='text-primary font-medium hover:underline'>
             视频避坑指南
           </a>
         </li>
       </ul>
+
+      <h3 className='mt-6 text-lg font-semibold'>示例</h3>
+      <CodeBlock
+        title='V2V · multipart'
+        code={`curl -X POST ${base}/videos \\
+  -H "Authorization: Bearer sk-xxx" \\
+  -F "model=omni-fast-v2v" \\
+  -F "prompt=将画面风格转换为赛博朋克风" \\
+  -F "input_video=@source.mp4"`}
+      />
     </DocsSection>
   )
 }
@@ -151,22 +77,13 @@ export function VeoCleanSection(props: ApiDocsContext) {
     <DocsSection
       id='api-veo-clean'
       title='Veo-Clean 去水印'
-      description='上传带水印的视频，系统自动去除水印后返回。异步任务流程与视频生成一致。'
+      description='上传带水印的视频，系统自动去除水印。异步流程与视频生成一致，参数见通用文档。'
     >
       <DocsTable
-        headers={['模型', '计费']}
-        rows={[['veo-clean', '按视频实际秒数计费']]}
+        headers={['模型', '计费', '必传素材']}
+        rows={[['veo-clean', '按视频实际秒数', 'input_video（multipart，≤20MB）']]}
       />
       <p className='text-muted-foreground text-sm'>{pricingNote()}</p>
-
-      <DocsTable
-        headers={['参数', '类型', '必填', '说明']}
-        rows={[
-          ['model', 'string', '是', '固定 veo-clean'],
-          ['prompt', 'string', '否', '可省略，默认 remove watermark'],
-          ['input_video', 'file', '是', '带水印视频（≤20MB，须 multipart 上传）'],
-        ]}
-      />
 
       <CodeBlock
         title='Multipart 上传'
@@ -174,10 +91,7 @@ export function VeoCleanSection(props: ApiDocsContext) {
   -H "Authorization: Bearer sk-xxx" \\
   -F "model=veo-clean" \\
   -F "prompt=remove watermark" \\
-  -F "input_video=@watermarked.mp4"
-
-curl ${base}/videos/{task_id} \\
-  -H "Authorization: Bearer sk-xxx"`}
+  -F "input_video=@watermarked.mp4"`}
       />
 
       <ul className='list-disc space-y-2 pl-5'>
@@ -203,7 +117,8 @@ export function OverviewFaqSection(props: ApiDocsContext) {
           ['Base URL', base],
           ['备用写法', siteOrigin || 'https://YOUR_BASE（部分客户端填根域名）'],
           ['鉴权', 'Authorization: Bearer sk-你的令牌'],
-          ['模型名', '与模型广场展示名一致，如 omni-fast、video-pro-720p、grok-imagine-video'],
+          ['模型名', '与模型广场展示名一致，如 omni-fast、Seedance2.0-720p、grok-imagine-video'],
+          ['视频 API', '见 #api-video-api 统一参数与模型能力对照表'],
         ]}
       />
       <p>
@@ -244,9 +159,17 @@ export function OverviewFaqSection(props: ApiDocsContext) {
           <p className='text-muted-foreground'>不会。仅成功出片/出图才计费。</p>
         </div>
         <div>
-          <p className='font-medium'>Q: 异步视频怎么调用？</p>
+          <p className='font-medium'>Q: 不同模型参数怎么传？</p>
           <p className='text-muted-foreground'>
-            POST /v1/videos 提交 → GET /v1/videos/&#123;task_id&#125; 轮询 → 从 url / video_url 下载。
+            先查{' '}
+            <a href='#api-video-api' className='text-primary font-medium hover:underline'>
+              视频生成 API（通用）
+            </a>{' '}
+            或{' '}
+            <a href='#api-image-api' className='text-primary font-medium hover:underline'>
+              图像生成 API（通用）
+            </a>{' '}
+            中的参数全集与模型能力对照表，只传该模型支持的字段。
           </p>
         </div>
         <div>

@@ -21,13 +21,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// channelRegistrationPrefixes：NewAPI abilities 注册名中的渠道前缀，对外 API 自动剥离。
+// 来源：生产库 abilities.model DISTINCT 前缀审计（不含 claude-/gpt-/gemini- 等官方 model 名）。
 var channelRegistrationPrefixes = []string{
-	"gz-",
-	"yunwu-",
-	"oairegbox-",
 	"119337-",
+	"aini-",
+	"byte-",
 	"ctlove-",
+	"czeq-",
+	"go2api-",
+	"gz-",
 	"happyhorse-",
+	"niming-",
+	"oairegbox-",
+	"yunwu-",
+	"zeabur-",
 }
 
 type modelPublicRegistry struct {

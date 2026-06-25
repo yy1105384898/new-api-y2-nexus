@@ -54,9 +54,6 @@ export function ShowcaseGallery() {
           <h2 className={cn('text-xl font-bold tracking-tight md:text-2xl', mkt.heading)}>
             {t('Visual works from the canvas asset library')}
           </h2>
-          <p className={cn('mx-auto mt-3 max-w-2xl text-sm leading-relaxed', mkt.muted)}>
-            {t('Home showcase prompt library subtitle')}
-          </p>
         </AnimateInView>
       </div>
 
