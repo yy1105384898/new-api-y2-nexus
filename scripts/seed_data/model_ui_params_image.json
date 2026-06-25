@@ -12,7 +12,7 @@
     ],
     "profiles": [
         {
-            "id": "gz-image-2",
+            "id": "image-tpl-full-quality-export",
             "match": [
                 "image-2"
             ],
@@ -179,7 +179,7 @@
             }
         },
         {
-            "id": "gpt-image-2",
+            "id": "image-tpl-aspect-count-basic",
             "match": [
                 "gpt-image-2",
                 "gpt-image-1.5",
@@ -251,7 +251,7 @@
             }
         },
         {
-            "id": "gemini-image",
+            "id": "image-tpl-aspect-count-extended",
             "match": [
                 "gemini-image",
                 "gemini-image-pro",
@@ -322,7 +322,7 @@
             }
         },
         {
-            "id": "grok-imagine-image",
+            "id": "image-tpl-square-fixed-count",
             "match": [
                 "grok-image",
                 "grok-image-lite",
@@ -371,7 +371,7 @@
             }
         },
         {
-            "id": "gpt-image-2-4k",
+            "id": "image-tpl-square-4k-single",
             "match": [
                 "gpt-image-2-4k"
             ],

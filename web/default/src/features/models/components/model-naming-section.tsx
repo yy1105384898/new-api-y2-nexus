@@ -250,7 +250,7 @@ export function ModelNamingSection() {
   }
 
   return (
-    <div className='flex h-full min-h-0 flex-col gap-4 overflow-y-auto pb-4'>
+    <div className='space-y-4 pb-4'>
       {collisionEntries.length > 0 ? (
         <Alert variant='destructive'>
           <AlertTriangle className='h-4 w-4' />
@@ -297,8 +297,8 @@ export function ModelNamingSection() {
             {t('Add prefix')}
           </Button>
         </CardHeader>
-        <CardContent>
-          <Table>
+        <CardContent className='overflow-x-auto'>
+          <Table className='min-w-[640px]'>
             <TableHeader>
               <TableRow>
                 <TableHead>{t('Prefix')}</TableHead>
@@ -378,8 +378,8 @@ export function ModelNamingSection() {
             {t('Add alias')}
           </Button>
         </CardHeader>
-        <CardContent>
-          <Table>
+        <CardContent className='overflow-x-auto'>
+          <Table className='min-w-[640px]'>
             <TableHeader>
               <TableRow>
                 <TableHead>{t('Internal name')}</TableHead>

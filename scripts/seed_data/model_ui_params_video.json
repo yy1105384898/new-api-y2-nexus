@@ -35,9 +35,10 @@
     },
     "profiles": [
         {
-            "id": "gz-video-grok",
+            "id": "video-tpl-form-ratio-ref7",
             "match": [
-                "video-grok"
+                "video-grok",
+                "video-omni-flash"
             ],
             "apiMode": "videos-form",
             "referenceLimits": {
@@ -124,11 +125,14 @@
             "hints": [
                 {
                     "text": "文生/图生视频，可调时长、比例与清晰度；多参考图最多 7 张，多图时最长 10 秒。"
+                },
+                {
+                    "text": "Gemini Omni Flash，可调时长、清晰度与比例；最多 7 张参考图。"
                 }
             ]
         },
         {
-            "id": "gz-video-veo",
+            "id": "video-tpl-form-ratio-frame-ref3",
             "match": [
                 "video-veo"
             ],
@@ -203,82 +207,7 @@
             ]
         },
         {
-            "id": "gz-video-omni-flash",
-            "match": [
-                "video-omni-flash"
-            ],
-            "apiMode": "videos-form",
-            "referenceLimits": {
-                "images": 7,
-                "videos": 0,
-                "audios": 0
-            },
-            "params": {
-                "resolution": {
-                    "enabled": true,
-                    "options": [
-                        {
-                            "value": "720p",
-                            "label": "720p"
-                        },
-                        {
-                            "value": "1080p",
-                            "label": "1080p"
-                        },
-                        {
-                            "value": "4k",
-                            "label": "4K"
-                        }
-                    ]
-                },
-                "ratio": {
-                    "enabled": true,
-                    "options": [
-                        {
-                            "value": "16:9",
-                            "label": "横屏"
-                        },
-                        {
-                            "value": "9:16",
-                            "label": "竖屏"
-                        }
-                    ]
-                },
-                "duration": {
-                    "enabled": true,
-                    "numericOptions": [
-                        4,
-                        6,
-                        8,
-                        10
-                    ],
-                    "min": 4,
-                    "max": 10
-                },
-                "generateAudio": {
-                    "enabled": false
-                },
-                "watermark": {
-                    "enabled": false
-                },
-                "seed": {
-                    "enabled": false
-                },
-                "widthHeight": {
-                    "enabled": false
-                },
-                "frameInputs": {
-                    "enabled": false
-                }
-            },
-            "hints": [
-                {
-                    "text": "Gemini Omni Flash，可调时长、清晰度与比例；最多 7 张参考图。"
-                }
-            ]
-        },
-        {
-            "id": "gz-video-seedance",
+            "id": "video-tpl-form-ratio-audio-multi-ref",
             "match": [
                 "video-seedance"
             ],
@@ -382,7 +311,7 @@
             ]
         },
         {
-            "id": "gz-video-sora",
+            "id": "video-tpl-form-size-ref1",
             "match": [
                 "video-sora"
             ],
@@ -472,7 +401,7 @@
             ]
         },
         {
-            "id": "gz-video-kling",
+            "id": "video-tpl-form-ratio-ref4",
             "match": [
                 "video-kling"
             ],
@@ -545,7 +474,7 @@
             ]
         },
         {
-            "id": "gz-video-wan",
+            "id": "video-tpl-form-ratio-ref1-i2v",
             "match": [
                 "video-wan"
             ],
@@ -615,7 +544,7 @@
             ]
         },
         {
-            "id": "gz-video-15s-pro",
+            "id": "video-tpl-json-15s-pro-audio-ref4v1a3",
             "match": [
                 "seedance-pro-15s",
                 "video-pro-15s"
@@ -703,10 +632,11 @@
                 {
                     "text": "Pro 15 秒档：固定 15 秒，最多 4 张参考图、3 段音频、1 个参考视频。"
                 }
-            ]
+            ],
+            "apiMode": "videos-json-gz"
         },
         {
-            "id": "gz-video-15s-fast",
+            "id": "video-tpl-json-15s-fast-audio-ref4v1a1",
             "match": [
                 "seedance-2-0-fast-15s",
                 "video-pro-15s-2"
@@ -794,10 +724,11 @@
                 {
                     "text": "Fast 15 秒档：固定 15 秒，最多 4 张参考图、1 段音频、1 个参考视频。"
                 }
-            ]
+            ],
+            "apiMode": "videos-json-gz"
         },
         {
-            "id": "gz-video-10s",
+            "id": "video-tpl-json-10s-seed-ref9",
             "match": [
                 "seedance-pro-10s",
                 "video-pro-10s"
@@ -866,10 +797,11 @@
                 {
                     "text": "最多 9 张参考图，不支持生成声音与音视频参考。"
                 }
-            ]
+            ],
+            "apiMode": "videos-json-gz"
         },
         {
-            "id": "gz-video-muse-pro",
+            "id": "video-tpl-json-pro-audio-seed-ref4v1",
             "match": [
                 "seedance-pro-720p-k",
                 "seedance-pro-720p-h",
@@ -956,10 +888,11 @@
                 {
                     "text": "Pro 档 · 可生成真人 · 最多 4 张参考图、1 段参考音频，不支持参考视频。"
                 }
-            ]
+            ],
+            "apiMode": "videos-json-gz"
         },
         {
-            "id": "gz-video-muse-fast",
+            "id": "video-tpl-json-fast-audio-seed-ref4v1",
             "match": [
                 "seedance-2-0-fast-720p-k",
                 "seedance-2-0-fast-720p-h",
@@ -1062,10 +995,11 @@
                 {
                     "text": "Fast 档 · 可生成真人 · 固定 720P，最多 4 张参考图、1 段参考音频。"
                 }
-            ]
+            ],
+            "apiMode": "videos-json-gz"
         },
         {
-            "id": "gz-video-plain",
+            "id": "video-tpl-json-art-plain-ref4",
             "match": [
                 "seedance-plain",
                 "video-art-fast-720",
@@ -1151,10 +1085,11 @@
                 {
                     "text": "不可生成真人形象，适合动画、产品等非人物场景；最多 4 张参考图。"
                 }
-            ]
+            ],
+            "apiMode": "videos-json-gz"
         },
         {
-            "id": "gz-video-sz",
+            "id": "video-tpl-json-720-duration-ref4",
             "match": [
                 "seedance-sz",
                 "seedance-sz-fast",
@@ -1268,10 +1203,11 @@
                         "modelIncludes": "full"
                     }
                 }
-            ]
+            ],
+            "apiMode": "videos-json-gz"
         },
         {
-            "id": "newapi-chat-wan-i2v",
+            "id": "video-tpl-chat-i2v-ref1",
             "apiMode": "chat-completions",
             "match": [
                 "wan-i2v-2.6",
@@ -1316,11 +1252,13 @@
             ]
         },
         {
-            "id": "newapi-chat-sora",
+            "id": "video-tpl-chat-no-params",
             "apiMode": "chat-completions",
             "match": [
                 "sora-2-pro",
-                "sora-2"
+                "sora-2",
+                "kling-omni-video",
+                "kling-video"
             ],
             "referenceLimits": {
                 "images": 0,
@@ -1356,11 +1294,14 @@
             "hints": [
                 {
                     "text": "时长与画质由所选模型档位决定；不支持参考素材与生成声音。"
+                },
+                {
+                    "text": "可灵视频，时长与比例由所选模型决定；不支持参考素材。"
                 }
             ]
         },
         {
-            "id": "newapi-chat-gemini-omni-flash-4s",
+            "id": "video-tpl-chat-fixed-4s",
             "apiMode": "chat-completions",
             "match": [
                 "gemini-omni-flash-portrait-4s",
@@ -1404,7 +1345,7 @@
             ]
         },
         {
-            "id": "newapi-chat-gemini-omni-flash-6s",
+            "id": "video-tpl-chat-fixed-6s",
             "apiMode": "chat-completions",
             "match": [
                 "gemini-omni-flash-portrait-6s"
@@ -1447,7 +1388,7 @@
             ]
         },
         {
-            "id": "newapi-chat-gemini-omni-flash-10s",
+            "id": "video-tpl-chat-fixed-10s",
             "apiMode": "chat-completions",
             "match": [
                 "gemini-omni-flash-landscape-10s"
@@ -1490,51 +1431,7 @@
             ]
         },
         {
-            "id": "newapi-chat-kling",
-            "apiMode": "chat-completions",
-            "match": [
-                "kling-omni-video",
-                "kling-video"
-            ],
-            "referenceLimits": {
-                "images": 0,
-                "videos": 0,
-                "audios": 0
-            },
-            "params": {
-                "resolution": {
-                    "enabled": false
-                },
-                "ratio": {
-                    "enabled": false
-                },
-                "duration": {
-                    "enabled": false
-                },
-                "generateAudio": {
-                    "enabled": false
-                },
-                "watermark": {
-                    "enabled": false
-                },
-                "seed": {
-                    "enabled": false
-                },
-                "widthHeight": {
-                    "enabled": false
-                },
-                "frameInputs": {
-                    "enabled": false
-                }
-            },
-            "hints": [
-                {
-                    "text": "可灵视频，时长与比例由所选模型决定；不支持参考素材。"
-                }
-            ]
-        },
-        {
-            "id": "newapi-grok-image-video",
+            "id": "video-tpl-gen-ratio-ref7",
             "apiMode": "video-generations",
             "match": [
                 "grok-video",
@@ -1628,7 +1525,7 @@
             ]
         },
         {
-            "id": "newapi-grok-video-1.5",
+            "id": "video-tpl-gen-ratio-ref1",
             "apiMode": "video-generations",
             "match": [
                 "grok-video-1.5"
@@ -1702,7 +1599,7 @@
             ]
         },
         {
-            "id": "newapi-async-veo-fast-oriented",
+            "id": "video-tpl-async-no-params-orientation-fixed",
             "apiMode": "videos-json-async",
             "match": [
                 "veo-fast-landscape",
@@ -1748,7 +1645,7 @@
             ]
         },
         {
-            "id": "newapi-async-veo",
+            "id": "video-tpl-async-no-params-quality-fixed",
             "apiMode": "videos-json-async",
             "match": [
                 "veo-pro-4k",
@@ -1794,7 +1691,7 @@
             ]
         },
         {
-            "id": "oairegbox-omni-fast",
+            "id": "video-tpl-async-ratio-frame-ref5",
             "apiMode": "videos-json-async",
             "match": [
                 "omni-fast",
@@ -1853,7 +1750,7 @@
             ]
         },
         {
-            "id": "oairegbox-omni-v2v",
+            "id": "video-tpl-async-v2v-ref1",
             "apiMode": "videos-json-async",
             "match": [
                 "omni-v2v",
@@ -1910,7 +1807,7 @@
             ]
         },
         {
-            "id": "oairegbox-veo-clean",
+            "id": "video-tpl-async-v2v-clean",
             "apiMode": "videos-json-async",
             "match": [
                 "veo-clean"
@@ -1953,7 +1850,7 @@
             ]
         },
         {
-            "id": "oairegbox-seedance-2",
+            "id": "video-tpl-async-ratio-duration-frame-ref9v3",
             "apiMode": "videos-json-async",
             "match": [
                 "seedance-480p",
@@ -2071,7 +1968,7 @@
             ]
         },
         {
-            "id": "oairegbox-grok-imagine-video",
+            "id": "video-tpl-chat-ref7",
             "apiMode": "chat-completions",
             "match": [
                 "grok-imagine-video"
@@ -2114,7 +2011,7 @@
             ]
         },
         {
-            "id": "oairegbox-grok-cli",
+            "id": "video-tpl-async-ratio-duration-ref10v1",
             "apiMode": "videos-json-async",
             "match": [
                 "grok-video-cli",
@@ -2208,7 +2105,7 @@
             ]
         },
         {
-            "id": "oairegbox-grok-cli-1.5",
+            "id": "video-tpl-async-ratio-ref1",
             "apiMode": "videos-json-async",
             "match": [
                 "grok-video-1.5-cli"

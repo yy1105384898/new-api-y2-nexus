@@ -1,0 +1,53 @@
+{
+  "video": {
+    "default-video": "default-video",
+    "gz-video-grok": "video-tpl-form-ratio-ref7",
+    "gz-video-veo": "video-tpl-form-ratio-frame-ref3",
+    "gz-video-omni-flash": "video-tpl-form-ratio-ref7",
+    "gz-video-seedance": "video-tpl-form-ratio-audio-multi-ref",
+    "gz-video-sora": "video-tpl-form-size-ref1",
+    "gz-video-kling": "video-tpl-form-ratio-ref4",
+    "gz-video-wan": "video-tpl-form-ratio-ref1-i2v",
+    "gz-video-15s-pro": "video-tpl-json-15s-pro-audio-ref4v1a3",
+    "gz-video-15s-fast": "video-tpl-json-15s-fast-audio-ref4v1a1",
+    "gz-video-10s": "video-tpl-json-10s-seed-ref9",
+    "gz-video-muse-pro": "video-tpl-json-pro-audio-seed-ref4v1",
+    "gz-video-muse-fast": "video-tpl-json-fast-audio-seed-ref4v1",
+    "gz-video-plain": "video-tpl-json-art-plain-ref4",
+    "gz-video-sz": "video-tpl-json-720-duration-ref4",
+    "newapi-chat-wan-i2v": "video-tpl-chat-i2v-ref1",
+    "newapi-chat-sora": "video-tpl-chat-no-params",
+    "newapi-chat-gemini-omni-flash-4s": "video-tpl-chat-fixed-4s",
+    "newapi-chat-gemini-omni-flash-6s": "video-tpl-chat-fixed-6s",
+    "newapi-chat-gemini-omni-flash-10s": "video-tpl-chat-fixed-10s",
+    "newapi-chat-kling": "video-tpl-chat-no-params",
+    "newapi-grok-image-video": "video-tpl-gen-ratio-ref7",
+    "newapi-grok-video-1.5": "video-tpl-gen-ratio-ref1",
+    "newapi-async-veo-fast-oriented": "video-tpl-async-no-params-orientation-fixed",
+    "newapi-async-veo": "video-tpl-async-no-params-quality-fixed",
+    "oairegbox-omni-fast": "video-tpl-async-ratio-frame-ref5",
+    "oairegbox-omni-v2v": "video-tpl-async-v2v-ref1",
+    "oairegbox-veo-clean": "video-tpl-async-v2v-clean",
+    "oairegbox-seedance-2": "video-tpl-async-ratio-duration-frame-ref9v3",
+    "oairegbox-grok-imagine-video": "video-tpl-chat-ref7",
+    "oairegbox-grok-cli": "video-tpl-async-ratio-duration-ref10v1",
+    "oairegbox-grok-cli-1.5": "video-tpl-async-ratio-ref1"
+  },
+  "image": {
+    "default-image": "default-image",
+    "gz-image-2": "image-tpl-full-quality-export",
+    "gpt-image-2": "image-tpl-aspect-count-basic",
+    "gemini-image": "image-tpl-aspect-count-extended",
+    "grok-imagine-image": "image-tpl-square-fixed-count",
+    "gpt-image-2-4k": "image-tpl-square-4k-single"
+  },
+  "explicit_api_modes": {
+    "video-tpl-json-15s-pro-audio-ref4v1a3": "videos-json-gz",
+    "video-tpl-json-15s-fast-audio-ref4v1a1": "videos-json-gz",
+    "video-tpl-json-10s-seed-ref9": "videos-json-gz",
+    "video-tpl-json-pro-audio-seed-ref4v1": "videos-json-gz",
+    "video-tpl-json-fast-audio-seed-ref4v1": "videos-json-gz",
+    "video-tpl-json-art-plain-ref4": "videos-json-gz",
+    "video-tpl-json-720-duration-ref4": "videos-json-gz"
+  }
+}
