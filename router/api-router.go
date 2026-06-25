@@ -378,6 +378,21 @@ func SetApiRouter(router *gin.Engine) {
 			modelPublicAliasRoute.DELETE("/:id", controller.DeleteModelPublicAlias)
 		}
 
+		modelChannelPrefixRoute := apiRouter.Group("/model_channel_prefixes")
+		modelChannelPrefixRoute.Use(middleware.AdminAuth())
+		{
+			modelChannelPrefixRoute.GET("/", controller.GetAllModelChannelPrefixes)
+			modelChannelPrefixRoute.POST("/", controller.CreateModelChannelPrefix)
+			modelChannelPrefixRoute.PUT("/", controller.UpdateModelChannelPrefix)
+			modelChannelPrefixRoute.DELETE("/:id", controller.DeleteModelChannelPrefix)
+		}
+
+		modelPublicNameRoute := apiRouter.Group("/model_public_name_registry")
+		modelPublicNameRoute.Use(middleware.AdminAuth())
+		{
+			modelPublicNameRoute.GET("/status", controller.GetModelPublicNameRegistryStatus)
+		}
+
 		// Deployments (model deployment management)
 		deploymentsRoute := apiRouter.Group("/deployments")
 		deploymentsRoute.Use(middleware.AdminAuth())

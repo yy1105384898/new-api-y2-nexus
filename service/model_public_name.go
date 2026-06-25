@@ -21,28 +21,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// channelRegistrationPrefixes：NewAPI abilities 注册名中的渠道前缀，对外 API 自动剥离。
-// 来源：生产库 abilities.model DISTINCT 前缀审计（不含 claude-/gpt-/gemini- 等官方 model 名）。
-var channelRegistrationPrefixes = []string{
-	"119337-",
-	"aini-",
-	"byte-",
-	"ctlove-",
-	"czeq-",
-	"go2api-",
-	"gz-",
-	"happyhorse-",
-	"niming-",
-	"oairegbox-",
-	"yunwu-",
-	"zeabur-",
-}
+// 渠道注册前缀由 model_channel_prefixes 表配置，RefreshModelPublicNameRegistry 加载到内存。
 
 type modelPublicRegistry struct {
 	internalSet       map[string]struct{}
 	publicToInternals map[string][]string
 	internalToPublic  map[string]string
 	collisions        map[string][]string
+	channelPrefixes   []string
 }
 
 var (
@@ -57,7 +43,7 @@ func ModelPublicNameEnabled() bool {
 
 func StripChannelRegistrationPrefix(modelName string) string {
 	trimmed := strings.TrimSpace(modelName)
-	for _, prefix := range channelRegistrationPrefixes {
+	for _, prefix := range getChannelRegistrationPrefixes() {
 		if strings.HasPrefix(trimmed, prefix) {
 			return strings.TrimSpace(trimmed[len(prefix):])
 		}
@@ -67,7 +53,7 @@ func StripChannelRegistrationPrefix(modelName string) string {
 
 func HasChannelRegistrationPrefix(modelName string) bool {
 	trimmed := strings.TrimSpace(modelName)
-	for _, prefix := range channelRegistrationPrefixes {
+	for _, prefix := range getChannelRegistrationPrefixes() {
 		if strings.HasPrefix(trimmed, prefix) {
 			return true
 		}
@@ -75,11 +61,46 @@ func HasChannelRegistrationPrefix(modelName string) bool {
 	return false
 }
 
+func getChannelRegistrationPrefixes() []string {
+	registry := getModelPublicRegistry()
+	if len(registry.channelPrefixes) == 0 {
+		return nil
+	}
+	out := make([]string, len(registry.channelPrefixes))
+	copy(out, registry.channelPrefixes)
+	return out
+}
+
+func GetModelPublicNameRegistryStatus() (collisions map[string][]string, ready bool) {
+	modelPublicRegistryMu.RLock()
+	defer modelPublicRegistryMu.RUnlock()
+	if !modelPublicRegistryReady {
+		return nil, false
+	}
+	out := make(map[string][]string, len(modelPublicRegistryData.collisions))
+	for public, internals := range modelPublicRegistryData.collisions {
+		out[public] = append([]string(nil), internals...)
+	}
+	return out, true
+}
+
 func RefreshModelPublicNameRegistry() error {
 	models := model.GetEnabledModels()
 	aliases, err := model.GetAllModelPublicAliases()
 	if err != nil {
 		return err
+	}
+	prefixRows, err := model.GetEnabledModelChannelPrefixes()
+	if err != nil {
+		return err
+	}
+	channelPrefixes := make([]string, 0, len(prefixRows))
+	for _, row := range prefixRows {
+		prefix := model.NormalizeModelChannelPrefix(row.Prefix)
+		if prefix == "" {
+			continue
+		}
+		channelPrefixes = append(channelPrefixes, prefix)
 	}
 
 	overrideByInternal := make(map[string]string, len(aliases))
@@ -105,7 +126,7 @@ func RefreshModelPublicNameRegistry() error {
 		internalSet[internal] = struct{}{}
 		public := overrideByInternal[internal]
 		if public == "" {
-			public = StripChannelRegistrationPrefix(internal)
+			public = stripWithPrefixes(internal, channelPrefixes)
 		}
 		if public == "" {
 			public = internal
@@ -127,9 +148,20 @@ func RefreshModelPublicNameRegistry() error {
 		publicToInternals: publicToInternals,
 		internalToPublic:  internalToPublic,
 		collisions:        collisions,
+		channelPrefixes:   channelPrefixes,
 	}
 	modelPublicRegistryReady = true
 	return nil
+}
+
+func stripWithPrefixes(modelName string, prefixes []string) string {
+	trimmed := strings.TrimSpace(modelName)
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(trimmed, prefix) {
+			return strings.TrimSpace(trimmed[len(prefix):])
+		}
+	}
+	return trimmed
 }
 
 func getModelPublicRegistry() modelPublicRegistry {

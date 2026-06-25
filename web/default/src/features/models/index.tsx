@@ -32,6 +32,7 @@ import { ModelsDialogs } from './components/models-dialogs'
 import { ModelsPrimaryButtons } from './components/models-primary-buttons'
 import { ModelsProvider, useModels } from './components/models-provider'
 import { ModelsTable } from './components/models-table'
+import { ModelNamingSection } from './components/model-naming-section'
 import { useModelDeploymentSettings } from './hooks/use-model-deployment-settings'
 import { deploymentsQueryKeys } from './lib'
 import {
@@ -48,6 +49,9 @@ const SECTION_META: Record<ModelsSectionId, { titleKey: string }> = {
   },
   deployments: {
     titleKey: 'Deployments',
+  },
+  naming: {
+    titleKey: 'Model naming',
   },
 }
 
@@ -109,6 +113,8 @@ function ModelsContent() {
             <div className='min-h-0 flex-1'>
               {activeSection === 'metadata' ? (
                 <ModelsTable />
+              ) : activeSection === 'naming' ? (
+                <ModelNamingSection />
               ) : (
                 <DeploymentsSection />
               )}
