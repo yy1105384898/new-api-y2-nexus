@@ -416,6 +416,53 @@ function ProfileEditorDialog({
   )
 }
 
+const PROFILE_DEFAULT_VALUE = '__default__'
+
+function resolveProfileOptionLabel(
+  options: Array<{ value: string; label: string }>,
+  value: string
+) {
+  return (
+    options.find((option) => option.value === value)?.label ??
+    options[0]?.label ??
+    value
+  )
+}
+
+function ProfileBindingSelect({
+  value,
+  options,
+  onValueChange,
+}: {
+  value: string
+  options: Array<{ value: string; label: string }>
+  onValueChange: (value: string) => void
+}) {
+  const selectValue = value || PROFILE_DEFAULT_VALUE
+  const label = resolveProfileOptionLabel(options, selectValue)
+
+  return (
+    <Select
+      value={selectValue}
+      onValueChange={(nextValue) => {
+        if (!nextValue) return
+        onValueChange(nextValue)
+      }}
+    >
+      <SelectTrigger className='h-8 w-full min-w-[180px]'>
+        <SelectValue>{label}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+
 function ModelBindingsPanel({
   videoProfiles,
   imageProfiles,
@@ -479,7 +526,10 @@ function ModelBindingsPanel({
         ? DEFAULT_VIDEO_PROFILE_ID
         : DEFAULT_IMAGE_PROFILE_ID
     return [
-      { value: '', label: t('Default ({{id}})', { id: defaultId }) },
+      {
+        value: PROFILE_DEFAULT_VALUE,
+        label: t('Default ({{id}})', { id: defaultId }),
+      },
       ...profiles.map((profile) => ({
         value: profile.profile_id,
         label: profile.profile_id,
@@ -499,8 +549,8 @@ function ModelBindingsPanel({
           value={keyword}
           onChange={(event) => setKeyword(event.target.value)}
         />
-        <div className='max-h-[min(60vh,720px)] overflow-auto rounded-md border'>
-          <Table>
+        <div className='overflow-x-auto rounded-md border'>
+          <Table className='min-w-[960px]'>
             <TableHeader>
               <TableRow>
                 <TableHead>{t('Model name')}</TableHead>
@@ -527,62 +577,40 @@ function ModelBindingsPanel({
                       {model.model_name}
                     </TableCell>
                     <TableCell>
-                      <Select
-                        value={drafts[model.id]?.video || '__default__'}
-                        onValueChange={(value) => {
-                          if (!value) return
+                      <ProfileBindingSelect
+                        value={drafts[model.id]?.video || PROFILE_DEFAULT_VALUE}
+                        options={profileOptions('video')}
+                        onValueChange={(nextValue) => {
                           setDrafts((prev) => ({
                             ...prev,
                             [model.id]: {
-                              video: value === '__default__' ? '' : value,
+                              video:
+                                nextValue === PROFILE_DEFAULT_VALUE
+                                  ? ''
+                                  : nextValue,
                               image: prev[model.id]?.image || '',
                             },
                           }))
                         }}
-                      >
-                        <SelectTrigger className='h-8'>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {profileOptions('video').map((option) => (
-                            <SelectItem
-                              key={option.value || '__default__'}
-                              value={option.value || '__default__'}
-                            >
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      />
                     </TableCell>
                     <TableCell>
-                      <Select
-                        value={drafts[model.id]?.image || '__default__'}
-                        onValueChange={(value) => {
-                          if (!value) return
+                      <ProfileBindingSelect
+                        value={drafts[model.id]?.image || PROFILE_DEFAULT_VALUE}
+                        options={profileOptions('image')}
+                        onValueChange={(nextValue) => {
                           setDrafts((prev) => ({
                             ...prev,
                             [model.id]: {
                               video: prev[model.id]?.video || '',
-                              image: value === '__default__' ? '' : value,
+                              image:
+                                nextValue === PROFILE_DEFAULT_VALUE
+                                  ? ''
+                                  : nextValue,
                             },
                           }))
                         }}
-                      >
-                        <SelectTrigger className='h-8'>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {profileOptions('image').map((option) => (
-                            <SelectItem
-                              key={option.value || '__default__'}
-                              value={option.value || '__default__'}
-                            >
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      />
                     </TableCell>
                     <TableCell className='text-right'>
                       <Button
@@ -700,23 +728,19 @@ export function ModelParamsSection() {
     capability === 'video' ? VIDEO_PARAM_KEYS : IMAGE_PARAM_KEYS
 
   return (
-    <div className='flex h-full min-h-0 flex-col gap-4'>
-      <Tabs defaultValue='profiles' className='flex min-h-0 flex-1 flex-col'>
-        <TabsList className='shrink-0'>
+    <div className='space-y-4 pb-4'>
+      <Tabs defaultValue='profiles'>
+        <TabsList>
           <TabsTrigger value='profiles'>{t('Parameter profiles')}</TabsTrigger>
           <TabsTrigger value='bindings'>{t('Model bindings')}</TabsTrigger>
         </TabsList>
 
-        <TabsContent
-          value='profiles'
-          className='mt-4 flex min-h-0 flex-1 flex-col gap-4 overflow-hidden'
-        >
+        <TabsContent value='profiles' className='mt-4 flex-none space-y-4'>
           <Tabs
             value={capability}
             onValueChange={(value) =>
               setCapability(value as ModelUiParamCapability)
             }
-            className='shrink-0'
           >
             <TabsList>
               <TabsTrigger value='video'>{t('Video parameters')}</TabsTrigger>
@@ -724,7 +748,7 @@ export function ModelParamsSection() {
             </TabsList>
           </Tabs>
 
-          <Card className='shrink-0'>
+          <Card>
             <CardHeader className='pb-3'>
               <CardTitle className='text-base'>{t('Registry settings')}</CardTitle>
               <FieldHelp>{t('Registry settings help')}</FieldHelp>
@@ -772,7 +796,7 @@ export function ModelParamsSection() {
             </CardContent>
           </Card>
 
-          <div className='flex shrink-0 items-center justify-between'>
+          <div className='flex items-center justify-between'>
             <div>
               <h3 className='text-sm font-medium'>{t('Profile templates')}</h3>
               <FieldHelp>{t('Profile templates help')}</FieldHelp>
@@ -789,8 +813,8 @@ export function ModelParamsSection() {
             </Button>
           </div>
 
-          <div className='min-h-0 flex-1 overflow-auto rounded-md border'>
-            <Table>
+          <div className='overflow-x-auto rounded-md border'>
+            <Table className='min-w-[720px]'>
               <TableHeader>
                 <TableRow>
                   <TableHead>{t('Profile id')}</TableHead>
@@ -861,10 +885,7 @@ export function ModelParamsSection() {
           </div>
         </TabsContent>
 
-        <TabsContent
-          value='bindings'
-          className='mt-4 min-h-0 flex-1 overflow-y-auto'
-        >
+        <TabsContent value='bindings' className='mt-4 flex-none'>
           <ModelBindingsPanel
             videoProfiles={videoProfiles}
             imageProfiles={imageProfiles}

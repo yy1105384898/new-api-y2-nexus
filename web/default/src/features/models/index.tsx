@@ -41,6 +41,7 @@ import {
   MODELS_DEFAULT_SECTION,
   MODELS_SECTION_IDS,
 } from './section-registry'
+import { cn } from '@/lib/utils'
 
 const route = getRouteApi('/_authenticated/models/$section')
 
@@ -114,7 +115,14 @@ function ModelsContent() {
                 ))}
               </TabsList>
             </Tabs>
-            <div className='min-h-0 flex-1'>
+            <div
+              className={cn(
+                'min-h-0 flex-1',
+                activeSection === 'metadata' || activeSection === 'deployments'
+                  ? 'overflow-hidden'
+                  : 'overflow-y-auto'
+              )}
+            >
               {activeSection === 'metadata' ? (
                 <ModelsTable />
               ) : activeSection === 'naming' ? (
