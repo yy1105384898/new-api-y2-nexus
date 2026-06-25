@@ -160,8 +160,10 @@ For coordinated changes with **`infinite-canvas/`** in this workspace: use the *
 
 ### verify（合并 main 前）
 
-- Changes under `web/default/**`: `cd web/default && bun run typecheck`
-- Go backend changes: `go test` on affected packages (or `./...` when scope is unclear)
-- Doc-only: confirm commit body documents paths; no typecheck required
+- **默认**：文档 + `git diff` 自查即可；**不跑**本地 `go build ./...`、Docker 打包或全仓 `go test`。
+- **CI/CD**：`push origin main` 后由 `.github/workflows/cangyuan-prod.yml` 构建 GHCR 镜像并源站部署；功能验收在**线上**完成。
+- **仅文档**：commit body 写明文档路径即可。
+- **可选本地**：用户明确要求或大范围 Go 签名变更时，可跑改动包的 `go test`（不必 `./...`）。
+- 前端 `web/default/**` 变更：CI 会 typecheck/build；本地仅在被要求时跑 `cd web/default && bun run typecheck`。
 
 Frontend detailed conventions: `web/default/AGENTS.md`.
