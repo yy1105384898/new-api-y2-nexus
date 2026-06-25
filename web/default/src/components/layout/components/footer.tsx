@@ -195,7 +195,7 @@ export function Footer(props: FooterProps) {
           },
           {
             text: t('footer.columns.docs.links.apiDocs'),
-            href: '/docs#integrations',
+            href: '/docs/api',
           },
           {
             text: t('footer.columns.docs.links.infiniteCanvas'),

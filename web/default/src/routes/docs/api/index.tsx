@@ -6,5 +6,9 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
-export { ApiDocsPage } from './api-docs-page'
-export { UserDocsPage } from './user-docs-page'
+import { createFileRoute } from '@tanstack/react-router'
+import { ApiDocsPage } from '@/features/docs/api-docs-page'
+
+export const Route = createFileRoute('/docs/api/')({
+  component: ApiDocsPage,
+})
