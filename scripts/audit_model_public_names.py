@@ -10,12 +10,18 @@ import sys
 from collections import defaultdict
 
 CHANNEL_PREFIXES = (
-    "gz-",
-    "yunwu-",
-    "oairegbox-",
     "119337-",
+    "aini-",
+    "byte-",
     "ctlove-",
+    "czeq-",
+    "go2api-",
+    "gz-",
     "happyhorse-",
+    "niming-",
+    "oairegbox-",
+    "yunwu-",
+    "zeabur-",
 )
 
 

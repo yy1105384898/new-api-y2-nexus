@@ -14,26 +14,21 @@ export type ApiDocsNavGroup = {
 /** 按供应商/产品分类，与下游 API 模型名一致（非内部渠道路由名）。 */
 export const apiDocsNavGroups: ApiDocsNavGroup[] = [
   {
-    titleKey: 'apiDocs.nav.groupGeminiVideo',
+    titleKey: 'apiDocs.nav.groupVideo',
     items: [
+      { id: 'api-video-api', titleKey: 'apiDocs.nav.videoApi' },
       { id: 'api-omni-video', titleKey: 'apiDocs.nav.omniVideo' },
       { id: 'api-veo-clean', titleKey: 'apiDocs.nav.veoClean' },
-    ],
-  },
-  {
-    titleKey: 'apiDocs.nav.groupSeedance',
-    items: [{ id: 'api-seedance-video', titleKey: 'apiDocs.nav.seedanceVideo' }],
-  },
-  {
-    titleKey: 'apiDocs.nav.groupGrok',
-    items: [
+      { id: 'api-seedance-video', titleKey: 'apiDocs.nav.seedanceVideo' },
       { id: 'api-grok-image-video', titleKey: 'apiDocs.nav.grokImageVideo' },
       { id: 'api-grok-cli-video', titleKey: 'apiDocs.nav.grokCliVideo' },
+      { id: 'api-video-guide', titleKey: 'apiDocs.nav.videoGuide' },
     ],
   },
   {
     titleKey: 'apiDocs.nav.groupImage',
     items: [
+      { id: 'api-image-api', titleKey: 'apiDocs.nav.imageApi' },
       { id: 'api-gpt-image', titleKey: 'apiDocs.nav.gptImage' },
       { id: 'api-gemini-image', titleKey: 'apiDocs.nav.geminiImage' },
     ],
@@ -43,7 +38,6 @@ export const apiDocsNavGroups: ApiDocsNavGroup[] = [
     items: [
       { id: 'api-overview-faq', titleKey: 'apiDocs.nav.overviewFaq' },
       { id: 'api-gemini-music', titleKey: 'apiDocs.nav.geminiMusic' },
-      { id: 'api-video-guide', titleKey: 'apiDocs.nav.videoGuide' },
     ],
   },
 ]

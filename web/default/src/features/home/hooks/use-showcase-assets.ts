@@ -53,7 +53,7 @@ function fallbackAssets(): ShowcaseAsset[] {
   }))
 }
 
-/** Read pre-built daily manifest from static CDN (no canvas API at runtime). */
+/** Fetch pre-built manifest from R2 CDN (scripts/generate-home-showcase.mjs --upload). */
 async function fetchShowcaseAssets(): Promise<ShowcaseAsset[]> {
   try {
     const res = await fetch(SHOWCASE_MANIFEST_URL)
