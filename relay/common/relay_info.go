@@ -707,6 +707,7 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	aux := &struct {
 		Metadata json.RawMessage `json:"metadata,omitempty"`
 		Duration json.RawMessage `json:"duration,omitempty"`
+		Seconds  json.RawMessage `json:"seconds,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(t),
@@ -717,16 +718,14 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	}
 
 	if len(aux.Duration) > 0 {
-		var durationInt int
-		if err := common.Unmarshal(aux.Duration, &durationInt); err == nil {
-			t.Duration = durationInt
-		} else {
-			var durationStr string
-			if err := common.Unmarshal(aux.Duration, &durationStr); err == nil && durationStr != "" {
-				if v, err := strconv.Atoi(durationStr); err == nil {
-					t.Duration = v
-				}
-			}
+		if v, ok := unmarshalFlexibleInt(aux.Duration); ok {
+			t.Duration = v
+		}
+	}
+
+	if len(aux.Seconds) > 0 {
+		if v, ok := unmarshalFlexibleInt(aux.Seconds); ok {
+			t.Seconds = strconv.Itoa(v)
 		}
 	}
 
@@ -748,6 +747,21 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 
 	return nil
 }
+
+func unmarshalFlexibleInt(raw json.RawMessage) (int, bool) {
+	var intVal int
+	if err := common.Unmarshal(raw, &intVal); err == nil {
+		return intVal, true
+	}
+	var strVal string
+	if err := common.Unmarshal(raw, &strVal); err == nil && strVal != "" {
+		if v, err := strconv.Atoi(strVal); err == nil {
+			return v, true
+		}
+	}
+	return 0, false
+}
+
 func (t *TaskSubmitReq) UnmarshalMetadata(v any) error {
 	metadata := t.Metadata
 	if metadata != nil {
