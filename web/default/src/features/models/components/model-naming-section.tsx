@@ -48,12 +48,12 @@ import {
   listModelPublicAliases,
   updateModelChannelPrefix,
   updateModelPublicAlias,
-} from './model-naming-api'
+} from '../model-naming-api'
 import {
   modelNamingQueryKeys,
   type ModelChannelPrefix,
   type ModelPublicAlias,
-} from './model-naming-types'
+} from '../model-naming-types'
 
 type PrefixFormState = {
   prefix: string
