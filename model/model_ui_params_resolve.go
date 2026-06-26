@@ -148,14 +148,14 @@ func profileToDocument(profile ModelUiParamProfile) (map[string]interface{}, err
 				doc["optionRules"] = rules
 			}
 		}
-		if strings.TrimSpace(profile.Hints) != "" && profile.Hints != "[]" {
-			var hints []interface{}
-			if err := json.Unmarshal([]byte(profile.Hints), &hints); err != nil {
-				return nil, err
-			}
-			if len(hints) > 0 {
-				doc["hints"] = hints
-			}
+	}
+	if strings.TrimSpace(profile.Hints) != "" && profile.Hints != "[]" {
+		var hints []interface{}
+		if err := json.Unmarshal([]byte(profile.Hints), &hints); err != nil {
+			return nil, err
+		}
+		if len(hints) > 0 {
+			doc["hints"] = hints
 		}
 	}
 
