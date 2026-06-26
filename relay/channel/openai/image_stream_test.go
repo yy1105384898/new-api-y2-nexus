@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -170,4 +171,35 @@ func TestOpenaiImageStreamHandlerRecordsUpstreamErrorEvent(t *testing.T) {
 	// is still forwarded in the data: payload (stream ID 77).
 	require.Contains(t, recorder.Body.String(), `event: upstream_error`)
 	require.Contains(t, recorder.Body.String(), `stream ID 77`)
+}
+
+func TestOpenaiImageStreamHandlerTimesOut(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	oldImageTimeout := constant.ImageStreamingTimeout
+	constant.ImageStreamingTimeout = 1
+	t.Cleanup(func() { constant.ImageStreamingTimeout = oldImageTimeout })
+
+	pr, pw := io.Pipe()
+	t.Cleanup(func() { _ = pw.Close() })
+
+	c, recorder, resp, info := newImageTestContext(t, "", "text/event-stream", true)
+	resp.Body = pr
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, err := OpenaiImageStreamHandler(c, info, resp)
+		require.NotNil(t, err)
+		require.Equal(t, http.StatusGatewayTimeout, err.StatusCode)
+		require.Contains(t, err.ToOpenAIError().Message, "timed out after 1 seconds")
+	}()
+
+	time.Sleep(1500 * time.Millisecond)
+	<-done
+	require.NotNil(t, info.StreamStatus)
+	require.Equal(t, relaycommon.StreamEndReasonTimeout, info.StreamStatus.EndReason)
+	require.Contains(t, recorder.Body.String(), "timed out after 1 seconds")
 }

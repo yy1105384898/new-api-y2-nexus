@@ -41,6 +41,19 @@ func NewStreamScanner(reader io.Reader) *bufio.Scanner {
 }
 
 func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(data string, sr *StreamResult)) {
+	streamScannerHandler(c, resp, info, 0, dataHandler)
+}
+
+// StreamScannerHandlerForImage uses IMAGE_STREAMING_TIMEOUT (fallback: STREAMING_TIMEOUT).
+func StreamScannerHandlerForImage(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, dataHandler func(data string, sr *StreamResult)) {
+	timeoutSeconds := constant.ImageStreamingTimeout
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = constant.StreamingTimeout
+	}
+	streamScannerHandler(c, resp, info, timeoutSeconds, dataHandler)
+}
+
+func streamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo, timeoutSeconds int, dataHandler func(data string, sr *StreamResult)) {
 
 	if resp == nil || dataHandler == nil {
 		return
@@ -57,6 +70,9 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	}()
 
 	streamingTimeout := time.Duration(constant.StreamingTimeout) * time.Second
+	if timeoutSeconds > 0 {
+		streamingTimeout = time.Duration(timeoutSeconds) * time.Second
+	}
 
 	var (
 		stopChan   = make(chan bool, 3) // 增加缓冲区避免阻塞

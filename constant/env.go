@@ -1,6 +1,7 @@
 package constant
 
 var StreamingTimeout int
+var ImageStreamingTimeout int
 var DifyDebug bool
 var MaxFileDownloadMB int
 var StreamScannerMaxBufferMB int
