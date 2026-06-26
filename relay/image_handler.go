@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -43,6 +44,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
+	syncImageRequestStreamToForm(c, request)
 
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
@@ -169,4 +171,19 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 
 	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
 	return nil
+}
+
+func syncImageRequestStreamToForm(c *gin.Context, request *dto.ImageRequest) {
+	if request == nil || request.Stream == nil || c.Request.MultipartForm == nil {
+		return
+	}
+	streamValue := "false"
+	if *request.Stream {
+		streamValue = "true"
+	}
+	c.Request.MultipartForm.Value["stream"] = []string{streamValue}
+	if c.Request.PostForm == nil {
+		c.Request.PostForm = url.Values{}
+	}
+	c.Request.PostForm.Set("stream", streamValue)
 }
