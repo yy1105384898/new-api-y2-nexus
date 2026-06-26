@@ -175,7 +175,7 @@ function ProfileEditorDialog({
         reference_limits: capability === 'video' ? form.reference_limits : '{}',
         params: form.params,
         option_rules: capability === 'video' ? form.option_rules : '[]',
-        hints: capability === 'video' ? form.hints : '[]',
+        hints: form.hints,
         note: form.note,
       }
       if (editingProfile) {
@@ -371,36 +371,34 @@ function ProfileEditorDialog({
           />
         </div>
         {capability === 'video' ? (
-          <>
-            <div className='space-y-2'>
-              <Label>{t('Option rules (JSON)')}</Label>
-              <FieldHelp>{t('Option rules help')}</FieldHelp>
-              <Textarea
-                rows={4}
-                className='font-mono text-xs'
-                value={form.option_rules}
-                onChange={(event) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    option_rules: event.target.value,
-                  }))
-                }
-              />
-            </div>
-            <div className='space-y-2'>
-              <Label>{t('Hints (JSON)')}</Label>
-              <FieldHelp>{t('Hints help')}</FieldHelp>
-              <Textarea
-                rows={4}
-                className='font-mono text-xs'
-                value={form.hints}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, hints: event.target.value }))
-                }
-              />
-            </div>
-          </>
+          <div className='space-y-2'>
+            <Label>{t('Option rules (JSON)')}</Label>
+            <FieldHelp>{t('Option rules help')}</FieldHelp>
+            <Textarea
+              rows={4}
+              className='font-mono text-xs'
+              value={form.option_rules}
+              onChange={(event) =>
+                setForm((prev) => ({
+                  ...prev,
+                  option_rules: event.target.value,
+                }))
+              }
+            />
+          </div>
         ) : null}
+        <div className='space-y-2'>
+          <Label>{t('Hints (JSON)')}</Label>
+          <FieldHelp>{t('Hints help')}</FieldHelp>
+          <Textarea
+            rows={4}
+            className='font-mono text-xs'
+            value={form.hints}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, hints: event.target.value }))
+            }
+          />
+        </div>
         <div className='space-y-2'>
           <Label>{t('Admin note')}</Label>
           <FieldHelp>{t('Admin note help')}</FieldHelp>

@@ -77,7 +77,12 @@
                 "moderation": {
                     "enabled": false
                 }
-            }
+            },
+            "hints": [
+                {
+                    "text": "并发生成可能触发上游限流，建议控制单次张数与并发。"
+                }
+            ]
         },
         {
             "id": "image-tpl-kedaya-1k",
