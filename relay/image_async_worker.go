@@ -173,5 +173,5 @@ func taskUpstreamBaseURL(task *model.Task) string {
 	if err != nil || channel == nil {
 		return ""
 	}
-	return channel.BaseURL
+	return channel.GetBaseURL()
 }
