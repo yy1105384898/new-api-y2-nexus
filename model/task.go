@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	commonRelay "github.com/QuantumNous/new-api/relay/common"
+
+	"gorm.io/gorm"
 )
 
 type TaskStatus string
@@ -224,6 +227,40 @@ func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) 
 	return t
 }
 
+// taskListPrivateDataSelectExpr returns a dialect-specific SQL expression that
+// projects only result_url from private_data, avoiding multi-MB request_snapshot reads.
+func taskListPrivateDataSelectExpr() string {
+	switch {
+	case common.UsingPostgreSQL:
+		return `jsonb_build_object('result_url', COALESCE(private_data->>'result_url', ''))::json`
+	case common.UsingMySQL:
+		return `JSON_OBJECT('result_url', COALESCE(JSON_UNQUOTE(JSON_EXTRACT(private_data, '$.result_url')), ''))`
+	default:
+		return `json_object('result_url', COALESCE(json_extract(private_data, '$.result_url'), ''))`
+	}
+}
+
+func taskListSelectClause(includeChannelID bool) string {
+	cols := []string{
+		"id", "created_at", "updated_at", "task_id", "platform", "user_id",
+		commonGroupCol,
+	}
+	if includeChannelID {
+		cols = append(cols, "channel_id")
+	}
+	cols = append(cols,
+		"quota", "action", "status", "fail_reason",
+		"submit_time", "start_time", "finish_time", "progress",
+		"properties", "data",
+		taskListPrivateDataSelectExpr()+" AS private_data",
+	)
+	return strings.Join(cols, ", ")
+}
+
+func applyTaskListSelect(query *gorm.DB, includeChannelID bool) *gorm.DB {
+	return query.Select(taskListSelectClause(includeChannelID))
+}
+
 func TaskGetAllUserTask(userId int, startIdx int, num int, queryParams SyncTaskQueryParams) []*Task {
 	var tasks []*Task
 	var err error
@@ -251,8 +288,8 @@ func TaskGetAllUserTask(userId int, startIdx int, num int, queryParams SyncTaskQ
 		query = query.Where("submit_time <= ?", queryParams.EndTimestamp)
 	}
 
-	// 获取数据
-	err = query.Omit("channel_id").Order("id desc").Limit(num).Offset(startIdx).Find(&tasks).Error
+	// 列表页只需 result_url，避免读取 private_data.request_snapshot 等大字段。
+	err = applyTaskListSelect(query, false).Order("id desc").Limit(num).Offset(startIdx).Find(&tasks).Error
 	if err != nil {
 		return nil
 	}
@@ -296,8 +333,8 @@ func TaskGetAllTasks(startIdx int, num int, queryParams SyncTaskQueryParams) []*
 		query = query.Where("submit_time <= ?", queryParams.EndTimestamp)
 	}
 
-	// 获取数据
-	err = query.Order("id desc").Limit(num).Offset(startIdx).Find(&tasks).Error
+	// 列表页只需 result_url，避免读取 private_data.request_snapshot 等大字段。
+	err = applyTaskListSelect(query, true).Order("id desc").Limit(num).Offset(startIdx).Find(&tasks).Error
 	if err != nil {
 		return nil
 	}

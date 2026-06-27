@@ -72,6 +72,11 @@ export function ComboboxInput({
     )
   }, [options, searchValue])
 
+  const closeDropdown = React.useCallback(() => {
+    setOpen(false)
+    setSearchValue('')
+  }, [])
+
   // Reset highlight when filtered options change
   React.useEffect(() => {
     setHighlightedIndex(-1)
@@ -86,20 +91,27 @@ export function ComboboxInput({
         containerRef.current &&
         !containerRef.current.contains(e.target as Node)
       ) {
-        setOpen(false)
-        setSearchValue('')
+        closeDropdown()
       }
     }
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [open])
+  }, [open, closeDropdown])
 
   const handleSelect = (selectedValue: string) => {
     onValueChange(selectedValue)
-    setOpen(false)
-    setSearchValue('')
+    closeDropdown()
     inputRef.current?.focus()
+  }
+
+  const handleBlur = () => {
+    // Defer so mousedown on a dropdown option (preventDefault) can run first.
+    window.setTimeout(() => {
+      if (!containerRef.current?.contains(document.activeElement)) {
+        closeDropdown()
+      }
+    }, 0)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -131,14 +143,12 @@ export function ComboboxInput({
           handleSelect(searchValue.trim())
         } else {
           // No highlighted option, just close the dropdown and keep current value
-          setOpen(false)
-          setSearchValue('')
+          closeDropdown()
         }
         break
       case 'Escape':
         e.preventDefault()
-        setOpen(false)
-        setSearchValue('')
+        closeDropdown()
         break
     }
   }
@@ -149,10 +159,6 @@ export function ComboboxInput({
     const item = listRef.current.children[highlightedIndex] as HTMLElement
     item?.scrollIntoView({ block: 'nearest' })
   }, [highlightedIndex])
-
-  const showDropdown =
-    open &&
-    (filteredOptions.length > 0 || (allowCustomValue && searchValue.trim()))
 
   return (
     <div ref={containerRef} className='relative'>
@@ -179,12 +185,13 @@ export function ComboboxInput({
           setSearchValue(allowCustomValue && !selectedOption ? value : '')
           setOpen(true)
         }}
+        onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         className={cn('pr-9', className)}
       />
       <ChevronsUpDown className='pointer-events-none absolute top-1/2 right-3 size-4 shrink-0 -translate-y-1/2 opacity-50' />
 
-      {showDropdown && (
+      {open && (
         <div className='bg-popover text-popover-foreground absolute top-full z-100 mt-1 w-full rounded-md border shadow-md'>
           {filteredOptions.length > 0 ? (
             <ul
