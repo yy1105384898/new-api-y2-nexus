@@ -95,17 +95,17 @@ func processImageAsyncTask(taskID string) {
 		return
 	}
 
-	publicURLs, uploadErr := uploadTaskImagesToR2(ctx, task, images)
-	if uploadErr != nil {
-		failImageAsyncTask(ctx, task, uploadErr.Error())
+	resultURLs, resolveErr := resolveTaskImageResultURLs(ctx, task, images)
+	if resolveErr != nil {
+		failImageAsyncTask(ctx, task, resolveErr.Error())
 		return
 	}
 
-	meta := map[string]any{"r2_urls": publicURLs}
+	meta := map[string]any{"result_urls": resultURLs}
 	task.SetData(meta)
-	task.PrivateData.ImageResultURLs = publicURLs
-	if len(publicURLs) > 0 {
-		task.PrivateData.ResultURL = publicURLs[0]
+	task.PrivateData.ImageResultURLs = resultURLs
+	if len(resultURLs) > 0 {
+		task.PrivateData.ResultURL = resultURLs[0]
 	}
 	task.Status = model.TaskStatusSuccess
 	task.Progress = taskcommon.ProgressComplete
@@ -118,12 +118,13 @@ func processImageAsyncTask(taskID string) {
 	service.RecalculateTaskQuota(ctx, task, task.Quota, "image async complete")
 }
 
-func uploadTaskImagesToR2(ctx context.Context, task *model.Task, images []dto.ImageData) ([]string, error) {
+// resolveTaskImageResultURLs：上游已返回可访问 URL 时直接透传；仅 b64_json / data URI 等非 URL 载荷上传 R2。
+func resolveTaskImageResultURLs(ctx context.Context, task *model.Task, images []dto.ImageData) ([]string, error) {
 	channelBaseURL := ""
 	if channel, err := model.GetChannelById(task.ChannelId, true); err == nil && channel != nil {
 		channelBaseURL = channel.GetBaseURL()
 	}
-	publicURLs := make([]string, 0, len(images))
+	resultURLs := make([]string, 0, len(images))
 	for index, item := range images {
 		data, remoteURL, err := DecodeImageDataItemExported(item)
 		if err != nil {
@@ -134,22 +135,17 @@ func uploadTaskImagesToR2(ctx context.Context, task *model.Task, images []dto.Im
 			if err != nil {
 				return nil, err
 			}
-			publicURLs = append(publicURLs, uploaded.PublicURL)
+			resultURLs = append(resultURLs, uploaded.PublicURL)
 			continue
 		}
 		if remoteURL != "" {
-			remoteURL = rewriteLoopbackUpstreamImageURL(channelBaseURL, remoteURL)
-			uploaded, err := uploadGeneratedImageFromURLWithRetry(ctx, task.UserId, task.TaskID, index, remoteURL)
-			if err != nil {
-				return nil, err
-			}
-			publicURLs = append(publicURLs, uploaded.PublicURL)
+			resultURLs = append(resultURLs, rewriteLoopbackUpstreamImageURL(channelBaseURL, remoteURL))
 		}
 	}
-	if len(publicURLs) == 0 {
-		return nil, fmt.Errorf("no images uploaded to R2")
+	if len(resultURLs) == 0 {
+		return nil, fmt.Errorf("no image results from upstream")
 	}
-	return publicURLs, nil
+	return resultURLs, nil
 }
 
 func failImageAsyncTask(ctx context.Context, task *model.Task, reason string) {
@@ -162,20 +158,4 @@ func failImageAsyncTask(ctx context.Context, task *model.Task, reason string) {
 		common.SysLog("image async mark failure failed: " + err.Error())
 	}
 	service.RefundTaskQuota(ctx, task, reason)
-}
-
-func uploadGeneratedImageFromURLWithRetry(ctx context.Context, userID int, taskID string, index int, imageURL string) (*service.R2UploadResult, error) {
-	const maxAttempts = 3
-	var lastErr error
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		uploaded, err := service.UploadGeneratedImageFromURL(ctx, userID, taskID, index, imageURL)
-		if err == nil {
-			return uploaded, nil
-		}
-		lastErr = err
-		if attempt < maxAttempts {
-			time.Sleep(time.Duration(attempt) * 2 * time.Second)
-		}
-	}
-	return nil, lastErr
 }
