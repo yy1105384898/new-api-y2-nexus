@@ -18,3 +18,21 @@ func TestProfileToDocumentImageHints(t *testing.T) {
 		t.Fatalf("hints = %#v, want one hint", doc["hints"])
 	}
 }
+
+func TestApplyImagePollDefaults(t *testing.T) {
+	registry := &ModelUiParamRegistry{
+		PollDefaults: `{"images-json-async":{"delayMs":5000,"maxAttempts":72},"images-edits-async":{"delayMs":5000,"maxAttempts":72}}`,
+	}
+	doc := map[string]interface{}{
+		"id":      "image-tpl-aspect-count-basic",
+		"apiMode": "images-json-async",
+	}
+	applyImagePollDefaults(doc, registry)
+	poll, ok := doc["poll"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("poll = %#v, want map", doc["poll"])
+	}
+	if poll["delayMs"] != float64(5000) || poll["maxAttempts"] != float64(72) {
+		t.Fatalf("poll = %#v", poll)
+	}
+}

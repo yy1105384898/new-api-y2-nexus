@@ -88,7 +88,7 @@ func seedCapability(capability, path string, force bool) error {
 		}
 	} else {
 		registry.DefaultProfileId = doc.DefaultId
-		if capability == model.ModelUiParamCapabilityVideo {
+		if doc.Poll != nil {
 			registry.PollDefaults = service.MustJSONString(doc.Poll, "{}")
 		}
 		if err := registry.Update(); err != nil {
@@ -158,6 +158,9 @@ func profileDocToRow(capability string, doc map[string]interface{}) (*model.Mode
 		if apiMode, ok := doc["apiMode"].(string); ok {
 			row.ApiMode = apiMode
 		}
+		if apiMode, ok := doc["api_mode"].(string); ok && row.ApiMode == "" {
+			row.ApiMode = apiMode
+		}
 		if requires, ok := doc["requiresReferenceMedia"].(bool); ok {
 			row.RequiresReferenceMedia = requires
 		}
@@ -169,6 +172,23 @@ func profileDocToRow(capability string, doc map[string]interface{}) (*model.Mode
 		}
 		if limits, ok := doc["referenceLimits"]; ok {
 			row.ReferenceLimits = service.MustJSONString(limits, "{}")
+		}
+		if rules, ok := doc["optionRules"]; ok {
+			row.OptionRules = service.MustJSONString(rules, "[]")
+		}
+		if hints, ok := doc["hints"]; ok {
+			row.Hints = service.MustJSONString(hints, "[]")
+		}
+	}
+	if capability == model.ModelUiParamCapabilityImage {
+		if apiMode, ok := doc["apiMode"].(string); ok {
+			row.ApiMode = apiMode
+		}
+		if apiMode, ok := doc["api_mode"].(string); ok && row.ApiMode == "" {
+			row.ApiMode = apiMode
+		}
+		if poll, ok := doc["poll"]; ok {
+			row.Poll = service.MustJSONString(poll, "{}")
 		}
 		if rules, ok := doc["optionRules"]; ok {
 			row.OptionRules = service.MustJSONString(rules, "[]")

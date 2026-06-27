@@ -76,6 +76,7 @@ func ResolveImageUiParams(meta *Model, ctx *UiParamResolveContext) map[string]in
 	if err != nil || doc == nil {
 		return nil
 	}
+	applyImagePollDefaults(doc, ctx.ImageRegistry)
 	return doc
 }
 
@@ -175,6 +176,31 @@ func applyVideoPollDefaults(doc map[string]interface{}, registry *ModelUiParamRe
 			apiMode = "videos-json-gz"
 		} else {
 			apiMode = "videos-form"
+		}
+	}
+	var pollDefaults map[string]map[string]interface{}
+	if err := json.Unmarshal([]byte(registry.PollDefaults), &pollDefaults); err != nil {
+		return
+	}
+	if poll, ok := pollDefaults[apiMode]; ok && len(poll) > 0 {
+		doc["poll"] = poll
+	}
+}
+
+func applyImagePollDefaults(doc map[string]interface{}, registry *ModelUiParamRegistry) {
+	if doc == nil || registry == nil {
+		return
+	}
+	if _, ok := doc["poll"]; ok {
+		return
+	}
+	apiMode, _ := doc["apiMode"].(string)
+	if apiMode == "" {
+		apiMode, _ = doc["api_mode"].(string)
+	}
+	if apiMode == "" {
+		if id, _ := doc["id"].(string); strings.HasPrefix(id, "image-tpl") {
+			apiMode = "images-json-async"
 		}
 	}
 	var pollDefaults map[string]map[string]interface{}

@@ -5,6 +5,7 @@ type TaskPlatform string
 const (
 	TaskPlatformSuno       TaskPlatform = "suno"
 	TaskPlatformMidjourney              = "mj"
+	TaskPlatformImage                   = "image"
 )
 
 const (
@@ -16,7 +17,11 @@ const (
 	TaskActionFirstTailGenerate = "firstTailGenerate"
 	TaskActionReferenceGenerate = "referenceGenerate"
 	TaskActionRemix             = "remixGenerate"
+	TaskActionImageGenerate     = "imageGenerate"
+	TaskActionImageEdit         = "imageEdit"
 )
+
+const TaskKindImage = "image"
 
 var SunoModel2Action = map[string]string{
 	"suno_music":  SunoActionMusic,

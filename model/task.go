@@ -78,6 +78,7 @@ type Properties struct {
 	Input             string `json:"input"`
 	UpstreamModelName string `json:"upstream_model_name,omitempty"`
 	OriginModelName   string `json:"origin_model_name,omitempty"`
+	TaskKind          string `json:"task_kind,omitempty"`
 }
 
 func (m *Properties) Scan(val interface{}) error {
@@ -100,6 +101,9 @@ type TaskPrivateData struct {
 	Key            string `json:"key,omitempty"`
 	UpstreamTaskID string `json:"upstream_task_id,omitempty"` // 上游真实 task ID
 	ResultURL      string `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
+	RequestPath    string `json:"request_path,omitempty"`
+	RequestSnapshot []byte `json:"request_snapshot,omitempty"`
+	ImageResultURLs []string `json:"image_result_urls,omitempty"`
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
 	BillingSource  string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
 	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
@@ -150,10 +154,14 @@ func (p *TaskPrivateData) Scan(val interface{}) error {
 }
 
 func (p TaskPrivateData) Value() (driver.Value, error) {
-	if (p == TaskPrivateData{}) {
+	b, err := common.Marshal(p)
+	if err != nil {
+		return nil, err
+	}
+	if len(b) <= 2 {
 		return nil, nil
 	}
-	return common.Marshal(p)
+	return b, nil
 }
 
 // SyncTaskQueryParams 用于包含所有搜索条件的结构体，可以根据需求添加更多字段
@@ -516,4 +524,36 @@ func (t *Task) ToOpenAIVideo() *dto.OpenAIVideo {
 	openAIVideo.CompletedAt = t.UpdatedAt
 	openAIVideo.SetMetadata("url", t.GetResultURL())
 	return openAIVideo
+}
+
+func (t *Task) ToOpenAIImageJob(object string) *dto.OpenAIImageJob {
+	job := dto.NewOpenAIImageJob(object)
+	job.ID = t.TaskID
+	job.Model = t.Properties.OriginModelName
+	job.CreatedAt = t.CreatedAt
+	switch t.Status {
+	case TaskStatusSuccess:
+		job.Status = dto.ImageJobStatusCompleted
+		job.Progress = "100%"
+	case TaskStatusFailure:
+		job.Status = dto.ImageJobStatusFailed
+		job.Progress = "100%"
+		if t.FailReason != "" {
+			job.Error = &dto.OpenAIImageError{Message: t.FailReason}
+		}
+	case TaskStatusInProgress:
+		job.Status = dto.ImageJobStatusInProgress
+		job.Progress = t.Progress
+	default:
+		job.Status = dto.ImageJobStatusQueued
+		job.Progress = t.Progress
+	}
+	if len(t.PrivateData.ImageResultURLs) > 0 {
+		for _, url := range t.PrivateData.ImageResultURLs {
+			job.Data = append(job.Data, dto.ImageData{Url: url})
+		}
+	} else if t.GetResultURL() != "" {
+		job.Data = []dto.ImageData{{Url: t.GetResultURL()}}
+	}
+	return job
 }
