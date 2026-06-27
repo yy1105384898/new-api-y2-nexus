@@ -76,7 +76,11 @@ func ExecuteImageTaskUpstream(task *model.Task) ([]dto.ImageData, *dto.Usage, er
 	if err != nil {
 		return nil, nil, err
 	}
-	relayInfo.PublicTaskID = task.TaskID
+	relayInfo.InitChannelMeta(c)
+	if relayInfo.TaskRelayInfo == nil {
+		relayInfo.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
+	}
+	relayInfo.TaskRelayInfo.PublicTaskID = task.TaskID
 	relayInfo.IsStream = false
 
 	if imageReq, ok := relayInfo.Request.(*dto.ImageRequest); ok {

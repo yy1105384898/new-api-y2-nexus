@@ -330,6 +330,27 @@ func GetAllUnFinishSyncTasks(limit int) []*Task {
 	return tasks
 }
 
+func GetPendingImageAsyncTasks(limit int) []*Task {
+	if limit <= 0 {
+		return nil
+	}
+	all := GetAllUnFinishSyncTasks(limit * 8)
+	if len(all) == 0 {
+		return nil
+	}
+	out := make([]*Task, 0, limit)
+	for _, task := range all {
+		if task == nil || task.Properties.TaskKind != constant.TaskKindImage {
+			continue
+		}
+		out = append(out, task)
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out
+}
+
 func GetByOnlyTaskId(taskId string) (*Task, bool, error) {
 	if taskId == "" {
 		return nil, false, nil

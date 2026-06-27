@@ -31,6 +31,20 @@ func StartImageAsyncWorker() {
 		go imageAsyncWorkerLoop()
 	}
 	common.SysLog(fmt.Sprintf("image async worker started, concurrency=%d", maxConcurrent))
+	go recoverPendingImageAsyncTasks()
+}
+
+func recoverPendingImageAsyncTasks() {
+	tasks := model.GetPendingImageAsyncTasks(64)
+	if len(tasks) == 0 {
+		return
+	}
+	common.SysLog(fmt.Sprintf("image async recovering %d pending tasks", len(tasks)))
+	for _, task := range tasks {
+		if task != nil && task.TaskID != "" {
+			EnqueueImageAsyncTask(task.TaskID)
+		}
+	}
 }
 
 func EnqueueImageAsyncTask(taskID string) {
