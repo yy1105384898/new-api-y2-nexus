@@ -714,3 +714,12 @@ func TestSettle_NonPerCall_AdaptorAdjustWorks(t *testing.T) {
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
 }
+
+func TestShouldRefundTaskOnFailure(t *testing.T) {
+	moderationBody := []byte(`{"code":"Client specified an invalid argument","error":"Generated video rejected by content moderation."}`)
+
+	assert.False(t, ShouldRefundTaskOnFailure("Generated video rejected by content moderation.", moderationBody))
+	assert.False(t, ShouldRefundTaskOnFailure("", moderationBody))
+	assert.True(t, ShouldRefundTaskOnFailure("upstream timeout", nil))
+	assert.True(t, ShouldRefundTaskOnFailure("network error", []byte(`{"error":"connection reset"}`)))
+}

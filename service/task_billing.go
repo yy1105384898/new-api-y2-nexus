@@ -179,6 +179,56 @@ func taskModelName(task *model.Task) string {
 	return task.Properties.OriginModelName
 }
 
+// nonRefundableTaskFailureMarkers 上游内容审核/策略类失败：上游已扣费且不退款，我们也不应退还预扣额度。
+var nonRefundableTaskFailureMarkers = []string{
+	"content moderation",
+	"content policy",
+	"content violates",
+	"usage guidelines",
+	"safety_check",
+}
+
+// IsNonRefundableTaskFailure 判断任务失败是否属于上游不退款的策略/审核类错误。
+func IsNonRefundableTaskFailure(reason string) bool {
+	lower := strings.ToLower(strings.TrimSpace(reason))
+	if lower == "" {
+		return false
+	}
+	for _, marker := range nonRefundableTaskFailureMarkers {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// ShouldRefundTaskOnFailure 决定异步视频任务失败时是否退还预扣额度。
+func ShouldRefundTaskOnFailure(reason string, responseBody []byte) bool {
+	if IsNonRefundableTaskFailure(reason) {
+		return false
+	}
+	if len(responseBody) == 0 {
+		return true
+	}
+	var raw map[string]any
+	if err := common.Unmarshal(responseBody, &raw); err != nil {
+		return true
+	}
+	if errVal, ok := raw["error"]; ok {
+		switch v := errVal.(type) {
+		case string:
+			if IsNonRefundableTaskFailure(v) {
+				return false
+			}
+		case map[string]any:
+			if msg, ok := v["message"].(string); ok && IsNonRefundableTaskFailure(msg) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // RefundTaskQuota 统一的任务失败退款逻辑。
 // 当异步任务失败时，将预扣的 quota 退还给用户（支持钱包和订阅），并退还令牌额度。
 func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {

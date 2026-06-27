@@ -336,6 +336,14 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 			taskResult.Reason = "task failed"
 		}
 	default:
+		// Grok/119337 等内容审核失败：无 status，error 为字符串（见 api.119337.xyz 轮询响应）
+		if taskResult.Status == "" {
+			if reason := extractErrorMessage(respBody); reason != "" {
+				taskResult.Status = model.TaskStatusFailure
+				taskResult.Progress = "100%"
+				taskResult.Reason = reason
+			}
+		}
 	}
 	if resTask.Progress > 0 && resTask.Progress < 100 {
 		taskResult.Progress = fmt.Sprintf("%d%%", resTask.Progress)

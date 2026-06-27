@@ -44,6 +44,20 @@ func TestParseTaskResult_GZFormat(t *testing.T) {
 			t.Fatalf("expected error reason, got %q", result.Reason)
 		}
 	})
+
+	t.Run("grok moderation without status", func(t *testing.T) {
+		body := []byte(`{"code":"Client specified an invalid argument","error":"Generated video rejected by content moderation.","id":"task_upstream","task_id":"task_upstream","model":"grok-image-video"}`)
+		result, err := adaptor.ParseTaskResult(body)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Status != model.TaskStatusFailure {
+			t.Fatalf("expected FAILURE, got %s", result.Status)
+		}
+		if result.Reason != "Generated video rejected by content moderation." {
+			t.Fatalf("expected moderation reason, got %q", result.Reason)
+		}
+	})
 }
 
 func TestParseTaskResult_OpenAIFormat(t *testing.T) {
