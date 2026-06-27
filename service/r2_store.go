@@ -125,9 +125,15 @@ func UploadGeneratedImageBytes(ctx context.Context, userID int, taskID string, i
 }
 
 func UploadGeneratedImageFromURL(ctx context.Context, userID int, taskID string, index int, imageURL string) (*R2UploadResult, error) {
-	client := GetHttpClient()
-	if client == nil {
-		client = &http.Client{Timeout: 120 * time.Second}
+	client := &http.Client{
+		Timeout: 300 * time.Second,
+		Transport: GetHttpClient().Transport,
+	}
+	if client.Transport == nil {
+		client = GetHttpClient()
+		if client == nil {
+			client = &http.Client{Timeout: 300 * time.Second}
+		}
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imageURL, nil)
 	if err != nil {

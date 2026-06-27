@@ -139,7 +139,7 @@ func uploadTaskImagesToR2(ctx context.Context, task *model.Task, images []dto.Im
 		}
 		if remoteURL != "" {
 			remoteURL = rewriteLoopbackUpstreamImageURL(channelBaseURL, remoteURL)
-			uploaded, err := service.UploadGeneratedImageFromURL(ctx, task.UserId, task.TaskID, index, remoteURL)
+			uploaded, err := uploadGeneratedImageFromURLWithRetry(ctx, task.UserId, task.TaskID, index, remoteURL)
 			if err != nil {
 				return nil, err
 			}
@@ -162,4 +162,20 @@ func failImageAsyncTask(ctx context.Context, task *model.Task, reason string) {
 		common.SysLog("image async mark failure failed: " + err.Error())
 	}
 	service.RefundTaskQuota(ctx, task, reason)
+}
+
+func uploadGeneratedImageFromURLWithRetry(ctx context.Context, userID int, taskID string, index int, imageURL string) (*service.R2UploadResult, error) {
+	const maxAttempts = 3
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		uploaded, err := service.UploadGeneratedImageFromURL(ctx, userID, taskID, index, imageURL)
+		if err == nil {
+			return uploaded, nil
+		}
+		lastErr = err
+		if attempt < maxAttempts {
+			time.Sleep(time.Duration(attempt) * 2 * time.Second)
+		}
+	}
+	return nil, lastErr
 }
