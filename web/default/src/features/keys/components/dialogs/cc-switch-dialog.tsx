@@ -188,6 +188,7 @@ export function CCSwitchDialog(props: Props) {
         <div className='space-y-2'>
           <Label>{t('Name')}</Label>
           <ComboboxInput
+            key={`name-${app}`}
             options={[]}
             value={name}
             onValueChange={setName}
@@ -206,6 +207,7 @@ export function CCSwitchDialog(props: Props) {
               )}
             </Label>
             <ComboboxInput
+              key={`${app}-${field.key}`}
               options={modelOptions}
               value={models[field.key] || ''}
               onValueChange={(v) =>
