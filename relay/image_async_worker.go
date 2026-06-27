@@ -118,8 +118,9 @@ func processImageAsyncTask(taskID string) {
 	service.RecalculateTaskQuota(ctx, task, task.Quota, "image async complete")
 }
 
-// resolveTaskImageResultURLs：异步生图结果统一由 b64_json / data URI 解码后上传 R2，对外只暴露 CDN URL。
+// resolveTaskImageResultURLs：b64_json / data URI 上传 R2；4K 模型上游 url 直接透传，其它模型仍要求 b64_json。
 func resolveTaskImageResultURLs(ctx context.Context, task *model.Task, images []dto.ImageData) ([]string, error) {
+	useURLResponse := imageAsyncUsesURLResponse(task.Properties.OriginModelName)
 	resultURLs := make([]string, 0, len(images))
 	for index, item := range images {
 		data, mimeOrURL, err := DecodeImageDataItemExported(item)
@@ -139,6 +140,10 @@ func resolveTaskImageResultURLs(ctx context.Context, task *model.Task, images []
 			continue
 		}
 		if mimeOrURL != "" {
+			if useURLResponse {
+				resultURLs = append(resultURLs, rewriteLoopbackUpstreamImageURL(taskUpstreamBaseURL(task), mimeOrURL))
+				continue
+			}
 			return nil, fmt.Errorf("upstream returned url without b64_json; use response_format=b64_json")
 		}
 	}
@@ -158,4 +163,15 @@ func failImageAsyncTask(ctx context.Context, task *model.Task, reason string) {
 		common.SysLog("image async mark failure failed: " + err.Error())
 	}
 	service.RefundTaskQuota(ctx, task, reason)
+}
+
+func taskUpstreamBaseURL(task *model.Task) string {
+	if task == nil || task.ChannelId == 0 {
+		return ""
+	}
+	channel, err := model.GetChannelById(task.ChannelId, true)
+	if err != nil || channel == nil {
+		return ""
+	}
+	return channel.BaseURL
 }

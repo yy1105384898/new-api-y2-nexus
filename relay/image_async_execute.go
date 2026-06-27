@@ -85,9 +85,12 @@ func ExecuteImageTaskUpstream(task *model.Task) ([]dto.ImageData, *dto.Usage, er
 	relayInfo.TaskRelayInfo.PublicTaskID = task.TaskID
 	relayInfo.IsStream = false
 
+	useURLResponse := imageAsyncUsesURLResponse(task.Properties.OriginModelName)
 	if imageReq, ok := relayInfo.Request.(*dto.ImageRequest); ok {
 		imageReq.Stream = common.GetPointer(false)
-		if strings.TrimSpace(imageReq.ResponseFormat) == "" {
+		if useURLResponse {
+			imageReq.ResponseFormat = "url"
+		} else if strings.TrimSpace(imageReq.ResponseFormat) == "" {
 			imageReq.ResponseFormat = "b64_json"
 		}
 	}
@@ -119,13 +122,20 @@ func buildHTTPRequestForImageTask(task *model.Task) (*http.Request, int, error) 
 		if err := common.Unmarshal(task.PrivateData.RequestSnapshot, &payload); err != nil {
 			return nil, 0, fmt.Errorf("unmarshal edit payload: %w", err)
 		}
+		useURLResponse := imageAsyncUsesURLResponse(task.Properties.OriginModelName)
 		body := &bytes.Buffer{}
 		writer := multipart.NewWriter(body)
 		for key, value := range payload.Fields {
 			if key == "async" {
 				continue
 			}
+			if useURLResponse && key == "response_format" {
+				continue
+			}
 			_ = writer.WriteField(key, value)
+		}
+		if useURLResponse {
+			_ = writer.WriteField("response_format", "url")
 		}
 		for _, file := range payload.Files {
 			part, err := writer.CreateFormFile(file.Field, file.Filename)
@@ -150,7 +160,7 @@ func buildHTTPRequestForImageTask(task *model.Task) (*http.Request, int, error) 
 	if len(body) == 0 {
 		return nil, 0, fmt.Errorf("empty request snapshot")
 	}
-	normalized, err := normalizeAsyncGenerationBody(body)
+	normalized, err := normalizeAsyncGenerationBody(body, imageAsyncUsesURLResponse(task.Properties.OriginModelName))
 	if err != nil {
 		return nil, 0, err
 	}
@@ -159,14 +169,22 @@ func buildHTTPRequestForImageTask(task *model.Task) (*http.Request, int, error) 
 	return req, relayMode, nil
 }
 
-func normalizeAsyncGenerationBody(body []byte) ([]byte, error) {
+// imageAsyncUsesURLResponse：仅 4K 档位（别名后缀 -4k）走 url 响应，避免超大 b64_json 被上游截断。
+func imageAsyncUsesURLResponse(originModel string) bool {
+	name := strings.ToLower(strings.TrimSpace(originModel))
+	return strings.HasSuffix(name, "-4k")
+}
+
+func normalizeAsyncGenerationBody(body []byte, useURLResponse bool) ([]byte, error) {
 	var raw map[string]json.RawMessage
 	if err := common.Unmarshal(body, &raw); err != nil {
 		return nil, err
 	}
 	delete(raw, "async")
 	raw["stream"] = json.RawMessage("false")
-	if _, ok := raw["response_format"]; !ok {
+	if useURLResponse {
+		raw["response_format"] = json.RawMessage("\"url\"")
+	} else if _, ok := raw["response_format"]; !ok {
 		raw["response_format"] = json.RawMessage("\"b64_json\"")
 	}
 	return common.Marshal(raw)
