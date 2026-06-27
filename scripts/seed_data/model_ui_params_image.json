@@ -10,9 +10,20 @@
         "stable-diffusion",
         "midjourney"
     ],
+    "poll": {
+        "images-json-async": {
+            "delayMs": 5000,
+            "maxAttempts": 72
+        },
+        "images-edits-async": {
+            "delayMs": 5000,
+            "maxAttempts": 72
+        }
+    },
     "profiles": [
         {
             "id": "image-tpl-gulie-1k",
+            "api_mode": "images-json-async",
             "match": [
                 "gulie-"
             ],
@@ -86,6 +97,7 @@
         },
         {
             "id": "image-tpl-kedaya-1k",
+            "api_mode": "images-json-async",
             "match": [
                 "kedaya-"
             ],
@@ -154,6 +166,7 @@
         },
         {
             "id": "image-tpl-full-quality-export",
+            "api_mode": "images-json-async",
             "match": [
                 "image-2"
             ],
@@ -321,6 +334,7 @@
         },
         {
             "id": "image-tpl-aspect-count-basic",
+            "api_mode": "images-json-async",
             "match": [
                 "gpt-image-2",
                 "gpt-image-1.5",
@@ -393,6 +407,7 @@
         },
         {
             "id": "image-tpl-aspect-count-extended",
+            "api_mode": "images-json-async",
             "match": [
                 "gemini-image",
                 "gemini-image-pro",
@@ -464,6 +479,7 @@
         },
         {
             "id": "image-tpl-square-fixed-count",
+            "api_mode": "images-json-async",
             "match": [
                 "grok-image",
                 "grok-image-lite",
@@ -513,6 +529,7 @@
         },
         {
             "id": "image-tpl-square-4k-single",
+            "api_mode": "images-json-async",
             "match": [
                 "gpt-image-2-4k"
             ],

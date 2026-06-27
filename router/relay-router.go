@@ -111,12 +111,8 @@ func SetRelayRouter(router *gin.Engine) {
 		httpRouter.POST("/edits", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIImage)
 		})
-		httpRouter.POST("/images/generations", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIImage)
-		})
-		httpRouter.POST("/images/edits", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIImage)
-		})
+		httpRouter.POST("/images/generations", controller.RelayOpenAIImageGenerations)
+		httpRouter.POST("/images/edits", controller.RelayOpenAIImageEdits)
 
 		// embedding related routes
 		httpRouter.POST("/embeddings", func(c *gin.Context) {
