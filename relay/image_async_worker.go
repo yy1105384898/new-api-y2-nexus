@@ -119,6 +119,10 @@ func processImageAsyncTask(taskID string) {
 }
 
 func uploadTaskImagesToR2(ctx context.Context, task *model.Task, images []dto.ImageData) ([]string, error) {
+	channelBaseURL := ""
+	if channel, err := model.GetChannelById(task.ChannelId, true); err == nil && channel != nil {
+		channelBaseURL = channel.GetBaseURL()
+	}
 	publicURLs := make([]string, 0, len(images))
 	for index, item := range images {
 		data, remoteURL, err := DecodeImageDataItemExported(item)
@@ -134,6 +138,7 @@ func uploadTaskImagesToR2(ctx context.Context, task *model.Task, images []dto.Im
 			continue
 		}
 		if remoteURL != "" {
+			remoteURL = rewriteLoopbackUpstreamImageURL(channelBaseURL, remoteURL)
 			uploaded, err := service.UploadGeneratedImageFromURL(ctx, task.UserId, task.TaskID, index, remoteURL)
 			if err != nil {
 				return nil, err

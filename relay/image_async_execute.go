@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -414,4 +416,40 @@ func buildImageProxyURL(taskID string) string {
 		return fmt.Sprintf("/v1/images/%s/content", taskID)
 	}
 	return fmt.Sprintf("%s/v1/images/%s/content", base, taskID)
+}
+
+// rewriteLoopbackUpstreamImageURL 将上游 loopback 图片地址（如 Gulie 127.0.0.1:3001）
+// 映射到渠道 base 主机名 + 原端口，便于 worker 拉取后上传 R2。
+func rewriteLoopbackUpstreamImageURL(channelBaseURL, imageURL string) string {
+	channelBaseURL = strings.TrimSpace(channelBaseURL)
+	if channelBaseURL == "" {
+		return imageURL
+	}
+	img, err := url.Parse(imageURL)
+	if err != nil {
+		return imageURL
+	}
+	host := strings.ToLower(img.Hostname())
+	if host != "127.0.0.1" && host != "localhost" {
+		return imageURL
+	}
+	base, err := url.Parse(channelBaseURL)
+	if err != nil || base.Hostname() == "" {
+		return imageURL
+	}
+	port := img.Port()
+	if port == "" {
+		if img.Scheme == "https" {
+			port = "443"
+		} else {
+			port = "80"
+		}
+	}
+	out := &url.URL{
+		Scheme:   base.Scheme,
+		Host:     net.JoinHostPort(base.Hostname(), port),
+		Path:     img.Path,
+		RawQuery: img.RawQuery,
+	}
+	return out.String()
 }
