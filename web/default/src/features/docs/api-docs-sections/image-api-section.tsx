@@ -37,7 +37,7 @@ export function UnifiedImageApiSection(props: ApiDocsContext) {
         rows={[
           ['POST /v1/images/generations', 'application/json', '文生图 / 带参考图的 JSON 生图'],
           ['POST /v1/images/edits', 'multipart/form-data', '图生图 / 编辑（上传参考图文件）'],
-          ['POST /v1/chat/completions', 'application/json', 'Grok Imagine 等 Chat 生图'],
+          ['POST /v1/chat/completions', 'application/json', 'Grok Imagine、Gemini Banana 等 Chat 生图'],
           ['POST /v1/videos → 轮询', 'application/json', 'gpt-image-2-4k 等异步超清生图'],
         ]}
       />

@@ -265,6 +265,10 @@ func ApplyPublicModelTranslation(c *gin.Context) error {
 		}
 	case "path":
 		// RetrieveModel reads path directly; controller handles translation.
+	case "gemini_path":
+		if err := rewriteGeminiRequestPath(c, internal); err != nil {
+			return err
+		}
 	default:
 		if source == "body" && internal != modelName {
 			if err := rewriteInboundModel(c, internal, "json"); err != nil {
@@ -279,6 +283,9 @@ func extractInboundModelName(c *gin.Context) (modelName string, source string, e
 	path := c.Request.URL.Path
 	if strings.HasPrefix(path, "/v1/models/") && c.Param("model") != "" {
 		return c.Param("model"), "path", nil
+	}
+	if model := ExtractGeminiPathModel(path); model != "" {
+		return model, "gemini_path", nil
 	}
 	if strings.HasPrefix(path, "/v1/realtime") {
 		if model := strings.TrimSpace(c.Query("model")); model != "" {
@@ -463,6 +470,44 @@ func replaceRequestBodyStorage(c *gin.Context, newBody []byte) error {
 	c.Request.ContentLength = int64(len(newBody))
 	if _, err := newStorage.Seek(0, io.SeekStart); err != nil {
 		return err
+	}
+	return nil
+}
+
+// ExtractGeminiPathModel extracts the model segment from Gemini native paths such as
+// /v1beta/models/gemini-banana-2.0:generateContent.
+func ExtractGeminiPathModel(path string) string {
+	modelsPrefix := "/models/"
+	modelsIndex := strings.Index(path, modelsPrefix)
+	if modelsIndex == -1 {
+		return ""
+	}
+
+	startIndex := modelsIndex + len(modelsPrefix)
+	if startIndex >= len(path) {
+		return ""
+	}
+
+	colonIndex := strings.Index(path[startIndex:], ":")
+	if colonIndex == -1 {
+		return path[startIndex:]
+	}
+	return path[startIndex : startIndex+colonIndex]
+}
+
+func rewriteGeminiRequestPath(c *gin.Context, internalName string) error {
+	path := c.Request.URL.Path
+	oldModel := ExtractGeminiPathModel(path)
+	if oldModel == "" || oldModel == internalName {
+		return nil
+	}
+	marker := "/models/" + oldModel + ":"
+	if !strings.Contains(path, marker) {
+		return nil
+	}
+	c.Request.URL.Path = strings.Replace(path, marker, "/models/"+internalName+":", 1)
+	if c.Request.URL.RawPath != "" {
+		c.Request.URL.RawPath = strings.Replace(c.Request.URL.RawPath, marker, "/models/"+internalName+":", 1)
 	}
 	return nil
 }

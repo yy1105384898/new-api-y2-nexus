@@ -36,7 +36,7 @@ export const imageEditsFields = [
 
 /** POST /v1/chat/completions 生图参数。 */
 export const chatImageParams = [
-  { name: 'model', type: 'string', required: '是', note: 'grok-imagine-image* 等' },
+  { name: 'model', type: 'string', required: '是', note: 'grok-imagine-image*、gemini-banana-* 等 Chat 生图模型' },
   { name: 'messages', type: 'array', required: '是', note: 'user 消息；图生时在 content 中附 image_url' },
   { name: 'stream', type: 'boolean', required: '否', note: 'Grok 等可选流式' },
 ] as const
@@ -109,6 +109,32 @@ export const imageModelCapabilities: ImageModelCapability[] = [
     billing: '按次',
     prompt: '✓',
     size: '1024² / 1536×1024 / 1024×1536 / auto',
+    quality: '—',
+    count: '1–4',
+    refImages: '≤5',
+    mask: '✓',
+    asyncTask: '—',
+  },
+  {
+    model: 'gemini-banana-2.0',
+    vendor: 'Gemini Banana',
+    api: 'POST /v1/images/generations · /v1beta/models/{model}:generateContent · /v1/chat/completions',
+    billing: '按次',
+    prompt: '✓',
+    size: '1024² / 1536×1024 / 1024×1536 / 比例',
+    quality: '—',
+    count: '1–4',
+    refImages: '≤5（image/images）',
+    mask: '✓',
+    asyncTask: '—',
+  },
+  {
+    model: 'gemini-banana-2.0-pro',
+    vendor: 'Gemini Banana Pro',
+    api: 'POST /v1/images/generations · /v1beta/models/{model}:generateContent · /v1/chat/completions',
+    billing: '按次',
+    prompt: '✓',
+    size: '1024² / 1536×1024 / 1024×1536 / 比例',
     quality: '—',
     count: '1–4',
     refImages: '≤5',

@@ -1,6 +1,8 @@
 package model_setting
 
 import (
+	"strings"
+
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
@@ -30,6 +32,8 @@ var defaultGeminiSettings = GeminiSettings{
 		"gemini-3-pro-image-preview",
 		"gemini-2.5-flash-image",
 		"gemini-3.1-flash-image-preview",
+		"nano-banana-pro",
+		"nano-banana-2",
 	},
 	ThinkingAdapterEnabled:                false,
 	ThinkingAdapterBudgetTokensPercentage: 0.6,
@@ -73,4 +77,19 @@ func IsGeminiModelSupportImagine(model string) bool {
 		}
 	}
 	return false
+}
+
+// IsGeminiFlashImageModel reports whether the upstream model generates images via generateContent.
+func IsGeminiFlashImageModel(model string) bool {
+	if IsGeminiModelSupportImagine(model) {
+		return true
+	}
+	lower := strings.ToLower(strings.TrimSpace(model))
+	if lower == "" {
+		return false
+	}
+	return strings.Contains(lower, "flash-image") ||
+		strings.Contains(lower, "nano-banana") ||
+		strings.Contains(lower, "banana-pro") ||
+		strings.Contains(lower, "banana-2")
 }
