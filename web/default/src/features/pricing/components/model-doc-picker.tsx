@@ -11,6 +11,12 @@ import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { getPricing } from '../api'
+import {
+  enrichPricingModels,
+  isImageDocModel,
+  isModelDocCandidate,
+  isVideoDocModel,
+} from '../lib/enrich-pricing-models'
 import { groupPricingModelsByDisplayName } from '../lib/model-display-name'
 import type { PricingModel } from '../types'
 import { ModelDocDialog } from './model-doc-dialog'
@@ -44,9 +50,7 @@ function groupModelsByCapabilityAndVendor(
 
   for (const capability of capabilities) {
     const filtered = models.filter((model) =>
-      capability === 'video'
-        ? Boolean(model.video_ui_params)
-        : Boolean(model.image_ui_params)
+      capability === 'video' ? isVideoDocModel(model) : isImageDocModel(model)
     )
     if (filtered.length === 0) continue
 
@@ -92,9 +96,8 @@ function ModelDocPickerButton(props: {
 }) {
   const iconKey = props.model.vendor_icon || props.model.icon
   const icon = iconKey ? getLobeIcon(iconKey, 16) : null
-  const initial =
-    (props.model.display_name || props.model.model_name)?.charAt(0).toUpperCase() ||
-    '?'
+  const label = props.model.display_name || props.model.model_name
+  const initial = label.charAt(0).toUpperCase() || '?'
 
   return (
     <button
@@ -109,7 +112,7 @@ function ModelDocPickerButton(props: {
           {initial}
         </span>
       )}
-      {props.model.display_name || props.model.model_name}
+      {label}
     </button>
   )
 }
@@ -126,18 +129,17 @@ export function ModelDocPicker(props: ModelDocPickerProps) {
   })
 
   const capabilityGroups = useMemo(() => {
-    const raw = pricingQuery.data?.data ?? []
-    const grouped = groupPricingModelsByDisplayName(raw)
-    const filtered = grouped.filter((model) => {
-      if (capability === 'video') return Boolean(model.video_ui_params)
-      if (capability === 'image') return Boolean(model.image_ui_params)
-      return Boolean(model.video_ui_params || model.image_ui_params)
-    })
+    if (!pricingQuery.data) return []
+    const enriched = enrichPricingModels(pricingQuery.data)
+    const grouped = groupPricingModelsByDisplayName(enriched)
+    const filtered = grouped.filter((model) =>
+      isModelDocCandidate(model, capability)
+    )
     return groupModelsByCapabilityAndVendor(
       filtered,
       t('modelDoc.uncategorizedVendor')
     )
-  }, [pricingQuery.data?.data, capability, t])
+  }, [pricingQuery.data, capability, t])
 
   const hasModels = capabilityGroups.some((group) => group.vendors.length > 0)
 
