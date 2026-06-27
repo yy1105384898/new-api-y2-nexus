@@ -17,6 +17,7 @@ func SetVideoRouter(router *gin.Engine) {
 	}
 
 	videoV1Router := router.Group("/v1")
+	videoV1Router.Use(middleware.CORS())
 	videoV1Router.Use(middleware.RouteTag("relay"))
 	videoV1Router.Use(middleware.TokenAuth(), middleware.PublicModelName(), middleware.Distribute())
 	{
