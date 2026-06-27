@@ -19,8 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { useState } from 'react'
 import { Search, Copy, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { formatCurrencyFromUSD } from '@/lib/currency'
-import { formatNumber } from '@/lib/format'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import {
   AlertDialog,
@@ -52,6 +50,8 @@ import {
   getStatusConfig,
   getPaymentMethodName,
   formatTimestamp,
+  formatTopupCreditDisplay,
+  formatTopupPaidDisplay,
 } from '../../lib/billing'
 
 interface BillingHistoryDialogProps {
@@ -237,22 +237,18 @@ export function BillingHistoryDialog({
                         </div>
                         <div className='space-y-1'>
                           <Label className='text-muted-foreground text-xs'>
-                            {t('Amount')}
+                            {t('Top-up credit')}
                           </Label>
                           <div className='text-sm font-semibold'>
-                            {formatCurrencyFromUSD(record.amount, {
-                              digitsLarge: 2,
-                              digitsSmall: 2,
-                              abbreviate: false,
-                            })}
+                            {formatTopupCreditDisplay(record)}
                           </div>
                         </div>
                         <div className='space-y-1'>
                           <Label className='text-muted-foreground text-xs'>
-                            {t('Payment')}
+                            {t('Paid amount')}
                           </Label>
-                          <div className='text-sm font-semibold text-red-600'>
-                            {formatNumber(record.money)}
+                          <div className='text-sm font-semibold'>
+                            {formatTopupPaidDisplay(record)}
                           </div>
                         </div>
                       </div>

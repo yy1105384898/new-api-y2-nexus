@@ -17,8 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { formatTimestampToDate } from '@/lib/format'
+import { formatCurrencyFromUSD, formatLocalCurrencyAmount } from '@/lib/currency'
 import type { StatusBadgeProps } from '@/components/status-badge'
-import type { TopupStatus } from '../types'
+import type { TopupRecord, TopupStatus } from '../types'
 
 // ============================================================================
 // Billing Utility Functions
@@ -80,4 +81,43 @@ export function getPaymentMethodName(
  */
 export function formatTimestamp(timestamp: number): string {
   return formatTimestampToDate(timestamp)
+}
+
+/** 新易支付订单 Amount 存人民币面值；旧订单存 USD。 */
+export function isEpayCnyCredit(
+  record: Pick<TopupRecord, 'amount' | 'money' | 'payment_provider'>
+): boolean {
+  if (record.payment_provider !== 'epay') return false
+  if (record.amount >= record.money * 0.5 && record.amount >= 1) return true
+  return false
+}
+
+export function formatTopupCreditDisplay(record: TopupRecord): string {
+  if (isEpayCnyCredit(record)) {
+    return formatLocalCurrencyAmount(record.amount, {
+      digitsLarge: 2,
+      digitsSmall: 2,
+      abbreviate: false,
+    })
+  }
+  return formatCurrencyFromUSD(record.amount, {
+    digitsLarge: 2,
+    digitsSmall: 2,
+    abbreviate: false,
+  })
+}
+
+export function formatTopupPaidDisplay(record: TopupRecord): string {
+  if (record.payment_provider === 'epay' || isEpayCnyCredit(record)) {
+    return formatLocalCurrencyAmount(record.money, {
+      digitsLarge: 2,
+      digitsSmall: 2,
+      abbreviate: false,
+    })
+  }
+  return formatCurrencyFromUSD(record.money, {
+    digitsLarge: 2,
+    digitsSmall: 2,
+    abbreviate: false,
+  })
 }

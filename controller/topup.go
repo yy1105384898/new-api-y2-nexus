@@ -169,17 +169,11 @@ func getPayMoney(amount int64, group string) float64 {
 	return payMoney.InexactFloat64()
 }
 
-// 易支付：amount / amount_options 均为人民币，填多少付多少
+// 易支付：amount / amount_options 均为人民币；min_topup 按 USD 最低充值 × 显示汇率换算
 func epayMinTopup() int64 {
-	price := operation_setting.Price
-	if price <= 0 {
-		price = operation_setting.USDExchangeRate
-	}
-	if price <= 0 {
-		price = 1
-	}
+	rate := model.EpayDisplayExchangeRate()
 	return decimal.NewFromInt(int64(operation_setting.MinTopUp)).
-		Mul(decimal.NewFromFloat(price)).
+		Mul(decimal.NewFromFloat(rate)).
 		Ceil().
 		IntPart()
 }
@@ -194,17 +188,6 @@ func epayGetPayMoney(cnyAmount int64, group string) float64 {
 		Mul(decimal.NewFromFloat(topupGroupRatio)).
 		Mul(decimal.NewFromFloat(discount)).
 		InexactFloat64()
-}
-
-func epayUsdCreditAmount(cnyAmount int64) int64 {
-	price := operation_setting.Price
-	if price <= 0 {
-		price = operation_setting.USDExchangeRate
-	}
-	if price <= 0 {
-		price = 1
-	}
-	return decimal.NewFromInt(cnyAmount).Div(decimal.NewFromFloat(price)).IntPart()
 }
 
 func lookupAmountDiscount(amount int64) float64 {
@@ -278,10 +261,9 @@ func RequestEpay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
-	amount := epayUsdCreditAmount(req.Amount)
 	topUp := &model.TopUp{
 		UserId:          id,
-		Amount:          amount,
+		Amount:          req.Amount,
 		Money:           payMoney,
 		TradeNo:         tradeNo,
 		PaymentMethod:   req.PaymentMethod,
@@ -429,9 +411,7 @@ func EpayNotify(c *gin.Context) {
 			}
 			//user, _ := model.GetUserById(topUp.UserId, false)
 			//user.Quota += topUp.Amount * 500000
-			dAmount := decimal.NewFromInt(int64(topUp.Amount))
-			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-			quotaToAdd := int(dAmount.Mul(dQuotaPerUnit).IntPart())
+			quotaToAdd := model.EpayTopUpQuota(topUp)
 			err = model.IncreaseUserQuota(topUp.UserId, quotaToAdd, true)
 			if err != nil {
 				logger.LogError(c.Request.Context(), fmt.Sprintf("易支付 更新用户额度失败 trade_no=%s user_id=%d client_ip=%s quota_to_add=%d error=%q topup=%q", topUp.TradeNo, topUp.UserId, c.ClientIP(), quotaToAdd, err.Error(), common.GetJsonString(topUp)))

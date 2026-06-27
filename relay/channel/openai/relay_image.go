@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -90,16 +91,12 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 	if !strings.Contains(contentType, "text/event-stream") {
 		return OpenaiImageJSONAsStreamHandler(c, info, resp)
 	}
-	// Reuse the shared streaming engine (helper.StreamScannerHandler) so the
-	// image streaming path gets the same ping keepalive, streaming-timeout
-	// watchdog, client-disconnect detection, panic recovery and goroutine
-	// cleanup as every other relay stream. The scanner delivers only the
-	// "data:" payload, so the SSE "event:" line is rebuilt from the JSON "type"
-	// field (real OpenAI image events keep event == type).
+	// Reuse the shared streaming engine with IMAGE_STREAMING_TIMEOUT so image
+	// requests fail fast instead of waiting on the general STREAMING_TIMEOUT.
 	usage := &dto.Usage{}
 	var lastStreamData []byte
 
-	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+	helper.StreamScannerHandlerForImage(c, resp, info, func(data string, sr *helper.StreamResult) {
 		raw := common.StringToByteSlice(data)
 		lastStreamData = raw
 		if isOpenAIImageStreamErrorEvent(raw) {
@@ -121,6 +118,19 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 	// client still receives a terminal data: [DONE].
 	if info != nil && info.StreamStatus != nil && info.StreamStatus.EndReason == relaycommon.StreamEndReasonDone {
 		helper.Done(c)
+	}
+
+	if info != nil && info.StreamStatus != nil && info.StreamStatus.EndReason == relaycommon.StreamEndReasonTimeout {
+		timeoutSeconds := constant.ImageStreamingTimeout
+		if timeoutSeconds <= 0 {
+			timeoutSeconds = constant.StreamingTimeout
+		}
+		message := fmt.Sprintf("image generation timed out after %d seconds without upstream data", timeoutSeconds)
+		_ = writeOpenaiImageStreamPayload(c, "error", map[string]any{
+			"type":  "error",
+			"error": map[string]string{"message": message},
+		})
+		return usage, types.NewOpenAIError(fmt.Errorf("%s", message), types.ErrorCodeBadResponse, http.StatusGatewayTimeout)
 	}
 
 	applyUsagePostProcessing(info, usage, lastStreamData)
