@@ -419,7 +419,7 @@ func buildImageProxyURL(taskID string) string {
 }
 
 // rewriteLoopbackUpstreamImageURL 将上游 loopback 图片地址（如 Gulie 127.0.0.1:3001）
-// 映射到渠道 base 主机名 + 原端口，便于 worker 拉取后上传 R2。
+// 映射为渠道主机名 + 原端口，便于下游直接访问。
 func rewriteLoopbackUpstreamImageURL(channelBaseURL, imageURL string) string {
 	channelBaseURL = strings.TrimSpace(channelBaseURL)
 	if channelBaseURL == "" {
