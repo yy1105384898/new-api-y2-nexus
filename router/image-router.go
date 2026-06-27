@@ -9,6 +9,7 @@ import (
 
 func SetImageRouter(router *gin.Engine) {
 	imageProxyRouter := router.Group("/v1")
+	imageProxyRouter.Use(middleware.CORS())
 	imageProxyRouter.Use(middleware.RouteTag("relay"))
 	imageProxyRouter.Use(middleware.TokenOrUserAuth())
 	{
@@ -16,6 +17,7 @@ func SetImageRouter(router *gin.Engine) {
 	}
 
 	imageV1Router := router.Group("/v1")
+	imageV1Router.Use(middleware.CORS())
 	imageV1Router.Use(middleware.RouteTag("relay"))
 	imageV1Router.Use(middleware.TokenAuth(), middleware.PublicModelName(), middleware.Distribute())
 	{
