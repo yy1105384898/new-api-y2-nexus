@@ -7,11 +7,13 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -184,8 +186,17 @@ var nonRefundableTaskFailureMarkers = []string{
 	"content moderation",
 	"content policy",
 	"content violates",
+	"content_policy_violation",
 	"usage guidelines",
 	"safety_check",
+	"appear to be unsafe",
+	"moderation_blocked",
+}
+
+// nonRefundableUpstreamErrorCodes OpenAI/Geek2 等内容策略类 error.code，命中时不退预扣费。
+var nonRefundableUpstreamErrorCodes = []string{
+	"content_policy_violation",
+	"moderation_blocked",
 }
 
 // IsNonRefundableTaskFailure 判断任务失败是否属于上游不退款的策略/审核类错误。
@@ -202,7 +213,47 @@ func IsNonRefundableTaskFailure(reason string) bool {
 	return false
 }
 
-// ShouldRefundTaskOnFailure 决定异步视频任务失败时是否退还预扣额度。
+// IsNonRefundableUpstreamErrorCode 判断上游 error.code 是否属于策略/审核类（通常已计费）。
+func IsNonRefundableUpstreamErrorCode(code string) bool {
+	lower := strings.ToLower(strings.TrimSpace(code))
+	if lower == "" || lower == "<nil>" {
+		return false
+	}
+	for _, marker := range nonRefundableUpstreamErrorCodes {
+		if lower == marker || strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	for _, marker := range nonRefundableTaskFailureMarkers {
+		if strings.Contains(lower, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func upstreamErrorFieldsFromBody(raw map[string]any) (message, code string) {
+	errVal, ok := raw["error"]
+	if !ok {
+		return "", ""
+	}
+	switch v := errVal.(type) {
+	case string:
+		return v, ""
+	case map[string]any:
+		if msg, ok := v["message"].(string); ok {
+			message = msg
+		}
+		if c, ok := v["code"].(string); ok {
+			code = c
+		} else if v["code"] != nil {
+			code = fmt.Sprintf("%v", v["code"])
+		}
+	}
+	return message, code
+}
+
+// ShouldRefundTaskOnFailure 决定异步/同步失败时是否退还预扣额度。
 func ShouldRefundTaskOnFailure(reason string, responseBody []byte) bool {
 	if IsNonRefundableTaskFailure(reason) {
 		return false
@@ -214,6 +265,10 @@ func ShouldRefundTaskOnFailure(reason string, responseBody []byte) bool {
 	if err := common.Unmarshal(responseBody, &raw); err != nil {
 		return true
 	}
+	msg, code := upstreamErrorFieldsFromBody(raw)
+	if IsNonRefundableUpstreamErrorCode(code) || IsNonRefundableTaskFailure(msg) {
+		return false
+	}
 	if errVal, ok := raw["error"]; ok {
 		switch v := errVal.(type) {
 		case string:
@@ -221,7 +276,7 @@ func ShouldRefundTaskOnFailure(reason string, responseBody []byte) bool {
 				return false
 			}
 		case map[string]any:
-			if msg, ok := v["message"].(string); ok && IsNonRefundableTaskFailure(msg) {
+			if m, ok := v["message"].(string); ok && IsNonRefundableTaskFailure(m) {
 				return false
 			}
 		}
@@ -229,11 +284,61 @@ func ShouldRefundTaskOnFailure(reason string, responseBody []byte) bool {
 	return true
 }
 
+// ShouldRefundRelayError 决定同步 Relay 失败时是否退还 BillingSession 预扣费。
+func ShouldRefundRelayError(apiErr *types.NewAPIError) bool {
+	if apiErr == nil {
+		return false
+	}
+	oai := apiErr.ToOpenAIError()
+	reason := strings.TrimSpace(oai.Message)
+	if reason == "" {
+		reason = strings.TrimSpace(apiErr.Error())
+	}
+	code := strings.TrimSpace(fmt.Sprintf("%v", oai.Code))
+	if IsNonRefundableUpstreamErrorCode(code) || IsNonRefundableTaskFailure(reason) {
+		return false
+	}
+	var body []byte
+	if code != "" || reason != "" {
+		body, _ = common.Marshal(map[string]any{
+			"error": map[string]any{
+				"code":    code,
+				"message": reason,
+			},
+		})
+	}
+	return ShouldRefundTaskOnFailure(reason, body)
+}
+
+// ShouldRefundTaskError 决定 Task 提交接口失败时是否退还 BillingSession 预扣费。
+func ShouldRefundTaskError(taskErr *dto.TaskError) bool {
+	if taskErr == nil {
+		return false
+	}
+	return ShouldRefundTaskOnFailure(taskErr.Message, nil)
+}
+
+// MaybeRefundBilling 在失败时按策略退还 BillingSession 预扣费（同步/异步提交共用）。
+func MaybeRefundBilling(c *gin.Context, billing relaycommon.BillingSettler, reason string, responseBody []byte) {
+	if billing == nil {
+		return
+	}
+	if ShouldRefundTaskOnFailure(reason, responseBody) {
+		billing.Refund(c)
+		return
+	}
+	logger.LogInfo(c, fmt.Sprintf("skip billing refund for non-refundable error: %s", reason))
+}
+
 // RefundTaskQuota 统一的任务失败退款逻辑。
 // 当异步任务失败时，将预扣的 quota 退还给用户（支持钱包和订阅），并退还令牌额度。
 func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 	quota := task.Quota
 	if quota == 0 {
+		return
+	}
+	if IsNonRefundableTaskFailure(reason) {
+		logger.LogInfo(ctx, fmt.Sprintf("Task %s failed with non-refundable error, skip refund: %s", task.TaskID, reason))
 		return
 	}
 

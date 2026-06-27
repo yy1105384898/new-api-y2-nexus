@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -717,9 +719,45 @@ func TestSettle_NonPerCall_AdaptorAdjustWorks(t *testing.T) {
 
 func TestShouldRefundTaskOnFailure(t *testing.T) {
 	moderationBody := []byte(`{"code":"Client specified an invalid argument","error":"Generated video rejected by content moderation."}`)
+	unsafeImageBody := []byte(`{"error":{"code":"content_policy_violation","message":"The generated images appear to be unsafe. Try modifying the prompts or the seeds."}}`)
 
 	assert.False(t, ShouldRefundTaskOnFailure("Generated video rejected by content moderation.", moderationBody))
 	assert.False(t, ShouldRefundTaskOnFailure("", moderationBody))
+	assert.False(t, ShouldRefundTaskOnFailure("The generated images appear to be unsafe. Try modifying the prompts or the seeds.", unsafeImageBody))
+	assert.False(t, ShouldRefundTaskOnFailure("", unsafeImageBody))
 	assert.True(t, ShouldRefundTaskOnFailure("upstream timeout", nil))
 	assert.True(t, ShouldRefundTaskOnFailure("network error", []byte(`{"error":"connection reset"}`)))
+}
+
+func TestShouldRefundRelayError_UnsafeImage(t *testing.T) {
+	apiErr := types.WithOpenAIError(types.OpenAIError{
+		Message: "The generated images appear to be unsafe. Try modifying the prompts or the seeds.",
+		Type:    "invalid_request_error",
+		Code:    "content_policy_violation",
+	}, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+
+	assert.False(t, ShouldRefundRelayError(apiErr))
+}
+
+func TestShouldRefundRelayError_UpstreamTimeout(t *testing.T) {
+	apiErr := types.NewError(fmt.Errorf("upstream timeout"), types.ErrorCodeDoRequestFailed, types.ErrOptionWithSkipRetry())
+
+	assert.True(t, ShouldRefundRelayError(apiErr))
+}
+
+func TestRefundTaskQuota_SkipUnsafeImageFailure(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+	seedUser(t, 18, 100000)
+	seedToken(t, 63, 18, "sk-test", 100000)
+	task := makeTask(18, 48, 5555, 63, BillingSourceWallet, 0)
+	task.TaskID = "task_unsafe_test"
+	initQuota := getUserQuota(t, 18)
+	initToken := getTokenRemainQuota(t, 63)
+
+	RefundTaskQuota(ctx, task, "The generated images appear to be unsafe. Try modifying the prompts or the seeds.")
+
+	assert.Equal(t, initQuota, getUserQuota(t, 18))
+	assert.Equal(t, initToken, getTokenRemainQuota(t, 63))
+	assert.Nil(t, getLastLog(t))
 }
