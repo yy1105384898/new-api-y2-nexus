@@ -88,7 +88,7 @@ func ExecuteImageTaskUpstream(task *model.Task) ([]dto.ImageData, *dto.Usage, er
 	if imageReq, ok := relayInfo.Request.(*dto.ImageRequest); ok {
 		imageReq.Stream = common.GetPointer(false)
 		if strings.TrimSpace(imageReq.ResponseFormat) == "" {
-			imageReq.ResponseFormat = "url"
+			imageReq.ResponseFormat = "b64_json"
 		}
 	}
 
@@ -167,7 +167,7 @@ func normalizeAsyncGenerationBody(body []byte) ([]byte, error) {
 	delete(raw, "async")
 	raw["stream"] = json.RawMessage("false")
 	if _, ok := raw["response_format"]; !ok {
-		raw["response_format"] = json.RawMessage("\"url\"")
+		raw["response_format"] = json.RawMessage("\"b64_json\"")
 	}
 	return common.Marshal(raw)
 }

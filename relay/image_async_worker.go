@@ -118,12 +118,8 @@ func processImageAsyncTask(taskID string) {
 	service.RecalculateTaskQuota(ctx, task, task.Quota, "image async complete")
 }
 
-// resolveTaskImageResultURLs：上游已返回可访问 URL 时直接透传；仅 b64_json / data URI 等非 URL 载荷上传 R2。
+// resolveTaskImageResultURLs：异步生图结果统一由 b64_json / data URI 解码后上传 R2，对外只暴露 CDN URL。
 func resolveTaskImageResultURLs(ctx context.Context, task *model.Task, images []dto.ImageData) ([]string, error) {
-	channelBaseURL := ""
-	if channel, err := model.GetChannelById(task.ChannelId, true); err == nil && channel != nil {
-		channelBaseURL = channel.GetBaseURL()
-	}
 	resultURLs := make([]string, 0, len(images))
 	for index, item := range images {
 		data, remoteURL, err := DecodeImageDataItemExported(item)
@@ -139,7 +135,7 @@ func resolveTaskImageResultURLs(ctx context.Context, task *model.Task, images []
 			continue
 		}
 		if remoteURL != "" {
-			resultURLs = append(resultURLs, rewriteLoopbackUpstreamImageURL(channelBaseURL, remoteURL))
+			return nil, fmt.Errorf("upstream returned url without b64_json; use response_format=b64_json")
 		}
 	}
 	if len(resultURLs) == 0 {
