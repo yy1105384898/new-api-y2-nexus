@@ -2108,7 +2108,7 @@
             "id": "video-tpl-async-ratio-duration-ref1-veo",
             "apiMode": "videos-json-async",
             "match": [
-                "veo_3_1"
+                "veo-3-1"
             ],
             "referenceLimits": {
                 "images": 5,
