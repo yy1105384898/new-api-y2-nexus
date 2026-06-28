@@ -95,13 +95,10 @@ export function ApiDocsPage() {
   -H "Authorization: Bearer sk-xxx" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "model": "Seedance2.0-720p",
+    "model": "oairegbox-seedance-pro-720p",
     "prompt": "雨夜霓虹街道，镜头缓慢推进，电影感光影",
-    "duration": 8,
-    "metadata": {
-      "ratio": "16:9",
-      "resolution": "720p"
-    }
+    "aspect_ratio": "16:9",
+    "duration": 8
   }'`}
         />
         <CodeBlock

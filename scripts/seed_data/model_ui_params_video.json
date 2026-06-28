@@ -1520,7 +1520,7 @@
             },
             "hints": [
                 {
-                    "text": "文生/单图最长 15 秒；多参考图最多 7 张且最长 10 秒（超出会自动截断）。"
+                    "text": "文生/单图最长 15 秒；多参考图最多 7 张且最长 10 秒（超出会自动截断）；提示词上限 4096 字符（含上游文本节点拼接）。"
                 }
             ]
         },
@@ -1594,7 +1594,7 @@
             },
             "hints": [
                 {
-                    "text": "仅单图生视频，必须且只能 1 张参考图；不支持纯文生。"
+                    "text": "仅单图生视频，必须且只能 1 张参考图；不支持纯文生；提示词上限 4096 字符（含上游文本节点拼接）。"
                 }
             ]
         },
@@ -2258,6 +2258,107 @@
                     "enabled": false
                 }
             }
+        },
+        {
+            "id": "video-tpl-async-ratio-duration-frame-ref9v3a3",
+            "apiMode": "videos-json-async",
+            "match": [
+                "seedance-pro-720p",
+                "seedance-fast-720p",
+                "seedance-pro-1080p"
+            ],
+            "referenceLimits": {
+                "images": 9,
+                "videos": 3,
+                "audios": 3
+            },
+            "params": {
+                "resolution": {
+                    "enabled": true,
+                    "options": [
+                        {
+                            "value": "720p",
+                            "label": "720p"
+                        },
+                        {
+                            "value": "1080p",
+                            "label": "1080p"
+                        }
+                    ]
+                },
+                "ratio": {
+                    "enabled": true,
+                    "options": [
+                        {
+                            "value": "16:9",
+                            "label": "横屏"
+                        },
+                        {
+                            "value": "9:16",
+                            "label": "竖屏"
+                        },
+                        {
+                            "value": "1:1",
+                            "label": "方形"
+                        },
+                        {
+                            "value": "21:9",
+                            "label": "宽银幕"
+                        },
+                        {
+                            "value": "3:4",
+                            "label": "3:4"
+                        },
+                        {
+                            "value": "4:3",
+                            "label": "4:3"
+                        }
+                    ]
+                },
+                "duration": {
+                    "enabled": true,
+                    "numericOptions": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+                    "min": 4,
+                    "max": 15
+                },
+                "generateAudio": {
+                    "enabled": false
+                },
+                "watermark": {
+                    "enabled": false
+                },
+                "seed": {
+                    "enabled": false
+                },
+                "widthHeight": {
+                    "enabled": false
+                },
+                "frameInputs": {
+                    "enabled": true,
+                    "hint": "可同时指定开始画面与结束画面，生成过渡视频"
+                }
+            },
+            "optionRules": [
+                {
+                    "param": "resolution",
+                    "value": "1080p",
+                    "disabledWhen": {
+                        "modelIncludes": "720p"
+                    }
+                },
+                {
+                    "param": "resolution",
+                    "value": "720p",
+                    "disabledWhen": {
+                        "modelIncludes": "1080p"
+                    }
+                }
+            ],
+            "hints": [
+                {
+                    "text": "满血 Pro/Fast，按秒计费；支持 @Image/@Video/@Audio 全参考（9图/3视频/3音频）。"
+                }
+            ]
         }
     ]
 }

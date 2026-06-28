@@ -49,24 +49,19 @@ GZ_DUP_DELETE = [
 
 OAIREGBOX_META = [
     {
-        "model_name": "oairegbox-seedance-480p",
-        "description": "OAIREGBox Seedance 2.0 480p。按秒计费，支持文生/图生视频。",
-        "tags": "video,seedance,oairegbox,480p",
-    },
-    {
-        "model_name": "oairegbox-seedance-fast-480p",
-        "description": "OAIREGBox Seedance 2.0 Fast 480p。按秒计费。",
-        "tags": "video,seedance,oairegbox,480p,fast",
-    },
-    {
-        "model_name": "oairegbox-seedance-720p",
-        "description": "OAIREGBox Seedance 2.0 720p。按秒计费。",
-        "tags": "video,seedance,oairegbox,720p",
+        "model_name": "oairegbox-seedance-pro-720p",
+        "description": "OAIREGBox Seedance 满血 Pro 720p。按秒计费，支持 @Image/@Video/@Audio 全参考（9/3/3）。",
+        "tags": "video,seedance,oairegbox,720p,pro,full",
     },
     {
         "model_name": "oairegbox-seedance-fast-720p",
-        "description": "OAIREGBox Seedance 2.0 Fast 720p。按秒计费。",
-        "tags": "video,seedance,oairegbox,720p,fast",
+        "description": "OAIREGBox Seedance 满血 Fast 720p。按秒计费，支持 @Image/@Video/@Audio 全参考（9/3/3）。",
+        "tags": "video,seedance,oairegbox,720p,fast,full",
+    },
+    {
+        "model_name": "oairegbox-seedance-pro-1080p",
+        "description": "OAIREGBox Seedance 满血 Pro 1080p。按秒计费，支持 @Image/@Video/@Audio 全参考（9/3/3）。",
+        "tags": "video,seedance,oairegbox,1080p,pro,full",
     },
 ]
 
