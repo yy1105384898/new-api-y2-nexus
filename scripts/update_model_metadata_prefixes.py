@@ -326,12 +326,12 @@ def enrich_prefixed_descriptions() -> None:
             "video,gemini,yunwu,landscape,10s",
             VENDOR_GOOGLE,
         ),
-        "tengda-veo_3_1": (
+        "tengda-veo-3-1": (
             "腾达 Geeknow Veo 3.1 标准质量。文生/图生，1280×720 或 720×1280，duration 整数秒。",
             "video,veo,tengda,geeknow",
             VENDOR_GOOGLE,
         ),
-        "tengda-veo_3_1-fast": (
+        "tengda-veo-3-1-fast": (
             "腾达 Geeknow Veo 3.1 Fast。更快生成，参数同标准版。",
             "video,veo,tengda,geeknow,fast",
             VENDOR_GOOGLE,
