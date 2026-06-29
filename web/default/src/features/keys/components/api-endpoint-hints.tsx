@@ -18,8 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 
-const AI_ENDPOINT = 'https://ai.cangyuansuanli.cn/v1'
-const DIRECT_ENDPOINT = 'http://direct-api.cangyuansuanli.cn/v1'
+const AI_ENDPOINT = 'https://ai.cangyuansuanli.cn'
+const DIRECT_ENDPOINT = 'https://direct-api.cangyuansuanli.cn'
 
 export function ApiEndpointHints() {
   const { t } = useTranslation()
@@ -34,21 +34,13 @@ export function ApiEndpointHints() {
           <code className='bg-muted rounded px-1 py-0.5 text-[11px] sm:text-xs'>
             {AI_ENDPOINT}
           </code>
-          <span className='ms-1.5'>
-            {t(
-              'General customers — HTTPS port 443 via Edge (recommended)'
-            )}
-          </span>
+          <span className='ms-1.5'>{t('General customers (recommended)')}</span>
         </li>
         <li>
           <code className='bg-muted rounded px-1 py-0.5 text-[11px] sm:text-xs'>
             {DIRECT_ENDPOINT}
           </code>
-          <span className='ms-1.5'>
-            {t(
-              'High-volume customers — HTTP port 80 direct to origin (bypass Edge)'
-            )}
-          </span>
+          <span className='ms-1.5'>{t('High-volume customers')}</span>
         </li>
       </ul>
     </div>
