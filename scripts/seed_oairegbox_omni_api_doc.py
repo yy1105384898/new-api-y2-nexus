@@ -82,32 +82,36 @@ DOCS: dict[str, dict] = {
         "intro": (
             "OAIREGBox Omni 视频转视频（V2V）。按次 ¥0.55。"
             "JSON 传 video_url，或 multipart 上传 input_video（≤5MB）。固定 720p、约 10 秒。"
+            "客户端 model 传 omni-v2v（勿传上游名 omni-fast-v2v）。"
         ),
         "params": V2V_PARAMS,
         "basic_request_json": {
-            "model": "omni-fast-v2v",
+            "model": "omni-v2v",
             "prompt": "将画面风格转换为赛博朋克风",
             "aspect_ratio": "16:9",
             "video_url": "https://cdn.example.com/source.mp4",
         },
         "request_json": {
-            "model": "omni-fast-v2v",
+            "model": "omni-v2v",
             "prompt": "将画面风格转换为赛博朋克风",
             "aspect_ratio": "16:9",
             "video_url": "https://cdn.example.com/source.mp4",
         },
     },
     "oairegbox-omni-v2v-no-water": {
-        "intro": "OAIREGBox Omni V2V 无水印版。按次 ¥0.65。参数同 omni-fast-v2v，出片经自动清洗。",
+        "intro": (
+            "OAIREGBox Omni V2V 无水印版。按次 ¥0.65。参数同 omni-v2v，出片经自动清洗。"
+            "客户端 model 传 omni-v2v-no-water（勿传上游名 omni-fast-v2v-no-water）。"
+        ),
         "params": V2V_PARAMS,
         "basic_request_json": {
-            "model": "omni-fast-v2v-no-water",
+            "model": "omni-v2v-no-water",
             "prompt": "将画面风格转换为赛博朋克风",
             "aspect_ratio": "16:9",
             "video_url": "https://cdn.example.com/source.mp4",
         },
         "request_json": {
-            "model": "omni-fast-v2v-no-water",
+            "model": "omni-v2v-no-water",
             "prompt": "将画面风格转换为赛博朋克风",
             "aspect_ratio": "16:9",
             "video_url": "https://cdn.example.com/source.mp4",

@@ -172,11 +172,7 @@ func applyVideoPollDefaults(doc map[string]interface{}, registry *ModelUiParamRe
 	}
 	apiMode, _ := doc["apiMode"].(string)
 	if apiMode == "" {
-		if id, _ := doc["id"].(string); strings.HasPrefix(id, "gz-video") {
-			apiMode = "videos-json-gz"
-		} else {
-			apiMode = "videos-form"
-		}
+		apiMode = "videos-form"
 	}
 	var pollDefaults map[string]map[string]interface{}
 	if err := json.Unmarshal([]byte(registry.PollDefaults), &pollDefaults); err != nil {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
@@ -767,4 +768,34 @@ func TestRefundTaskQuota_UnsafeImageFailure(t *testing.T) {
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
 	assert.Equal(t, 5555, log.Quota)
+}
+
+func TestTaskBillingOther_ImageAsyncModelMapping(t *testing.T) {
+	task := &model.Task{
+		Properties: model.Properties{
+			OriginModelName:   "geek2-gpt-image-2-4k",
+			UpstreamModelName: "gpt-image-2",
+		},
+	}
+
+	other := taskBillingOther(task)
+
+	assert.Equal(t, true, other["is_model_mapped"])
+	assert.Equal(t, "gpt-image-2", other["upstream_model_name"])
+}
+
+func TestInitTask_ImageAsyncPreservesUpstreamModelName(t *testing.T) {
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName: "geek2-gpt-image-2-4k",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelId:         48,
+			UpstreamModelName: "gpt-image-2",
+			IsModelMapped:     true,
+		},
+	}
+
+	task := model.InitTask(constant.TaskPlatformImage, relayInfo)
+
+	assert.Equal(t, "geek2-gpt-image-2-4k", task.Properties.OriginModelName)
+	assert.Equal(t, "gpt-image-2", task.Properties.UpstreamModelName)
 }

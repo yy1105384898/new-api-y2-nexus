@@ -103,6 +103,15 @@ func RelayImageTaskSubmit(c *gin.Context) {
 		addUsedChannel(c, channel.Id)
 		relayInfo.InitChannelMeta(c)
 
+		// 与视频任务对齐：在创建 task 前应用渠道 model_mapping，便于 task.Properties
+		// 与异步结算日志正确记录 is_model_mapped / upstream_model_name。
+		originModelName := relayInfo.OriginModelName
+		relayInfo.UpstreamModelName = originModelName
+		if mapErr := helper.ModelMappedHelper(c, relayInfo, nil); mapErr != nil {
+			taskErr = service.TaskErrorWrapperLocal(mapErr, "model_mapping_failed", http.StatusBadRequest)
+			break
+		}
+
 		priceData, err := helper.ModelPriceHelperPerCall(c, relayInfo)
 		if err != nil {
 			taskErr = service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest)

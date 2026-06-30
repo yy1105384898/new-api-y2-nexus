@@ -87,7 +87,7 @@ DOCS: dict[str, dict] = {
     },
 }
 
-PROFILE = "video-tpl-async-ratio-duration-frame-ref9v3a3"
+PROFILE = "video-tpl-seedance-async"
 
 
 def psql(sql: str) -> None:
