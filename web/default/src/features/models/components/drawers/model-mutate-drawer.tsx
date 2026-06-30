@@ -450,8 +450,21 @@ export function ModelMutateDrawer({
           ...modelData
         } = submitData
 
+        // Preserve profile bindings not shown in this form; Update() replaces all selected columns.
+        const preservedProfileFields =
+          isEditing && modelData?.data
+            ? {
+                video_profile_id: modelData.data.video_profile_id || '',
+                image_profile_id: modelData.data.image_profile_id || '',
+              }
+            : {}
+
         const response = isEditing
-          ? await updateModel({ ...modelData, id: currentRow!.id })
+          ? await updateModel({
+              ...modelData,
+              ...preservedProfileFields,
+              id: currentRow!.id,
+            })
           : await createModel(modelData)
 
         if (response.success) {
@@ -693,6 +706,7 @@ export function ModelMutateDrawer({
     [
       isEditing,
       currentRow,
+      modelData,
       queryClient,
       onOpenChange,
       pricingMode,
