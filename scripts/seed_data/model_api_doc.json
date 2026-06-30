@@ -78,6 +78,16 @@
           "description": "查询任务状态与结果地址。"
         },
         {
+          "method": "POST",
+          "path": "{{base}}/images/edits",
+          "description": "图生图/编辑（multipart/form-data，async 必须为 true）；参考图须上传文件。"
+        },
+        {
+          "method": "GET",
+          "path": "{{base}}/images/edits/{task_id}",
+          "description": "查询图生图异步任务。"
+        },
+        {
           "method": "GET",
           "path": "{{base}}/images/{task_id}/content",
           "description": "下载图片（部分模型）。"
@@ -103,7 +113,10 @@
         { "name": "async", "description": "必填 true，启用异步任务模式。" },
         { "name": "size", "description": "输出尺寸，如 1024x1024、1536x1024。" },
         { "name": "n", "description": "生成张数，默认 1。" },
-        { "name": "quality", "description": "画质档位（部分模型支持 standard / hd）。" }
+        { "name": "quality", "description": "画质档位（部分模型支持 standard / hd）。" },
+        { "name": "image", "description": "edits 端点（multipart）：单张参考图文件，字段名 image。" },
+        { "name": "image[]", "description": "edits 端点（multipart）：多张参考图，字段名 image[]。" },
+        { "name": "mask", "description": "edits 端点（multipart）：可选蒙版 PNG，透明区域为编辑区。" }
       ],
       "create_response_json": {
         "id": "task_img_01HZX8A2...",
@@ -128,7 +141,12 @@
         {
           "method": "POST",
           "path": "{{base}}/images/generations",
-          "description": "同步出图（application/json，勿传 async 或 async: false）。"
+          "description": "同步文生图（application/json，勿传 async 或 async: false）。"
+        },
+        {
+          "method": "POST",
+          "path": "{{base}}/images/edits",
+          "description": "同步图生图/编辑（multipart/form-data）；参考图须上传文件。"
         }
       ],
       "basic_request_json": {
@@ -151,7 +169,10 @@
         { "name": "size", "description": "输出尺寸，如 1024x1024、1792x1024。" },
         { "name": "n", "description": "生成张数，默认 1。" },
         { "name": "response_format", "description": "url 返回图片地址；b64_json 返回 base64。" },
-        { "name": "quality", "description": "画质档位（部分模型支持 standard / hd）。" }
+        { "name": "quality", "description": "画质档位（部分模型支持 standard / hd）。" },
+        { "name": "image", "description": "edits 端点（multipart）：单张参考图文件，字段名 image。" },
+        { "name": "image[]", "description": "edits 端点（multipart）：多张参考图，字段名 image[]。" },
+        { "name": "mask", "description": "edits 端点（multipart）：可选蒙版 PNG，透明区域为编辑区。" }
       ],
       "create_response_json": {
         "created": 1715923200,
