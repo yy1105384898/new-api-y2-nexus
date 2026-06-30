@@ -433,9 +433,12 @@ function buildUnifiedVideoDoc(
     paramNote('metadata.aspect_ratio', paramsConfig.ratio, '画幅比例。'),
     paramNote('metadata.resolution', paramsConfig.resolution, '清晰度档位。'),
     { name: 'size', description: '画幅像素，如 1280x720。' },
-    { name: 'reference_image_urls', description: '参考图 URL 数组（图生视频）。' },
+    { name: 'reference_image_urls', description: '参考图 URL 数组（图生视频，Seedance 等）。' },
     { name: 'images', description: '参考图 URL 数组。' },
-    { name: 'input_reference', description: '单张首帧参考（URL 或 multipart 文件）。' },
+    { name: 'image_url', description: '单张参考图 URL 或 Base64（JSON 图生视频，Omni 等）。' },
+    { name: 'input_reference', description: 'multipart 参考图文件（可多张）；JSON 亦兼容单张 string。' },
+    { name: 'first_image_url', description: '首帧参考图 URL（JSON）。' },
+    { name: 'last_image_url', description: '末帧参考图 URL（JSON）。' },
   ].filter((p) => p.description)
 
   if ((limits.images ?? 0) > 0) {

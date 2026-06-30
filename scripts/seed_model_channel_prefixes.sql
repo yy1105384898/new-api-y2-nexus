@@ -15,5 +15,6 @@ VALUES
   ('happyhorse-', 'HappyHorse 视频', 1, 80, strftime('%s','now'), strftime('%s','now')),
   ('niming-', '匿名 Gemini 生图', 1, 90, strftime('%s','now'), strftime('%s','now')),
   ('oairegbox-', 'OAIREGBox', 1, 100, strftime('%s','now'), strftime('%s','now')),
+  ('tengda-', '腾达 Geeknow Veo（td.geeknow.top）', 1, 105, strftime('%s','now'), strftime('%s','now')),
   ('yunwu-', '云雾 / Apifox 聚合', 1, 110, strftime('%s','now'), strftime('%s','now')),
   ('zeabur-', 'Zeabur 托管 Gemini/GLM', 1, 120, strftime('%s','now'), strftime('%s','now'));

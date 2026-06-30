@@ -55,6 +55,10 @@ type responseTask struct {
 	RemixedFromVideoID string `json:"remixed_from_video_id,omitempty"`
 	VideoURL           string `json:"videoUrl,omitempty"`  // GZ / 部分 OpenAI 兼容上游
 	VideoURLSnake      string `json:"video_url,omitempty"` // 部分上游 snake_case
+	Data               []struct {
+		URL      string `json:"url,omitempty"`
+		VideoURL string `json:"video_url,omitempty"`
+	} `json:"data,omitempty"`
 	Usage              *struct {
 		Seconds    float64 `json:"seconds"`
 		VideoCount int     `json:"video_count"`
@@ -444,10 +448,28 @@ func parseErrorField(raw json.RawMessage) (message, code string) {
 }
 
 func extractVideoURL(res responseTask) string {
+	for _, item := range res.Data {
+		if u := pickAbsoluteVideoURL(item.URL, item.VideoURL); u != "" {
+			return u
+		}
+	}
+	if u := pickAbsoluteVideoURL(res.VideoURL, res.VideoURLSnake); u != "" {
+		return u
+	}
 	if res.VideoURL != "" {
 		return res.VideoURL
 	}
 	return res.VideoURLSnake
+}
+
+func pickAbsoluteVideoURL(candidates ...string) string {
+	for _, raw := range candidates {
+		u := strings.TrimSpace(raw)
+		if strings.HasPrefix(u, "http://") || strings.HasPrefix(u, "https://") {
+			return u
+		}
+	}
+	return ""
 }
 
 func extractErrorMessage(respBody []byte) string {
