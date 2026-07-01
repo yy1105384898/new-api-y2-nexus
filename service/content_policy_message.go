@@ -11,6 +11,15 @@ import (
 const (
 	ContentPolicyMessageZH = "您的提示词或参考素材触发了上游内容审查，请修改后重新提交。"
 	ContentPolicyMessageEN = "Your prompt or reference material was rejected by upstream content moderation. Please revise it and submit again."
+
+	UpstreamUnavailableMessageZH = "上游服务暂时不可用，请稍后重试。"
+	UpstreamUnavailableMessageEN = "Upstream service temporarily unavailable, please retry later."
+
+	TimeoutMessageZH = "生成超时，请稍后重试。"
+	TimeoutMessageEN = "Generation timed out, please retry later."
+
+	MissingReferenceMessageZH = "参考图未正确传递，请重新上传后重试。"
+	MissingReferenceMessageEN = "Reference image was not delivered correctly, please re-upload and retry."
 )
 
 func PreferChineseClient(c *gin.Context) bool {
@@ -25,10 +34,14 @@ func PreferChineseClient(c *gin.Context) bool {
 }
 
 func ContentPolicyMessage(c *gin.Context) string {
+	return localizedClientMessage(c, ContentPolicyMessageZH, ContentPolicyMessageEN)
+}
+
+func localizedClientMessage(c *gin.Context, zh, en string) string {
 	if PreferChineseClient(c) {
-		return ContentPolicyMessageZH
+		return zh
 	}
-	return ContentPolicyMessageEN
+	return en
 }
 
 func IsContentPolicyViolation(text string) bool {
@@ -54,9 +67,15 @@ func IsContentPolicyViolation(text string) bool {
 		"erotic",
 		"exposed cleavage",
 		"prompt_blocked",
+		"blocked by the upstream safety policy",
+		"upstream safety policy",
+		"model output was blocked",
 		"generated video rejected by content moderation",
 		"the generated images appear to be unsafe",
 		"unexpected end of json input",
+		"invalid character",
+		"looking for beginning of value",
+		"parse image json",
 		"图片内容不合规",
 		"内容政策",
 		"裸露",
@@ -95,13 +114,129 @@ func stripLogArtifacts(text string) string {
 	return text
 }
 
+func stripStatusCodePrefix(text string) string {
+	text = strings.TrimSpace(text)
+	if !strings.HasPrefix(text, "status_code=") {
+		return text
+	}
+	if idx := strings.Index(text, ", "); idx != -1 {
+		return strings.TrimSpace(text[idx+2:])
+	}
+	return text
+}
+
+func containsAny(lower, text string, patterns ...string) bool {
+	for _, pattern := range patterns {
+		if strings.Contains(lower, pattern) {
+			return true
+		}
+	}
+	for _, pattern := range patterns {
+		if strings.Contains(text, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+func IsUpstreamUnavailableError(text string) bool {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return false
+	}
+	lower := strings.ToLower(stripStatusCodePrefix(text))
+	patterns := []string{
+		"upstream service temporarily unavailable",
+		"upstream request failed",
+		"no capacity available",
+		"capacity available for model",
+		"bad response status code 502",
+		"bad response status code 503",
+		"bad response status code 504",
+		"connection reset by peer",
+		"connection refused",
+		"do request failed",
+		"upstream error: do request failed",
+		"download image failed",
+		"rehost upstream image url",
+	}
+	if containsAny(lower, text, patterns...) {
+		return true
+	}
+	if strings.HasPrefix(text, "status_code=502") ||
+		strings.HasPrefix(text, "status_code=503") ||
+		strings.HasPrefix(text, "status_code=504") {
+		return true
+	}
+	return false
+}
+
+func IsTimeoutError(text string) bool {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return false
+	}
+	lower := strings.ToLower(stripStatusCodePrefix(text))
+	if containsAny(lower, text, "proxy read timeout", "timed out", "timeout", "任务超时", "生图超时") {
+		return true
+	}
+	return strings.HasPrefix(text, "status_code=524")
+}
+
+func IsMissingReferenceError(text string) bool {
+	text = strings.TrimSpace(stripStatusCodePrefix(text))
+	if text == "" {
+		return false
+	}
+	lower := strings.ToLower(text)
+	if strings.Contains(text, "图片1") &&
+		(strings.Contains(text, "上传") || strings.Contains(text, "没有看到") || strings.Contains(text, "还没有看到") || strings.Contains(text, "引用")) {
+		return true
+	}
+	if strings.Contains(text, "参考图") &&
+		(strings.Contains(text, "上传") || strings.Contains(text, "还没有看到") || strings.Contains(text, "没有看到")) {
+		return true
+	}
+	if strings.Contains(lower, "reference image") &&
+		(strings.Contains(lower, "upload") || strings.Contains(lower, "don't have") || strings.Contains(lower, "do not have")) {
+		return true
+	}
+	return false
+}
+
 func NormalizeClientErrorMessage(c *gin.Context, raw string) string {
+	return NormalizeClientErrorMessageForLang(PreferChineseClient(c), raw)
+}
+
+func NormalizeClientErrorMessageForLang(preferChinese bool, raw string) string {
 	raw = stripLogArtifacts(raw)
+	raw = stripStatusCodePrefix(raw)
 	if raw == "" {
 		return raw
 	}
 	if IsContentPolicyViolation(raw) {
-		return ContentPolicyMessage(c)
+		if preferChinese {
+			return ContentPolicyMessageZH
+		}
+		return ContentPolicyMessageEN
+	}
+	if IsTimeoutError(raw) {
+		if preferChinese {
+			return TimeoutMessageZH
+		}
+		return TimeoutMessageEN
+	}
+	if IsUpstreamUnavailableError(raw) {
+		if preferChinese {
+			return UpstreamUnavailableMessageZH
+		}
+		return UpstreamUnavailableMessageEN
+	}
+	if IsMissingReferenceError(raw) {
+		if preferChinese {
+			return MissingReferenceMessageZH
+		}
+		return MissingReferenceMessageEN
 	}
 	return raw
 }
