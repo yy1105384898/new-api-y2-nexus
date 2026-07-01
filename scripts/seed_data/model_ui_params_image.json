@@ -478,6 +478,133 @@
             }
         },
         {
+            "id": "image-tpl-aspect-count-flash-lite",
+            "api_mode": "chat-completions",
+            "match": [
+                "flash-lite-image"
+            ],
+            "params": {
+                "quality": {
+                    "enabled": true,
+                    "options": [
+                        {
+                            "value": "auto",
+                            "label": "自动"
+                        },
+                        {
+                            "value": "low",
+                            "label": "1K"
+                        }
+                    ]
+                },
+                "aspectRatio": {
+                    "enabled": true,
+                    "options": [
+                        {
+                            "value": "1:1",
+                            "label": "1:1",
+                            "size": "1:1",
+                            "width": 1,
+                            "height": 1,
+                            "icon": "square"
+                        },
+                        {
+                            "value": "16:9",
+                            "label": "16:9",
+                            "size": "16:9",
+                            "width": 16,
+                            "height": 9,
+                            "icon": "landscape"
+                        },
+                        {
+                            "value": "9:16",
+                            "label": "9:16",
+                            "size": "9:16",
+                            "width": 9,
+                            "height": 16,
+                            "icon": "portrait"
+                        },
+                        {
+                            "value": "3:2",
+                            "label": "3:2",
+                            "size": "3:2",
+                            "width": 3,
+                            "height": 2,
+                            "icon": "landscape"
+                        },
+                        {
+                            "value": "2:3",
+                            "label": "2:3",
+                            "size": "2:3",
+                            "width": 2,
+                            "height": 3,
+                            "icon": "portrait"
+                        },
+                        {
+                            "value": "4:3",
+                            "label": "4:3",
+                            "size": "4:3",
+                            "width": 4,
+                            "height": 3,
+                            "icon": "landscape"
+                        },
+                        {
+                            "value": "3:4",
+                            "label": "3:4",
+                            "size": "3:4",
+                            "width": 3,
+                            "height": 4,
+                            "icon": "portrait"
+                        },
+                        {
+                            "value": "21:9",
+                            "label": "21:9",
+                            "size": "21:9",
+                            "width": 21,
+                            "height": 9,
+                            "icon": "landscape"
+                        },
+                        {
+                            "value": "auto",
+                            "label": "自动",
+                            "width": 0,
+                            "height": 0,
+                            "icon": "auto"
+                        }
+                    ]
+                },
+                "customDimensions": {
+                    "enabled": false
+                },
+                "count": {
+                    "enabled": true,
+                    "min": 1,
+                    "max": 4,
+                    "quickCount": 4
+                },
+                "background": {
+                    "enabled": false
+                },
+                "outputFormat": {
+                    "enabled": false
+                },
+                "outputCompression": {
+                    "enabled": false
+                },
+                "moderation": {
+                    "enabled": false
+                }
+            },
+            "hints": [
+                {
+                    "text": "Flash Lite 图像模型仅支持 1K 出图（约 1024px），不支持 2K/4K。"
+                },
+                {
+                    "text": "请使用 1:1、16:9 等比例；quality 选 1K 或自动即可。"
+                }
+            ]
+        },
+        {
             "id": "image-tpl-square-fixed-count",
             "api_mode": "images-json-async",
             "match": [

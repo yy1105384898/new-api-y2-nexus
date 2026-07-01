@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""写入 0lll0-gemini-3.1-flash-lite-image 的 api_doc（源站执行）。"""
+"""写入 0lll0-gemini-3.1-flash-lite-image 的 profile、api_doc（源站执行）。"""
 
 from __future__ import annotations
 
 import json
 import subprocess
+import time
 
 ENDPOINTS = [
     {
@@ -39,7 +40,7 @@ PARAMS = [
     },
     {
         "name": "extra_body.google.image_config.image_size",
-        "description": "分辨率档位：1K / 2K / 4K（K 大写；省略默认 1K）。",
+        "description": "仅支持 1K（K 大写）；省略或 auto 时上游默认 1K。勿传 2K/4K。",
     },
     {
         "name": "n",
@@ -61,9 +62,9 @@ CREATE_RESP = {
 DOC = {
     "dispatch_mode": "sync",
     "intro": (
-        "Gemini 3.1 Flash Lite 图像生成（0lll0 渠道）。按次 ¥0.20/张。"
+        "Gemini 3.1 Flash Lite 图像生成（0lll0 渠道）。按次 ¥0.20/张，仅支持 1K 出图。"
         "POST /v1/chat/completions（stream 须 false），图片嵌在 assistant message 的 Markdown data URI 中。"
-        "画幅用 extra_body.google.image_config 的 aspect_ratio + image_size 控制，勿传 async，无需轮询。"
+        "画幅用 extra_body.google.image_config 的 aspect_ratio 控制；image_size 仅可 1K 或省略，勿传 2K/4K。"
         "带参考图/蒙版时 messages[0].content 为 text + image_url 数组（非 /images/generations）。"
     ),
     "endpoints": ENDPOINTS,
@@ -97,7 +98,7 @@ DOC = {
             "google": {
                 "image_config": {
                     "aspect_ratio": "3:2",
-                    "image_size": "2K",
+                    "image_size": "1K",
                 }
             }
         },
@@ -107,6 +108,39 @@ DOC = {
 }
 
 MODEL_NAME = "0lll0-gemini-3.1-flash-lite-image"
+IMAGE_PROFILE = "image-tpl-aspect-count-flash-lite"
+
+PROFILE_PARAMS = {
+    "quality": {
+        "enabled": True,
+        "options": [{"value": "auto", "label": "自动"}, {"value": "low", "label": "1K"}],
+    },
+    "aspectRatio": {
+        "enabled": True,
+        "options": [
+            {"value": "1:1", "label": "1:1", "size": "1:1", "width": 1, "height": 1, "icon": "square"},
+            {"value": "16:9", "label": "16:9", "size": "16:9", "width": 16, "height": 9, "icon": "landscape"},
+            {"value": "9:16", "label": "9:16", "size": "9:16", "width": 9, "height": 16, "icon": "portrait"},
+            {"value": "3:2", "label": "3:2", "size": "3:2", "width": 3, "height": 2, "icon": "landscape"},
+            {"value": "2:3", "label": "2:3", "size": "2:3", "width": 2, "height": 3, "icon": "portrait"},
+            {"value": "4:3", "label": "4:3", "size": "4:3", "width": 4, "height": 3, "icon": "landscape"},
+            {"value": "3:4", "label": "3:4", "size": "3:4", "width": 3, "height": 4, "icon": "portrait"},
+            {"value": "21:9", "label": "21:9", "size": "21:9", "width": 21, "height": 9, "icon": "landscape"},
+            {"value": "auto", "label": "自动", "width": 0, "height": 0, "icon": "auto"},
+        ],
+    },
+    "customDimensions": {"enabled": False},
+    "count": {"enabled": True, "min": 1, "max": 4, "quickCount": 4},
+    "background": {"enabled": False},
+    "outputFormat": {"enabled": False},
+    "outputCompression": {"enabled": False},
+    "moderation": {"enabled": False},
+}
+
+PROFILE_HINTS = [
+    {"text": "Flash Lite 图像模型仅支持 1K 出图（约 1024px），不支持 2K/4K。"},
+    {"text": "请使用 1:1、16:9 等比例；quality 选 1K 或自动即可。"},
+]
 
 
 def psql(sql: str) -> None:
@@ -129,17 +163,44 @@ def psql(sql: str) -> None:
     )
 
 
+def upsert_profile() -> None:
+    now = int(time.time())
+    params_esc = json.dumps(PROFILE_PARAMS, ensure_ascii=False, separators=(",", ":")).replace("'", "''")
+    hints_esc = json.dumps(PROFILE_HINTS, ensure_ascii=False, separators=(",", ":")).replace("'", "''")
+    psql(
+        f"""
+        INSERT INTO model_ui_param_profiles (
+            capability, profile_id, match, sort_order, api_mode,
+            requires_reference_media, poll, reference_limits, params, option_rules, hints,
+            created_time, updated_time
+        ) VALUES (
+            'image', '{IMAGE_PROFILE}', '["flash-lite-image"]', 0, 'chat-completions',
+            false, '{{}}', '{{}}', '{params_esc}', '[]', '{hints_esc}',
+            {now}, {now}
+        )
+        ON CONFLICT (capability, profile_id) DO UPDATE SET
+            match = EXCLUDED.match,
+            api_mode = EXCLUDED.api_mode,
+            params = EXCLUDED.params,
+            hints = EXCLUDED.hints,
+            updated_time = EXCLUDED.updated_time;
+        """
+    )
+    print(f"upserted profile {IMAGE_PROFILE}")
+
+
 def main() -> None:
+    upsert_profile()
     payload = DOC.copy()
     esc = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).replace("'", "''")
     psql(
-        f"UPDATE models SET api_doc = '{esc}', "
+        f"UPDATE models SET api_doc = '{esc}', image_profile_id = '{IMAGE_PROFILE}', "
         f"updated_time = extract(epoch from now())::bigint "
         f"WHERE model_name = '{MODEL_NAME}' AND deleted_at IS NULL;"
     )
     print(f"updated {MODEL_NAME}")
     psql(
-        f"SELECT model_name, length(api_doc) AS doc_len "
+        f"SELECT model_name, image_profile_id, length(api_doc) AS doc_len "
         f"FROM models WHERE model_name = '{MODEL_NAME}' AND deleted_at IS NULL;"
     )
 
