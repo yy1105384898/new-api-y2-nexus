@@ -56,6 +56,7 @@ func IsContentPolicyViolation(text string) bool {
 		"content policy",
 		"content_policy",
 		"content_policy_violation",
+		"content_moderation_failed",
 		"appear to be unsafe",
 		"unsafe content",
 		"policy violation",
@@ -72,12 +73,16 @@ func IsContentPolicyViolation(text string) bool {
 		"model output was blocked",
 		"generated video rejected by content moderation",
 		"the generated images appear to be unsafe",
+		"modifying the prompts or the seeds",
 		"unexpected end of json input",
 		"invalid character",
 		"looking for beginning of value",
 		"parse image json",
 		"图片内容不合规",
 		"内容政策",
+		"该提示可能违反了",
+		"生成的图片可能违反了",
+		"第三方内容相似",
 		"裸露",
 		"色情",
 		"情色",
@@ -97,7 +102,8 @@ func IsContentPolicyViolation(text string) bool {
 			strings.Contains(text, "色情") ||
 			strings.Contains(text, "情色") ||
 			strings.Contains(text, "暴力") ||
-			strings.Contains(text, "防护限制")
+			strings.Contains(text, "防护限制") ||
+			strings.Contains(text, "第三方")
 	}
 
 	return false

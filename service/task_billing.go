@@ -196,6 +196,11 @@ var nonRefundableTaskFailureMarkers = []string{
 	"usage guidelines",
 	"safety_check",
 	"moderation_blocked",
+	// Gulie gpt-image-2 中文策略拦截（源站实测）
+	"该提示可能违反了",
+	"生成的图片可能违反了",
+	"防护限制",
+	"第三方内容相似",
 }
 
 // nonRefundableUpstreamErrorCodes OpenAI/Geek2 等内容策略类 error.code，命中时不退预扣费。
@@ -218,6 +223,14 @@ func IsUpstreamRefundableTaskFailure(reason string) bool {
 	return false
 }
 
+// upstreamChargedContentPolicyParseHeuristics Geek2 等上游返回非 JSON 时常见误解析；
+// 对用户统一展示内容审查提示，但上游通常未计费，仍应退还预扣额度。
+var upstreamChargedContentPolicyParseHeuristics = []string{
+	"invalid character",
+	"looking for beginning of value",
+	"parse image json",
+}
+
 // IsNonRefundableTaskFailure 判断任务失败是否属于上游不退款的策略/审核类错误。
 func IsNonRefundableTaskFailure(reason string) bool {
 	if IsUpstreamRefundableTaskFailure(reason) {
@@ -232,7 +245,24 @@ func IsNonRefundableTaskFailure(reason string) bool {
 			return true
 		}
 	}
-	return false
+	return IsUpstreamChargedContentPolicyFailure(reason)
+}
+
+// IsUpstreamChargedContentPolicyFailure 命中内容审查且上游已计费（排除 unsafe/JSON 误解析可退款场景）。
+func IsUpstreamChargedContentPolicyFailure(reason string) bool {
+	if IsUpstreamRefundableTaskFailure(reason) {
+		return false
+	}
+	if !IsContentPolicyViolation(reason) {
+		return false
+	}
+	lower := strings.ToLower(strings.TrimSpace(reason))
+	for _, marker := range upstreamChargedContentPolicyParseHeuristics {
+		if strings.Contains(lower, marker) {
+			return false
+		}
+	}
+	return true
 }
 
 // IsNonRefundableUpstreamErrorCode 判断上游 error.code 是否属于策略/审核类（通常已计费）。

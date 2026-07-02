@@ -4,8 +4,8 @@
 -- Usage (inside newapi-postgres container):
 --   psql -U root -d new-api -f /path/to/seed_sensitive_words_postgres.sql
 --
--- Categories align with video content moderation guide (six high-risk areas):
--- minors, sexual/nudity, violence, drugs, gambling, and common upstream triggers.
+-- Categories align with video/image content moderation guide:
+-- minors, sexual/nudity, violence, drugs, gambling, IP/copyright, face-swap, and common upstream triggers.
 
 INSERT INTO options (key, value) VALUES
   ('CheckSensitiveEnabled', 'true'),
@@ -89,5 +89,17 @@ casino
 冰毒
 海洛因
 可卡因
-赌博$words$)
+赌博
+换脸
+锁定人脸
+人脸锁定
+半透明
+情色
+裸照
+刀斧手
+血渍
+疯狂动物城
+朱迪
+尼克
+迪士尼公主$words$)
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;

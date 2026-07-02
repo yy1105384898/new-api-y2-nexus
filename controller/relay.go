@@ -137,15 +137,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		relaycommon.StorePromptInput(c, meta.CombineText)
 	}
 
-	if needSensitiveCheck && meta != nil {
-		contains, words := service.CheckSensitiveText(meta.CombineText)
-		if contains {
-			logger.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", ")))
-			newAPIError = types.NewErrorWithStatusCode(
-				fmt.Errorf("%s", service.ContentPolicyMessage(c)),
-				types.ErrorCodeSensitiveWordsDetected,
-				http.StatusBadRequest,
-			)
+	if meta != nil {
+		if rejected, apiErr := service.PromptSensitiveRejection(c, meta.CombineText); rejected {
+			newAPIError = apiErr
 			return
 		}
 	}

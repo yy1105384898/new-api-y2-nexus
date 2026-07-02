@@ -9,7 +9,12 @@ func TestIsContentPolicyViolation(t *testing.T) {
 	}{
 		{"Generated video rejected by content moderation.", true},
 		{"The generated images appear to be unsafe. Try modifying the prompts or the seeds.", true},
+		{"非常抱歉，该提示可能违反了我们的内容政策。如果你认为此判断有误，请重试或修改提示语。", true},
+		{"非常抱歉，生成的图片可能违反了关于与第三方内容相似性的防护限制。如果你认为此判断有误，请重试或修改提示语。", true},
+		{"非常抱歉，生成的图片可能违反了关于暴力内容的防护限制。如果你认为此判断有误，请重试或修改提示语。", true},
+		{"非常抱歉，生成的图片可能违反了我们的内容政策。如果你认为此判断有误，请重试或修改提示语。", true},
 		{"非常抱歉，该提示可能违反了关于裸露、色情或情色内容的防护限制。", true},
+		{"非常抱歉，生成的图片可能违反了关于裸露、色情或情色内容的防护限制。", true},
 		{"status_code=400, I can't create an image with that level of explicit sexualization or erotic focus.", true},
 		{"parse image json: unexpected end of JSON input", true},
 		{"unexpected end of JSON input", true},
@@ -89,6 +94,23 @@ func TestNormalizeClientErrorMessageUnified(t *testing.T) {
 		{
 			name: "parse_error_as_content_policy",
 			raw:  "invalid character 'e' looking for beginning of value",
+			want: ContentPolicyMessageEN,
+		},
+		{
+			name: "gulie_prompt_policy_zh",
+			raw:  "非常抱歉，该提示可能违反了我们的内容政策。如果你认为此判断有误，请重试或修改提示语。",
+			preferChinese: true,
+			want: ContentPolicyMessageZH,
+		},
+		{
+			name: "gulie_third_party_similarity_zh",
+			raw:  "非常抱歉，生成的图片可能违反了关于与第三方内容相似性的防护限制。如果你认为此判断有误，请重试或修改提示语。",
+			preferChinese: true,
+			want: ContentPolicyMessageZH,
+		},
+		{
+			name: "geek2_unsafe_en",
+			raw:  "The generated images appear to be unsafe. Try modifying the prompts or the seeds.",
 			want: ContentPolicyMessageEN,
 		},
 		{

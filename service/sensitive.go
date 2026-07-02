@@ -2,10 +2,15 @@ package service
 
 import (
 	"errors"
+	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
 )
 
 func CheckSensitiveMessages(messages []dto.Message) ([]string, error) {
@@ -34,6 +39,35 @@ func CheckSensitiveMessages(messages []dto.Message) ([]string, error) {
 
 func CheckSensitiveText(text string) (bool, []string) {
 	return SensitiveWordContains(text)
+}
+
+// PromptSensitiveRejection 本地敏感词前置拦截：命中则直接拒绝，不转发上游、不预扣费。
+func PromptSensitiveRejection(c *gin.Context, text string) (bool, *types.NewAPIError) {
+	if !setting.ShouldCheckPromptSensitive() {
+		return false, nil
+	}
+	contains, words := CheckSensitiveText(text)
+	if !contains {
+		return false, nil
+	}
+	if c != nil {
+		logger.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", ")))
+	}
+	return true, types.NewErrorWithStatusCode(
+		fmt.Errorf("%s", ContentPolicyMessage(c)),
+		types.ErrorCodeSensitiveWordsDetected,
+		http.StatusBadRequest,
+	)
+}
+
+// TaskErrorIfSensitivePrompt 异步任务提交前的敏感词拦截（与 Relay 同步路径一致）。
+func TaskErrorIfSensitivePrompt(c *gin.Context, text string) *dto.TaskError {
+	if rejected, apiErr := PromptSensitiveRejection(c, text); rejected {
+		taskErr := TaskErrorFromAPIError(apiErr)
+		taskErr.LocalError = true
+		return taskErr
+	}
+	return nil
 }
 
 // SensitiveWordContains 是否包含敏感词，返回是否包含敏感词和敏感词列表

@@ -80,6 +80,15 @@ func RelayImageTaskSubmit(c *gin.Context) {
 		Action:       action,
 	}
 
+	meta := request.GetTokenCountMeta()
+	if meta != nil {
+		relaycommon.StorePromptInput(c, meta.CombineText)
+		if taskErr := service.TaskErrorIfSensitivePrompt(c, meta.CombineText); taskErr != nil {
+			respondTaskError(c, taskErr)
+			return
+		}
+	}
+
 	var taskErr *dto.TaskError
 	defer func() {
 		if taskErr != nil {
@@ -146,9 +155,6 @@ func RelayImageTaskSubmit(c *gin.Context) {
 		task.Progress = "10%"
 		task.Quota = relayInfo.PriceData.Quota
 		task.Properties.TaskKind = constant.TaskKindImage
-		if meta := request.GetTokenCountMeta(); meta != nil {
-			relaycommon.StorePromptInput(c, meta.CombineText)
-		}
 		task.Properties.Input = relaycommon.PromptInputFromContext(c)
 		task.PrivateData.RequestPath = requestPath
 		task.PrivateData.RequestSnapshot = snapshot
