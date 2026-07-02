@@ -169,7 +169,7 @@ export function About() {
 
   return (
     <PublicLayout>
-      <div className='mx-auto max-w-6xl px-4 py-8'>
+      <div className='about-readable mx-auto max-w-5xl px-4 py-10'>
         {isHtml ? (
           <div
             className='prose prose-neutral dark:prose-invert max-w-none'

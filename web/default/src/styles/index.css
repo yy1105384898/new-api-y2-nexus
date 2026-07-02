@@ -115,6 +115,39 @@ For commercial licensing, please contact support@quantumnous.com
   animation: skeleton-shimmer 1.8s ease-in-out infinite !important;
 }
 
+.dark .about-readable {
+  color: rgb(226 232 240);
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.dark .about-readable > .prose > section {
+  color: rgb(226 232 240) !important;
+}
+
+.dark .about-readable > .prose > section > :where(h1, h2, h3, h4) {
+  color: rgb(248 250 252) !important;
+  letter-spacing: 0;
+}
+
+.dark .about-readable > .prose > section > :where(p, ol, ul),
+.dark .about-readable > .prose > section > :where(ol, ul) li {
+  color: rgb(203 213 225) !important;
+}
+
+.dark .about-readable > .prose > section > p span {
+  color: rgb(148 163 184) !important;
+}
+
+.dark .about-readable > .prose > section > :where(p, ol, ul) code {
+  background: rgb(241 245 249) !important;
+  color: rgb(15 23 42) !important;
+}
+
+.dark .about-readable > .prose a {
+  color: rgb(96 165 250) !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .skeleton-shimmer,
   .auto-skeleton-fade [class^='skeleton-'] {
