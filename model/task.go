@@ -251,7 +251,8 @@ func taskListPrivateDataSelectExpr() string {
 func taskPrivateDataWithoutSnapshotExpr() string {
 	switch {
 	case common.UsingPostgreSQL:
-		return `(COALESCE(private_data, '{}'::jsonb) - 'request_snapshot')::json`
+		// private_data 列类型为 json（非 jsonb），COALESCE 两侧须同类型；先 cast 再 jsonb 减键。
+		return `(COALESCE(private_data::jsonb, '{}'::jsonb) - 'request_snapshot')::json`
 	case common.UsingMySQL:
 		return `JSON_REMOVE(COALESCE(private_data, JSON_OBJECT()), '$.request_snapshot')`
 	default:
