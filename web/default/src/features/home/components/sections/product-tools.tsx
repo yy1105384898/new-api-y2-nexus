@@ -45,7 +45,7 @@ const CLI_TOOLS = [
     title: 'Image API',
     subtitle: 'OpenAI compatible',
     image: SITE_ASSETS.tools.imageApi,
-    href: 'https://ai.cangyuansuanli.cn/pricing',
+    href: 'https://yynewapi.yangyangnj.top/pricing',
   },
 ] as const
 

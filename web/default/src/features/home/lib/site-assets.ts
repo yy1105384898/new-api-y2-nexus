@@ -6,6 +6,7 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
+import { DEFAULT_LOGO } from '@/lib/constants'
 
 const CDN_BASE = (
   import.meta.env.VITE_STATIC_CDN || 'https://assets.cangyuansuanli.cn'
@@ -23,9 +24,9 @@ export function siteAsset(path: string) {
 export const SHOWCASE_MANIFEST_URL = siteAsset('/home/showcase.json')
 
 export const SITE_BRAND = {
-  name: '沧元算力',
-  logo: siteAsset('/site/logo.png'),
-  domain: 'cangyuansuanli.cn',
+  name: 'Y² Nexus',
+  logo: DEFAULT_LOGO,
+  domain: 'yynewapi.yangyangnj.top',
 } as const
 
 export const INSPIRATION_SLIDES = [

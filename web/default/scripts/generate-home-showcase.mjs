@@ -93,7 +93,7 @@ function loadEnv(envFile) {
 
 function getRuntimeConfig() {
   const canvasBase = (
-    process.env.CANVAS_BASE_URL || 'https://canvas.cangyuansuanli.cn'
+    process.env.CANVAS_BASE_URL || 'https://canvas.yangyangnj.top'
   ).replace(/\/$/, '')
   const cdnBase = (
     process.env.VITE_STATIC_CDN ||

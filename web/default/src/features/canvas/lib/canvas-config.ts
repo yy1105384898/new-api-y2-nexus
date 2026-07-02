@@ -7,6 +7,6 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 
-export const DEFAULT_API_BASE_URL = 'https://ai.cangyuansuanli.cn'
-export const DEFAULT_CANVAS_BASE_URL = 'https://canvas.cangyuansuanli.cn'
+export const DEFAULT_API_BASE_URL = 'https://yynewapi.yangyangnj.top'
+export const DEFAULT_CANVAS_BASE_URL = 'https://canvas.yangyangnj.top'
 export const DEFAULT_CANVAS_DOCS_URL = `${DEFAULT_CANVAS_BASE_URL}/docs`

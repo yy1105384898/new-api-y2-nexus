@@ -34,7 +34,7 @@ export function ApiDocsPage() {
   }, [])
 
   const base = `${siteOrigin.trim() || DEFAULT_API_BASE_URL}/v1`
-  const displayName = systemName?.trim() || '沧元算力'
+  const displayName = systemName?.trim() || 'Y² Nexus'
 
   useEffect(() => {
     document.title = t('apiDocs.pageTitle', { siteName: displayName })

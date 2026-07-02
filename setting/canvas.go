@@ -4,7 +4,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 )
 
-var CanvasBaseURL = "https://canvas.cangyuansuanli.cn"
+var CanvasBaseURL = "https://canvas.yangyangnj.top"
 
 func InitCanvasSetting() {
 	CanvasBaseURL = common.GetEnvOrDefaultString("CANVAS_BASE_URL", CanvasBaseURL)

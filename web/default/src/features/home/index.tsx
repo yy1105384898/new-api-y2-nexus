@@ -12,7 +12,6 @@ import { Markdown } from '@/components/ui/markdown'
 import { PublicLayout } from '@/components/layout'
 import { Footer } from '@/components/layout/components/footer'
 import { mkt } from './lib/marketing-theme'
-import { SITE_BRAND } from './lib/site-assets'
 import { HomeBackground } from './components/home-background'
 import {
   CTA,
@@ -25,19 +24,9 @@ import {
 } from './components'
 import { useHomePageContent } from './hooks'
 
-const marketingLogo = (
-  <img
-    src={SITE_BRAND.logo}
-    alt={SITE_BRAND.name}
-    className='size-full rounded-lg object-contain'
-  />
-)
-
 const homeLayoutProps = {
   showMainContainer: false as const,
   variant: 'marketing' as const,
-  siteName: SITE_BRAND.name,
-  logo: marketingLogo,
 }
 
 export function Home() {

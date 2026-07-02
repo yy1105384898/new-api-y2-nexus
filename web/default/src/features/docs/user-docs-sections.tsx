@@ -50,7 +50,7 @@ export function UserDocsSections(props: UserDocsSectionsProps) {
       <DocsSection
         id='overview'
         title='平台概览'
-        description='沧元算力是统一的 AI 模型网关。注册并创建 API Key 后，可在控制台、第三方客户端或无限画布中使用同一套接口与计费。'
+        description={`${props.siteName} 是统一的 AI 模型网关。注册并创建 API Key 后，可在控制台、第三方客户端或无限画布中使用同一套接口与计费。`}
       >
         <p>
           大多数 OpenAI 兼容工具只需要两项信息：<strong>Base URL</strong>（接口地址）和{' '}

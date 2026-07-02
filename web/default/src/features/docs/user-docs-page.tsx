@@ -23,7 +23,7 @@ export function UserDocsPage() {
     return window.location.origin || DEFAULT_API_BASE_URL
   }, [])
 
-  const displayName = systemName?.trim() || '沧元算力'
+  const displayName = systemName?.trim() || 'Y² Nexus'
 
   useEffect(() => {
     document.title = t('userDocs.pageTitle', { siteName: displayName })
