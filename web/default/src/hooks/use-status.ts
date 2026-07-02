@@ -22,14 +22,16 @@ import { getStatus } from '@/lib/api'
 import type { SystemStatus } from '@/features/auth/types'
 import { mapStatusDataToConfig } from './use-system-config'
 
-const STATUS_STORAGE_KEY = 'status-v2'
+const STATUS_STORAGE_KEY = 'status-v3'
 const LEGACY_STATUS_STORAGE_KEY = 'status'
+const PREVIOUS_STATUS_STORAGE_KEY = 'status-v2'
 
 // Get initial cache from localStorage
 function getInitialStatus(): SystemStatus | undefined {
   try {
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(LEGACY_STATUS_STORAGE_KEY)
+      window.localStorage.removeItem(PREVIOUS_STATUS_STORAGE_KEY)
       const saved = window.localStorage.getItem(STATUS_STORAGE_KEY)
       return saved ? (JSON.parse(saved) as SystemStatus) : undefined
     }
