@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useNotifications } from '@/hooks/use-notifications'
 import { useTopNavLinks } from '@/hooks/use-top-nav-links'
 import { CanvasTopNavLink } from '@/features/canvas/components/canvas-top-nav-link'
+import { DEFAULT_HUIYING_BASE_URL } from '@/features/canvas/lib/canvas-config'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { NotificationPopover } from '@/components/notification-popover'
@@ -124,6 +125,10 @@ export function AppHeader({
             {showTopNav && (
               <div className='me-1 hidden items-center gap-4 lg:flex'>
                 <TopNav links={links} />
+                <CanvasTopNavLink
+                  canvasBaseUrl={DEFAULT_HUIYING_BASE_URL}
+                  label='绘影'
+                />
                 <CanvasTopNavLink />
               </div>
             )}

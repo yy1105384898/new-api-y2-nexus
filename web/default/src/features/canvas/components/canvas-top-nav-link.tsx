@@ -13,13 +13,22 @@ import { useCanvasKeyPicker } from '@/features/canvas/hooks/use-canvas-key-picke
 
 type CanvasTopNavLinkProps = {
   className?: string
+  canvasBaseUrl?: string
+  label?: string
   style?: React.CSSProperties
   onClick?: () => void
 }
 
-export function CanvasTopNavLink({ className, style, onClick }: CanvasTopNavLinkProps) {
+export function CanvasTopNavLink({
+  className,
+  canvasBaseUrl = DEFAULT_CANVAS_BASE_URL,
+  label,
+  style,
+  onClick,
+}: CanvasTopNavLinkProps) {
   const { t } = useTranslation()
-  const { requestOpen, dialog } = useCanvasKeyPicker(DEFAULT_CANVAS_BASE_URL)
+  const displayLabel = label || t('Cangyuan Image to Video')
+  const { requestOpen, dialog } = useCanvasKeyPicker(canvasBaseUrl, displayLabel)
 
   return (
     <>
@@ -29,14 +38,14 @@ export function CanvasTopNavLink({ className, style, onClick }: CanvasTopNavLink
         onClick={(event) => {
           onClick?.()
           event.preventDefault()
-          requestOpen()
+          requestOpen(canvasBaseUrl, displayLabel)
         }}
         className={cn(
           'hover:text-primary text-sm font-medium transition-colors text-muted-foreground',
           className
         )}
       >
-        {t('Cangyuan Image to Video')}
+        {displayLabel}
       </button>
       {dialog}
     </>

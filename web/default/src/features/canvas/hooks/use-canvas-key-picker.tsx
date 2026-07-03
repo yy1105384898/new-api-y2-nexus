@@ -12,25 +12,35 @@ import { DEFAULT_CANVAS_BASE_URL } from '@/features/canvas/lib/canvas-config'
 import { openCanvasInNewTab } from '@/features/canvas/api'
 import { CanvasKeySelectDialog } from '@/features/canvas/components/canvas-key-select-dialog'
 
-export function useCanvasKeyPicker(defaultCanvasUrl = DEFAULT_CANVAS_BASE_URL) {
+export function useCanvasKeyPicker(
+  defaultCanvasUrl = DEFAULT_CANVAS_BASE_URL,
+  defaultToolName = '无限画布'
+) {
   const isAuthenticated = !!useAuthStore((state) => state.auth.user)
   const [open, setOpen] = useState(false)
   const [targetUrl, setTargetUrl] = useState(defaultCanvasUrl)
+  const [toolName, setToolName] = useState(defaultToolName)
 
   const requestOpen = useCallback(
-    (canvasBaseUrl = defaultCanvasUrl) => {
+    (canvasBaseUrl = defaultCanvasUrl, nextToolName = defaultToolName) => {
       if (!isAuthenticated) {
         openCanvasInNewTab(canvasBaseUrl)
         return
       }
       setTargetUrl(canvasBaseUrl)
+      setToolName(nextToolName)
       setOpen(true)
     },
-    [defaultCanvasUrl, isAuthenticated]
+    [defaultCanvasUrl, defaultToolName, isAuthenticated]
   )
 
   const dialog = (
-    <CanvasKeySelectDialog open={open} onOpenChange={setOpen} canvasBaseUrl={targetUrl} />
+    <CanvasKeySelectDialog
+      open={open}
+      onOpenChange={setOpen}
+      canvasBaseUrl={targetUrl}
+      toolName={toolName}
+    />
   )
 
   return { requestOpen, dialog }

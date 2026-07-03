@@ -32,6 +32,7 @@ import { NotificationPopover } from '@/components/notification-popover'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { CanvasTopNavLink } from '@/features/canvas/components/canvas-top-nav-link'
+import { DEFAULT_HUIYING_BASE_URL } from '@/features/canvas/lib/canvas-config'
 import { mktLayout } from '@/features/home/lib/marketing-theme'
 import { defaultTopNavLinks } from '../config/top-nav.config'
 import type { TopNavLink } from '../types'
@@ -275,6 +276,15 @@ export function PublicHeader(props: PublicHeaderProps) {
               })}
 
               <CanvasTopNavLink
+                canvasBaseUrl={DEFAULT_HUIYING_BASE_URL}
+                label='绘影'
+                className={cn(
+                  'rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200',
+                  isMarketing ? mktLayout.navLink : 'text-muted-foreground hover:text-foreground'
+                )}
+              />
+
+              <CanvasTopNavLink
                 className={cn(
                   'rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors duration-200',
                   isMarketing ? mktLayout.navLink : 'text-muted-foreground hover:text-foreground'
@@ -424,6 +434,8 @@ export function PublicHeader(props: PublicHeaderProps) {
               )
             })}
             <CanvasTopNavLink
+              canvasBaseUrl={DEFAULT_HUIYING_BASE_URL}
+              label='绘影'
               className={cn(
                 'flex items-center gap-3 py-3 text-base font-medium tracking-tight transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]',
                 mobileOpen
@@ -434,6 +446,21 @@ export function PublicHeader(props: PublicHeaderProps) {
               style={{
                 transitionDelay: mobileOpen
                   ? `${100 + links.length * 50}ms`
+                  : '0ms',
+              }}
+              onClick={() => setMobileOpen(false)}
+            />
+            <CanvasTopNavLink
+              className={cn(
+                'flex items-center gap-3 py-3 text-base font-medium tracking-tight transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]',
+                mobileOpen
+                  ? 'translate-y-0 opacity-100'
+                  : 'translate-y-4 opacity-0',
+                isMarketing ? mktLayout.navLink : 'text-muted-foreground'
+              )}
+              style={{
+                transitionDelay: mobileOpen
+                  ? `${100 + (links.length + 1) * 50}ms`
                   : '0ms',
               }}
               onClick={() => setMobileOpen(false)}

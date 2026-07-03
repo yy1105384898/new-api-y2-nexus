@@ -32,12 +32,14 @@ type CanvasKeySelectFormProps = {
   canvasBaseUrl: string
   onSuccess?: () => void
   submitLabel?: string
+  toolName?: string
 }
 
 export function CanvasKeySelectForm({
   canvasBaseUrl,
   onSuccess,
   submitLabel,
+  toolName = '无限画布',
 }: CanvasKeySelectFormProps) {
   const { t } = useTranslation()
   const [loadingKeys, setLoadingKeys] = useState(true)
@@ -99,7 +101,7 @@ export function CanvasKeySelectForm({
     return (
       <div className='space-y-4 py-2'>
         <p className='text-sm text-muted-foreground'>
-          暂无可用 API Key。请先在控制台创建并启用 Token，再打开无限画布。
+          暂无可用 API Key。请先在控制台创建并启用 Token，再打开{toolName}。
         </p>
         <Button asChild variant='outline'>
           <a href='/keys' target='_blank' rel='noopener noreferrer'>
@@ -115,7 +117,7 @@ export function CanvasKeySelectForm({
   return (
     <div className='space-y-4'>
       <p className='text-sm text-muted-foreground'>
-        请选择用于连接画布的 API Key。画布将使用该 Key 直连网关并拉取可用模型。
+        请选择用于连接{toolName}的 API Key。{toolName}将使用该 Key 直连网关并拉取可用模型。
       </p>
       <div className='space-y-2'>
         <Label htmlFor='canvas-api-key'>API Key</Label>
