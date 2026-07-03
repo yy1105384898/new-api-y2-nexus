@@ -353,6 +353,9 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 				taskResult.Status = model.TaskStatusFailure
 				taskResult.Progress = "100%"
 				taskResult.Reason = reason
+			} else if strings.EqualFold(strings.TrimSpace(resTask.Status), "unknown") {
+				taskResult.Status = model.TaskStatusInProgress
+				taskResult.Progress = "30%"
 			}
 		}
 	}

@@ -78,6 +78,20 @@ func TestParseTaskResult_GZFormat(t *testing.T) {
 			t.Fatalf("expected %q, got %q", want, result.Url)
 		}
 	})
+
+	t.Run("unknown without error keeps polling", func(t *testing.T) {
+		body := []byte(`{"created_at":1783042146,"id":"task_upstream","model":"cy-sd1-seedance-2.0-fast-480p","object":"video","progress":0,"status":"unknown","task_id":"task_upstream"}`)
+		result, err := adaptor.ParseTaskResult(body)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Status != model.TaskStatusInProgress {
+			t.Fatalf("expected IN_PROGRESS, got %s", result.Status)
+		}
+		if result.Progress == "100%" {
+			t.Fatalf("unknown status without error should not be terminal")
+		}
+	})
 }
 
 func TestParseTaskResult_OpenAIFormat(t *testing.T) {
