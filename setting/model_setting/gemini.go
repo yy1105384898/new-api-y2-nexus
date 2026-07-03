@@ -18,7 +18,11 @@ type GeminiSettings struct {
 // 默认配置
 var defaultGeminiSettings = GeminiSettings{
 	SafetySettings: map[string]string{
-		"default": "OFF",
+		"default":                         "OFF",
+		"HARM_CATEGORY_HARASSMENT":        "OFF",
+		"HARM_CATEGORY_HATE_SPEECH":       "OFF",
+		"HARM_CATEGORY_SEXUALLY_EXPLICIT": "OFF",
+		"HARM_CATEGORY_DANGEROUS_CONTENT": "OFF",
 	},
 	VersionSettings: map[string]string{
 		"default":        "v1beta",
