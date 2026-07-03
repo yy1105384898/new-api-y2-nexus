@@ -427,6 +427,14 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	upstreamModelName := request.Model
+	if info != nil && info.ChannelMeta != nil && info.UpstreamModelName != "" {
+		upstreamModelName = info.UpstreamModelName
+	}
+	if shouldRouteImageRequestViaChat(upstreamModelName) {
+		return convertImageRequestToChatCompletion(info, request)
+	}
+
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesEdits:
 		if isJSONRequest(c) {

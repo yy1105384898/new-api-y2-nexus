@@ -40,6 +40,15 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 
+	if convertedBody, ok, err := convertChatImageResponseBody(responseBody); err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	} else if ok {
+		responseBody = convertedBody
+		if err := common.Unmarshal(responseBody, &usageResp); err != nil {
+			return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+		}
+	}
+
 	rehostedBody, err := service.RehostSyncImageResponseBody(c.Request.Context(), c.GetInt("id"), info.OriginModelName, info.ChannelBaseUrl, responseBody)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
