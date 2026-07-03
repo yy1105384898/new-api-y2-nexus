@@ -40,6 +40,9 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 			}
 		}
 	}
+	if isGeminiImageGenerationRequest(info, request) {
+		request.SafetySettings = buildGeminiSafetySettings()
+	}
 	return request, nil
 }
 

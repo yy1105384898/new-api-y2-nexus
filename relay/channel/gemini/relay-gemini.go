@@ -197,6 +197,30 @@ func ThinkingAdaptor(geminiRequest *dto.GeminiChatRequest, info *relaycommon.Rel
 	}
 }
 
+func buildGeminiSafetySettings() []dto.GeminiChatSafetySettings {
+	safetySettings := make([]dto.GeminiChatSafetySettings, 0, len(SafetySettingList))
+	for _, category := range SafetySettingList {
+		safetySettings = append(safetySettings, dto.GeminiChatSafetySettings{
+			Category:  category,
+			Threshold: model_setting.GetGeminiSafetySetting(category),
+		})
+	}
+	return safetySettings
+}
+
+func isGeminiImageGenerationRequest(info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) bool {
+	if model_setting.IsGeminiModelSupportImagine(info.UpstreamModelName) {
+		return true
+	}
+	for _, modality := range request.GenerationConfig.ResponseModalities {
+		if strings.EqualFold(modality, "IMAGE") {
+			return true
+		}
+	}
+	name := strings.ToLower(info.UpstreamModelName)
+	return strings.Contains(name, "-image") || strings.Contains(name, "banana")
+}
+
 // Setting safety to the lowest possible values since Gemini is already powerless enough
 func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, info *relaycommon.RelayInfo) (*dto.GeminiChatRequest, error) {
 
@@ -356,14 +380,7 @@ func CovertOpenAI2Gemini(c *gin.Context, textRequest dto.GeneralOpenAIRequest, i
 		ThinkingAdaptor(&geminiRequest, info, textRequest)
 	}
 
-	safetySettings := make([]dto.GeminiChatSafetySettings, 0, len(SafetySettingList))
-	for _, category := range SafetySettingList {
-		safetySettings = append(safetySettings, dto.GeminiChatSafetySettings{
-			Category:  category,
-			Threshold: model_setting.GetGeminiSafetySetting(category),
-		})
-	}
-	geminiRequest.SafetySettings = safetySettings
+	geminiRequest.SafetySettings = buildGeminiSafetySettings()
 
 	// openaiContent.FuncToToolCalls()
 	if textRequest.Tools != nil {
