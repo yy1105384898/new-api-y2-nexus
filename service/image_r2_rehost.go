@@ -21,13 +21,21 @@ func ImageModelUsesURLRehost(originModel string) bool {
 	return strings.HasSuffix(name, "-4k") || strings.HasPrefix(name, "flux-")
 }
 
+// imageAsyncAcceptsGulieStyleURL：cy-img1-/gulie- 及 public gpt-image-2 系列；上游回 url 时异步转存 R2。
+func imageAsyncAcceptsGulieStyleURL(originModel string) bool {
+	name := strings.ToLower(strings.TrimSpace(originModel))
+	if strings.HasPrefix(name, "cy-img1-") || strings.HasPrefix(name, "gulie-") {
+		return true
+	}
+	return name == "gpt-image-2" || strings.HasPrefix(name, "gpt-image-2-")
+}
+
 // ImageAsyncAcceptsUpstreamURL：异步 worker 落库时允许上游回 url（如 Gulie loopback、4K），转存 R2 后返回。
 func ImageAsyncAcceptsUpstreamURL(originModel string) bool {
 	if ImageModelUsesURLRehost(originModel) {
 		return true
 	}
-	name := strings.ToLower(strings.TrimSpace(originModel))
-	return strings.HasPrefix(name, "cy-img1-") || strings.HasPrefix(name, "gulie-")
+	return imageAsyncAcceptsGulieStyleURL(originModel)
 }
 
 // RewriteLoopbackUpstreamImageURL 将上游 loopback 图片地址（如 Gulie 127.0.0.1:3001）

@@ -30,8 +30,14 @@ func TestImageAsyncAcceptsUpstreamURL(t *testing.T) {
 	if !ImageAsyncAcceptsUpstreamURL("Gulie-gpt-image-2") {
 		t.Fatal("expected gulie async to accept upstream url")
 	}
+	if !ImageAsyncAcceptsUpstreamURL("gpt-image-2") {
+		t.Fatal("expected public gpt-image-2 async to accept upstream url")
+	}
+	if !ImageAsyncAcceptsUpstreamURL("gpt-image-2-1k") {
+		t.Fatal("expected public gpt-image-2-1k async to accept upstream url")
+	}
 	if ImageAsyncAcceptsUpstreamURL("go2api-gpt-image-2-1k") {
-		t.Fatal("generic non-gulie model should still require b64_json in async worker")
+		t.Fatal("internal prefixed model should still require b64_json in async worker")
 	}
 }
 
