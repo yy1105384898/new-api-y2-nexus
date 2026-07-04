@@ -125,7 +125,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitiveForUser(c.GetInt("id"))
-	deferSensitiveUntilPreConsume := needSensitiveCheck && setting.ShouldChargeOnLocalSensitiveRejection(c.GetInt("id"))
 	needCountToken := constant.CountToken
 	// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.
 	var meta *types.TokenCountMeta
@@ -138,7 +137,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		relaycommon.StorePromptInput(c, meta.CombineText)
 	}
 
-	if meta != nil && needSensitiveCheck && !deferSensitiveUntilPreConsume {
+	if meta != nil && needSensitiveCheck {
 		if rejected, apiErr := service.PromptSensitiveRejection(c, meta.CombineText); rejected {
 			newAPIError = apiErr
 			return
@@ -166,13 +165,6 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	} else {
 		newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
 		if newAPIError != nil {
-			return
-		}
-	}
-
-	if meta != nil && deferSensitiveUntilPreConsume {
-		if rejected, apiErr := service.PromptSensitiveRejection(c, meta.CombineText); rejected {
-			newAPIError = apiErr
 			return
 		}
 	}

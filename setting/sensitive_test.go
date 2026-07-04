@@ -2,7 +2,7 @@ package setting
 
 import "testing"
 
-func TestShouldCheckPromptSensitiveForUser_WhitelistBypassesGlobalOff(t *testing.T) {
+func TestShouldCheckPromptSensitiveForUser_WhitelistSkipsLocalBlock(t *testing.T) {
 	prevGlobal := LocalSensitivePromptBlockEnabled
 	prevEnabled := CheckSensitiveEnabled
 	prevPrompt := CheckSensitiveOnPromptEnabled
@@ -14,16 +14,24 @@ func TestShouldCheckPromptSensitiveForUser_WhitelistBypassesGlobalOff(t *testing
 		SensitiveReviewWhitelistUserIds = prevWhitelist
 	})
 
-	LocalSensitivePromptBlockEnabled = false
+	LocalSensitivePromptBlockEnabled = true
 	CheckSensitiveEnabled = true
 	CheckSensitiveOnPromptEnabled = true
 	SensitiveReviewWhitelistUserIds = map[int]struct{}{42: {}}
 
+	if !ShouldCheckPromptSensitiveForUser(1) {
+		t.Fatal("expected non-whitelist user to be checked when global block enabled")
+	}
+	if ShouldCheckPromptSensitiveForUser(42) {
+		t.Fatal("expected whitelist user to skip local check")
+	}
+
+	LocalSensitivePromptBlockEnabled = false
 	if ShouldCheckPromptSensitiveForUser(1) {
 		t.Fatal("expected non-whitelist user to skip check when global block disabled")
 	}
-	if !ShouldCheckPromptSensitiveForUser(42) {
-		t.Fatal("expected whitelist user to keep local check when global block disabled")
+	if ShouldCheckPromptSensitiveForUser(42) {
+		t.Fatal("expected whitelist user to skip local check when global block disabled")
 	}
 }
 

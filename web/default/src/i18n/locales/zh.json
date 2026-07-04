@@ -4752,7 +4752,7 @@
     "When enabled, newly created tokens start in the first auto group.": "启用后，新创建的令牌将从第一个自动分组开始。",
     "Local sensitive prompt block": "本地敏感词前置拦截",
     "Sensitive review whitelist user IDs": "审查白名单用户 ID",
-    "Whitelisted users keep local prompt review even when global block is off; local and upstream review failures are charged.": "白名单用户不受全局拦截开关影响，仍执行本地审查；本地或上游审查失败均正常扣费。",
+    "Whitelisted users bypass local keyword blocking; upstream content review failures are charged.": "白名单用户跳过本地词表拦截；被上游内容审查拒绝时仍扣费。",
     "When disabled, prompts are forwarded to upstream; upstream content policy failures are charged normally.": "关闭后不拦截提示词，直接转发上游；上游内容审查失败仍正常扣费。",
     "When enabled, the store field will be blocked": "开启后将阻止 store 字段透传",
     "When enabled, users can pick this group when creating tokens.": "启用后，用户创建令牌时可以选择该分组。",

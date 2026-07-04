@@ -11,7 +11,7 @@ var CheckSensitiveOnPromptEnabled = true
 // LocalSensitivePromptBlockEnabled 本地敏感词前置拦截：关闭后不检查词表、直接转发上游。
 var LocalSensitivePromptBlockEnabled = true
 
-// SensitiveReviewWhitelistUserIds 审查白名单用户：不受 LocalSensitivePromptBlockEnabled 控制，本地审查失败仍扣费。
+// SensitiveReviewWhitelistUserIds 审查白名单用户：跳过本地词表前置拦截；上游内容审查拒绝时仍扣费。
 var SensitiveReviewWhitelistUserIds = map[int]struct{}{}
 
 //var CheckSensitiveOnCompletionEnabled = true
@@ -79,11 +79,6 @@ func IsSensitiveReviewWhitelistUser(userId int) bool {
 	return ok
 }
 
-// ShouldChargeOnLocalSensitiveRejection 白名单用户本地审查失败仍扣费（须先预扣再拦截）。
-func ShouldChargeOnLocalSensitiveRejection(userId int) bool {
-	return IsSensitiveReviewWhitelistUser(userId)
-}
-
 func promptSensitiveBaseEnabled() bool {
 	return CheckSensitiveEnabled && CheckSensitiveOnPromptEnabled
 }
@@ -92,13 +87,13 @@ func ShouldCheckPromptSensitive() bool {
 	return ShouldCheckPromptSensitiveForUser(0)
 }
 
-// ShouldCheckPromptSensitiveForUser 白名单用户不受 LocalSensitivePromptBlockEnabled 全局开关影响。
+// ShouldCheckPromptSensitiveForUser 白名单用户跳过本地词表拦截。
 func ShouldCheckPromptSensitiveForUser(userId int) bool {
 	if !promptSensitiveBaseEnabled() {
 		return false
 	}
 	if IsSensitiveReviewWhitelistUser(userId) {
-		return true
+		return false
 	}
 	return LocalSensitivePromptBlockEnabled
 }
