@@ -750,22 +750,45 @@ func TestShouldRefundRelayError_UnsafeImage(t *testing.T) {
 	assert.False(t, ShouldRefundRelayError(nil, apiErr))
 }
 
-func TestShouldRefundRelayError_WhitelistLocalSensitive(t *testing.T) {
-	prev := setting.SensitiveReviewWhitelistUserIds
-	t.Cleanup(func() {
-		setting.SensitiveReviewWhitelistUserIds = prev
-	})
-	setting.SensitiveReviewWhitelistUserIds = map[int]struct{}{99: {}}
-
-	w := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(w)
-	c.Set("id", 99)
-
+func TestShouldRefundRelayError_LocalSensitive(t *testing.T) {
 	apiErr := types.NewErrorWithStatusCode(
 		fmt.Errorf("%s", ContentPolicyMessageEN),
 		types.ErrorCodeSensitiveWordsDetected,
 		http.StatusBadRequest,
 	)
+
+	assert.True(t, ShouldRefundRelayError(nil, apiErr))
+}
+
+func TestShouldRefundTaskOnFailure_WhitelistUpstreamContentPolicy(t *testing.T) {
+	prev := setting.SensitiveReviewWhitelistUserIds
+	t.Cleanup(func() {
+		setting.SensitiveReviewWhitelistUserIds = prev
+	})
+	setting.SensitiveReviewWhitelistUserIds = map[int]struct{}{158: {}}
+
+	assert.False(t, ShouldRefundTaskOnFailure(158, ContentPolicyMessageEN, nil))
+	assert.False(t, ShouldRefundTaskOnFailure(158, "invalid character 'e' looking for beginning of value", nil))
+	assert.True(t, ShouldRefundTaskOnFailure(1, "invalid character 'e' looking for beginning of value", nil))
+	assert.True(t, ShouldRefundTaskOnFailure(158, "upstream timeout", nil))
+}
+
+func TestShouldRefundRelayError_WhitelistUpstreamContentPolicy(t *testing.T) {
+	prev := setting.SensitiveReviewWhitelistUserIds
+	t.Cleanup(func() {
+		setting.SensitiveReviewWhitelistUserIds = prev
+	})
+	setting.SensitiveReviewWhitelistUserIds = map[int]struct{}{158: {}}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set("id", 158)
+
+	apiErr := types.WithOpenAIError(types.OpenAIError{
+		Message: ContentPolicyMessageEN,
+		Type:    "invalid_request_error",
+		Code:    "content_policy_violation",
+	}, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 
 	assert.False(t, ShouldRefundRelayError(c, apiErr))
 }

@@ -84,10 +84,9 @@ func RelayImageTaskSubmit(c *gin.Context) {
 	meta := request.GetTokenCountMeta()
 	userId := c.GetInt("id")
 	needSensitiveCheck := setting.ShouldCheckPromptSensitiveForUser(userId)
-	deferSensitiveUntilPreConsume := needSensitiveCheck && setting.ShouldChargeOnLocalSensitiveRejection(userId)
 	if meta != nil {
 		relaycommon.StorePromptInput(c, meta.CombineText)
-		if needSensitiveCheck && !deferSensitiveUntilPreConsume {
+		if needSensitiveCheck {
 			if taskErr := service.TaskErrorIfSensitivePrompt(c, meta.CombineText); taskErr != nil {
 				respondTaskError(c, taskErr)
 				return
@@ -144,13 +143,6 @@ func RelayImageTaskSubmit(c *gin.Context) {
 			relayInfo.ForcePreConsume = true
 			if apiErr := service.PreConsumeBilling(c, relayInfo.PriceData.Quota, relayInfo); apiErr != nil {
 				taskErr = service.TaskErrorFromAPIError(apiErr)
-				break
-			}
-		}
-
-		if deferSensitiveUntilPreConsume && meta != nil {
-			if sensitiveErr := service.TaskErrorIfSensitivePrompt(c, meta.CombineText); sensitiveErr != nil {
-				taskErr = sensitiveErr
 				break
 			}
 		}

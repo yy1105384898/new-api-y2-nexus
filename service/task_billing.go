@@ -306,8 +306,50 @@ func upstreamErrorFieldsFromBody(raw map[string]any) (message, code string) {
 	return message, code
 }
 
+func isUpstreamContentReviewFailure(reason, code string, responseBody []byte) bool {
+	if IsNonRefundableUpstreamErrorCode(code) || IsNonRefundableTaskFailure(reason) {
+		return true
+	}
+	if IsContentPolicyViolation(reason) {
+		return true
+	}
+	if len(responseBody) == 0 {
+		return false
+	}
+	var raw map[string]any
+	if err := common.Unmarshal(responseBody, &raw); err != nil {
+		return false
+	}
+	msg, bodyCode := upstreamErrorFieldsFromBody(raw)
+	if IsNonRefundableUpstreamErrorCode(bodyCode) || IsNonRefundableTaskFailure(msg) || IsContentPolicyViolation(msg) {
+		return true
+	}
+	if errVal, ok := raw["error"]; ok {
+		switch v := errVal.(type) {
+		case string:
+			return IsNonRefundableTaskFailure(v) || IsContentPolicyViolation(v)
+		case map[string]any:
+			if m, ok := v["message"].(string); ok {
+				return IsNonRefundableTaskFailure(m) || IsContentPolicyViolation(m)
+			}
+		}
+	}
+	return false
+}
+
+// shouldKeepChargeForWhitelistUpstreamReview 白名单用户被上游内容审查拒绝时不退预扣费。
+func shouldKeepChargeForWhitelistUpstreamReview(userId int, reason, code string, responseBody []byte) bool {
+	if !setting.IsSensitiveReviewWhitelistUser(userId) {
+		return false
+	}
+	return isUpstreamContentReviewFailure(reason, code, responseBody)
+}
+
 // ShouldRefundTaskOnFailure 决定异步/同步失败时是否退还预扣额度。
 func ShouldRefundTaskOnFailure(userId int, reason string, responseBody []byte) bool {
+	if shouldKeepChargeForWhitelistUpstreamReview(userId, reason, "", responseBody) {
+		return false
+	}
 	if IsUpstreamRefundableTaskFailure(reason) {
 		return true
 	}
@@ -360,8 +402,8 @@ func ShouldRefundRelayError(c *gin.Context, apiErr *types.NewAPIError) bool {
 	if c != nil {
 		userId = c.GetInt("id")
 	}
-	if apiErr.GetErrorCode() == types.ErrorCodeSensitiveWordsDetected && setting.ShouldChargeOnLocalSensitiveRejection(userId) {
-		return false
+	if apiErr.GetErrorCode() == types.ErrorCodeSensitiveWordsDetected {
+		return true
 	}
 	oai := apiErr.ToOpenAIError()
 	reason := strings.TrimSpace(oai.Message)
@@ -369,12 +411,6 @@ func ShouldRefundRelayError(c *gin.Context, apiErr *types.NewAPIError) bool {
 		reason = strings.TrimSpace(apiErr.Error())
 	}
 	code := strings.TrimSpace(fmt.Sprintf("%v", oai.Code))
-	if IsUpstreamRefundableTaskFailure(reason) {
-		return true
-	}
-	if IsNonRefundableUpstreamErrorCode(code) || IsNonRefundableTaskFailure(reason) {
-		return false
-	}
 	var body []byte
 	if code != "" || reason != "" {
 		body, _ = common.Marshal(map[string]any{
@@ -383,6 +419,15 @@ func ShouldRefundRelayError(c *gin.Context, apiErr *types.NewAPIError) bool {
 				"message": reason,
 			},
 		})
+	}
+	if shouldKeepChargeForWhitelistUpstreamReview(userId, reason, code, body) {
+		return false
+	}
+	if IsUpstreamRefundableTaskFailure(reason) {
+		return true
+	}
+	if IsNonRefundableUpstreamErrorCode(code) || IsNonRefundableTaskFailure(reason) {
+		return false
 	}
 	return ShouldRefundTaskOnFailure(userId, reason, body)
 }
@@ -396,8 +441,8 @@ func ShouldRefundTaskError(c *gin.Context, taskErr *dto.TaskError) bool {
 	if c != nil {
 		userId = c.GetInt("id")
 	}
-	if taskErr.LocalError && setting.ShouldChargeOnLocalSensitiveRejection(userId) {
-		return false
+	if taskErr.LocalError {
+		return true
 	}
 	return ShouldRefundTaskOnFailure(userId, taskErr.Message, nil)
 }

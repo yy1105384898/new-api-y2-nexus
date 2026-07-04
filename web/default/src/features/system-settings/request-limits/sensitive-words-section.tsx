@@ -175,7 +175,7 @@ export function SensitiveWordsSection({
                 </FormControl>
                 <FormDescription>
                   {t(
-                    'Whitelisted users keep local prompt review even when global block is off; local and upstream review failures are charged.'
+                    'Whitelisted users bypass local keyword blocking; upstream content review failures are charged.'
                   )}
                 </FormDescription>
                 <FormMessage />

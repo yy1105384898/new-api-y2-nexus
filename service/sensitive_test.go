@@ -103,7 +103,7 @@ func TestPromptSensitiveRejection_DisabledByLocalBlockSwitch(t *testing.T) {
 	}
 }
 
-func TestPromptSensitiveRejection_WhitelistBypassesGlobalOff(t *testing.T) {
+func TestPromptSensitiveRejection_WhitelistSkipsLocalBlock(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	prevGlobal := setting.LocalSensitivePromptBlockEnabled
 	prevEnabled := setting.CheckSensitiveEnabled
@@ -118,7 +118,7 @@ func TestPromptSensitiveRejection_WhitelistBypassesGlobalOff(t *testing.T) {
 		setting.SensitiveWords = prevWords
 	})
 
-	setting.LocalSensitivePromptBlockEnabled = false
+	setting.LocalSensitivePromptBlockEnabled = true
 	setting.CheckSensitiveEnabled = true
 	setting.CheckSensitiveOnPromptEnabled = true
 	setting.SensitiveReviewWhitelistUserIds = map[int]struct{}{7: {}}
@@ -130,7 +130,7 @@ func TestPromptSensitiveRejection_WhitelistBypassesGlobalOff(t *testing.T) {
 	c.Set("id", 7)
 
 	rejected, apiErr := PromptSensitiveRejection(c, "生成圆柱体雷管炸弹")
-	if !rejected || apiErr == nil {
-		t.Fatal("expected whitelist user to still be blocked locally")
+	if rejected || apiErr != nil {
+		t.Fatal("expected whitelist user to bypass local sensitive check")
 	}
 }
