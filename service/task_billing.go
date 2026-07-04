@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -306,7 +307,7 @@ func upstreamErrorFieldsFromBody(raw map[string]any) (message, code string) {
 }
 
 // ShouldRefundTaskOnFailure 决定异步/同步失败时是否退还预扣额度。
-func ShouldRefundTaskOnFailure(reason string, responseBody []byte) bool {
+func ShouldRefundTaskOnFailure(userId int, reason string, responseBody []byte) bool {
 	if IsUpstreamRefundableTaskFailure(reason) {
 		return true
 	}
@@ -351,8 +352,15 @@ func ShouldRefundTaskOnFailure(reason string, responseBody []byte) bool {
 }
 
 // ShouldRefundRelayError 决定同步 Relay 失败时是否退还 BillingSession 预扣费。
-func ShouldRefundRelayError(apiErr *types.NewAPIError) bool {
+func ShouldRefundRelayError(c *gin.Context, apiErr *types.NewAPIError) bool {
 	if apiErr == nil {
+		return false
+	}
+	userId := 0
+	if c != nil {
+		userId = c.GetInt("id")
+	}
+	if apiErr.GetErrorCode() == types.ErrorCodeSensitiveWordsDetected && setting.ShouldChargeOnLocalSensitiveRejection(userId) {
 		return false
 	}
 	oai := apiErr.ToOpenAIError()
@@ -376,15 +384,22 @@ func ShouldRefundRelayError(apiErr *types.NewAPIError) bool {
 			},
 		})
 	}
-	return ShouldRefundTaskOnFailure(reason, body)
+	return ShouldRefundTaskOnFailure(userId, reason, body)
 }
 
 // ShouldRefundTaskError 决定 Task 提交接口失败时是否退还 BillingSession 预扣费。
-func ShouldRefundTaskError(taskErr *dto.TaskError) bool {
+func ShouldRefundTaskError(c *gin.Context, taskErr *dto.TaskError) bool {
 	if taskErr == nil {
 		return false
 	}
-	return ShouldRefundTaskOnFailure(taskErr.Message, nil)
+	userId := 0
+	if c != nil {
+		userId = c.GetInt("id")
+	}
+	if taskErr.LocalError && setting.ShouldChargeOnLocalSensitiveRejection(userId) {
+		return false
+	}
+	return ShouldRefundTaskOnFailure(userId, taskErr.Message, nil)
 }
 
 // MaybeRefundBilling 在失败时按策略退还 BillingSession 预扣费（同步/异步提交共用）。
@@ -392,7 +407,11 @@ func MaybeRefundBilling(c *gin.Context, billing relaycommon.BillingSettler, reas
 	if billing == nil {
 		return
 	}
-	if ShouldRefundTaskOnFailure(reason, responseBody) {
+	userId := 0
+	if c != nil {
+		userId = c.GetInt("id")
+	}
+	if ShouldRefundTaskOnFailure(userId, reason, responseBody) {
 		billing.Refund(c)
 		return
 	}
@@ -406,8 +425,9 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) {
 	if quota == 0 {
 		return
 	}
-	if IsNonRefundableTaskFailure(reason) {
-		logger.LogInfo(ctx, fmt.Sprintf("Task %s failed with non-refundable error, skip refund: %s", task.TaskID, reason))
+	if !ShouldRefundTaskOnFailure(task.UserId, reason, nil) {
+		logger.LogInfo(ctx, fmt.Sprintf("Task %s failed with non-refundable error, keep charge: %s", task.TaskID, reason))
+		recordTaskBillingConsumeLog(ctx, task, quota, reason, quota)
 		return
 	}
 

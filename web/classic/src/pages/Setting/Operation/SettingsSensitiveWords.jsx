@@ -34,6 +34,8 @@ export default function SettingsSensitiveWords(props) {
   const [inputs, setInputs] = useState({
     CheckSensitiveEnabled: false,
     CheckSensitiveOnPromptEnabled: false,
+    LocalSensitivePromptBlockEnabled: true,
+    SensitiveReviewWhitelistUserIds: '',
     SensitiveWords: '',
   });
   const refForm = useRef();
@@ -123,6 +125,38 @@ export default function SettingsSensitiveWords(props) {
                       CheckSensitiveOnPromptEnabled: value,
                     })
                   }
+                />
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'LocalSensitivePromptBlockEnabled'}
+                  label={t('本地敏感词前置拦截')}
+                  extraText={t('关闭后直接转发上游；上游内容审查失败仍正常扣费')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      LocalSensitivePromptBlockEnabled: value,
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Col span={24}>
+                <Form.TextArea
+                  label={t('审查白名单用户 ID')}
+                  extraText={t('一行一个用户 ID；不受全局拦截开关影响，审查失败仍扣费')}
+                  placeholder={t('一行一个用户 ID')}
+                  field={'SensitiveReviewWhitelistUserIds'}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      SensitiveReviewWhitelistUserIds: value,
+                    })
+                  }
+                  autosize={{ minRows: 4, maxRows: 12 }}
                 />
               </Col>
             </Row>

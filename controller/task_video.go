@@ -251,7 +251,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor channel.TaskAdaptor, cha
 		taskResult.Progress = "100%"
 		if quota != 0 {
 			if preStatus != model.TaskStatusFailure {
-				if service.ShouldRefundTaskOnFailure(taskResult.Reason, responseBody) {
+				if service.ShouldRefundTaskOnFailure(task.UserId, taskResult.Reason, responseBody) {
 					shouldRefund = true
 				} else {
 					logger.LogInfo(ctx, fmt.Sprintf("Task %s failed with non-refundable error, skip refund: %s", task.TaskID, taskResult.Reason))
