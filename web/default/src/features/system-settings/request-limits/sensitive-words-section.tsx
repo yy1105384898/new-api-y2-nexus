@@ -44,6 +44,8 @@ import { useUpdateOption } from '../hooks/use-update-option'
 const sensitiveSchema = z.object({
   CheckSensitiveEnabled: z.boolean(),
   CheckSensitiveOnPromptEnabled: z.boolean(),
+  LocalSensitivePromptBlockEnabled: z.boolean(),
+  SensitiveReviewWhitelistUserIds: z.string().optional(),
   SensitiveWords: z.string().optional(),
 })
 
@@ -90,6 +92,29 @@ export function SensitiveWordsSection({
           <div className='space-y-4'>
             <FormField
               control={form.control}
+              name='LocalSensitivePromptBlockEnabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Local sensitive prompt block')}</FormLabel>
+                    <FormDescription>
+                      {t(
+                        'When disabled, prompts are forwarded to upstream; upstream content policy failures are charged normally.'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name='CheckSensitiveEnabled'
               render={({ field }) => (
                 <SettingsSwitchItem>
@@ -134,6 +159,29 @@ export function SensitiveWordsSection({
               )}
             />
           </div>
+
+          <FormField
+            control={form.control}
+            name='SensitiveReviewWhitelistUserIds'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Sensitive review whitelist user IDs')}</FormLabel>
+                <FormControl>
+                  <Textarea
+                    rows={6}
+                    placeholder={t('Enter one user ID per line')}
+                    {...field}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'Whitelisted users keep local prompt review even when global block is off; local and upstream review failures are charged.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <FormField
             control={form.control}

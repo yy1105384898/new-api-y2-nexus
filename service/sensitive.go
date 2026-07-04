@@ -43,7 +43,11 @@ func CheckSensitiveText(text string) (bool, []string) {
 
 // PromptSensitiveRejection 本地敏感词前置拦截：命中则直接拒绝，不转发上游、不预扣费。
 func PromptSensitiveRejection(c *gin.Context, text string) (bool, *types.NewAPIError) {
-	if !setting.ShouldCheckPromptSensitive() {
+	userId := 0
+	if c != nil {
+		userId = c.GetInt("id")
+	}
+	if !setting.ShouldCheckPromptSensitiveForUser(userId) {
 		return false, nil
 	}
 	contains, words := CheckSensitiveText(text)

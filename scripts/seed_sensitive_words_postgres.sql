@@ -10,6 +10,8 @@
 INSERT INTO options (key, value) VALUES
   ('CheckSensitiveEnabled', 'true'),
   ('CheckSensitiveOnPromptEnabled', 'true'),
+  ('LocalSensitivePromptBlockEnabled', 'true'),
+  ('SensitiveReviewWhitelistUserIds', ''),
   ('StopOnSensitiveEnabled', 'true'),
   ('SensitiveWords', $words$nude
 naked

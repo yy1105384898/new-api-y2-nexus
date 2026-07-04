@@ -124,7 +124,8 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
-	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
+	needSensitiveCheck := setting.ShouldCheckPromptSensitiveForUser(c.GetInt("id"))
+	deferSensitiveUntilPreConsume := needSensitiveCheck && setting.ShouldChargeOnLocalSensitiveRejection(c.GetInt("id"))
 	needCountToken := constant.CountToken
 	// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.
 	var meta *types.TokenCountMeta
@@ -137,7 +138,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		relaycommon.StorePromptInput(c, meta.CombineText)
 	}
 
-	if meta != nil {
+	if meta != nil && needSensitiveCheck && !deferSensitiveUntilPreConsume {
 		if rejected, apiErr := service.PromptSensitiveRejection(c, meta.CombineText); rejected {
 			newAPIError = apiErr
 			return
@@ -169,12 +170,19 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 	}
 
+	if meta != nil && deferSensitiveUntilPreConsume {
+		if rejected, apiErr := service.PromptSensitiveRejection(c, meta.CombineText); rejected {
+			newAPIError = apiErr
+			return
+		}
+	}
+
 	defer func() {
 		// Only return quota if downstream failed and quota was actually pre-consumed
 		if newAPIError != nil {
 			newAPIError = service.NormalizeViolationFeeError(newAPIError)
 			if relayInfo.Billing != nil {
-				if service.ShouldRefundRelayError(newAPIError) {
+				if service.ShouldRefundRelayError(c, newAPIError) {
 					relayInfo.Billing.Refund(c)
 				} else {
 					logger.LogInfo(c, fmt.Sprintf("skip billing refund for non-refundable relay error: %s", newAPIError.Error()))
