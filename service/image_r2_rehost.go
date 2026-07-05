@@ -155,7 +155,7 @@ func RehostImageDataForClient(ctx context.Context, userID int, storeID, channelB
 		if strings.TrimSpace(item.Url) == "" {
 			continue
 		}
-		if !ImageModelUsesURLRehost(originModel) {
+		if !ImageAsyncAcceptsUpstreamURL(originModel) {
 			continue
 		}
 		downloadURL := RewriteLoopbackUpstreamImageURL(channelBaseURL, item.Url)
