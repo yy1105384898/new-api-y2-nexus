@@ -125,6 +125,17 @@ func TestNormalizeClientErrorMessageUnified(t *testing.T) {
 			want: ContentPolicyMessageZH,
 		},
 		{
+			name: "upstream_do_request_failed_timeout_en",
+			raw:  "upstream error: do request failed",
+			want: TimeoutMessageEN,
+		},
+		{
+			name: "upstream_do_request_failed_timeout_zh",
+			raw:  "upstream error: do request failed",
+			preferChinese: true,
+			want: TimeoutMessageZH,
+		},
+		{
 			name: "upstream_capacity_en",
 			raw:  "No capacity available for model gemini-3.1-flash-image on the server",
 			want: UpstreamUnavailableMessageEN,

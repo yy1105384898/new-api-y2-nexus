@@ -30,7 +30,7 @@ func imageAsyncAcceptsGulieStyleURL(originModel string) bool {
 	return name == "gpt-image-2" || strings.HasPrefix(name, "gpt-image-2-")
 }
 
-// ImageAsyncAcceptsUpstreamURL：异步 worker 落库时允许上游回 url（如 Gulie loopback、4K），转存 R2 后返回。
+// ImageAsyncAcceptsUpstreamURL：同步/异步生图允许上游回 url（如 Gulie loopback、4K），转存 R2 后返回。
 func ImageAsyncAcceptsUpstreamURL(originModel string) bool {
 	if ImageModelUsesURLRehost(originModel) {
 		return true
@@ -85,7 +85,7 @@ func imageDataNeedsURLRehost(images []dto.ImageData) bool {
 
 // RehostImageDataURLs 将需转存的模型上游 url 落 R2；未命中或无 url 时原样返回。
 func RehostImageDataURLs(ctx context.Context, userID int, storeID, channelBaseURL, originModel string, images []dto.ImageData) ([]dto.ImageData, error) {
-	if !ImageModelUsesURLRehost(originModel) || len(images) == 0 || !imageDataNeedsURLRehost(images) {
+	if !ImageAsyncAcceptsUpstreamURL(originModel) || len(images) == 0 || !imageDataNeedsURLRehost(images) {
 		return images, nil
 	}
 	if getR2Config() == nil {
@@ -114,7 +114,7 @@ func RehostImageDataURLs(ctx context.Context, userID int, storeID, channelBaseUR
 
 // RehostSyncImageResponseBody 同步生图 JSON 响应：命中模型且 data[].url 时替换为 R2 公网 URL。
 func RehostSyncImageResponseBody(ctx context.Context, userID int, originModel, channelBaseURL string, responseBody []byte) ([]byte, error) {
-	if !ImageModelUsesURLRehost(originModel) || len(responseBody) == 0 {
+	if !ImageAsyncAcceptsUpstreamURL(originModel) || len(responseBody) == 0 {
 		return responseBody, nil
 	}
 	var payload struct {
