@@ -23,6 +23,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
+	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
@@ -382,7 +383,14 @@ func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, taskResult *rela
 
 	actualSeconds := usageSecondsFromTaskData(task.Data)
 	if actualSeconds <= 0 && taskResult != nil {
-		actualSeconds = taskResult.CompletionTokens
+		if taskResult.CompletionTokens > 0 {
+			actualSeconds = taskResult.CompletionTokens
+		} else if taskResult.TotalTokens > 0 {
+			actualSeconds = taskResult.TotalTokens
+		}
+	}
+	if actualSeconds <= 0 {
+		actualSeconds = usageSecondsFromBillingContext(bc)
 	}
 	if actualSeconds <= 0 {
 		return 0
@@ -416,10 +424,34 @@ func usageSecondsFromTaskData(data []byte) int {
 		return 0
 	}
 	var res responseTask
-	if err := common.Unmarshal(data, &res); err != nil {
+	if err := common.Unmarshal(data, &res); err == nil {
+		if seconds := usageSecondsFromResponseTask(res); seconds > 0 {
+			return seconds
+		}
+	}
+	if v := gjson.GetBytes(data, "usage.seconds").Float(); v > 0 {
+		return int(math.Round(v))
+	}
+	if raw := strings.TrimSpace(gjson.GetBytes(data, "seconds").String()); raw != "" {
+		if seconds := parsePositiveIntString(raw); seconds > 0 {
+			return seconds
+		}
+	}
+	if v := gjson.GetBytes(data, "seconds").Int(); v > 0 {
+		return int(v)
+	}
+	return 0
+}
+
+func usageSecondsFromBillingContext(bc *model.TaskBillingContext) int {
+	if bc == nil || bc.OtherRatios == nil {
 		return 0
 	}
-	return usageSecondsFromResponseTask(res)
+	seconds, ok := bc.OtherRatios["seconds"]
+	if !ok || seconds <= 0 {
+		return 0
+	}
+	return int(math.Round(seconds))
 }
 
 func parsePositiveIntString(raw string) int {
