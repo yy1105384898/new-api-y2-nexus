@@ -334,7 +334,7 @@ func sunoFetchRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dto.Ta
 			return
 		}
 		for _, task := range taskModels {
-			tasks = append(tasks, TaskModel2Dto(task))
+			tasks = append(tasks, TaskModel2DtoForClient(c, task))
 		}
 	} else {
 		tasks = make([]any, 0)
@@ -362,7 +362,7 @@ func sunoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dt
 
 	respBody, err = common.Marshal(dto.TaskResponse[any]{
 		Code: "success",
-		Data: TaskModel2Dto(originTask),
+		Data: TaskModel2DtoForClient(c, originTask),
 	})
 	return
 }
@@ -413,8 +413,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	}
 
 	// 通用 TaskDto 格式
-	taskDto := TaskModel2Dto(originTask)
-	taskDto.FailReason = service.NormalizeClientErrorMessage(c, taskDto.FailReason)
+	taskDto := TaskModel2DtoForClient(c, originTask)
 	respBody, err = common.Marshal(dto.TaskResponse[any]{
 		Code: "success",
 		Data: taskDto,
@@ -571,4 +570,11 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 		Username:   task.Username,
 		Data:       task.Data,
 	}
+}
+
+// TaskModel2DtoForClient 返回任务 DTO，并将 fail_reason 映射为面向用户的友好提示。
+func TaskModel2DtoForClient(c *gin.Context, task *model.Task) *dto.TaskDto {
+	taskDto := TaskModel2Dto(task)
+	taskDto.FailReason = service.NormalizeClientErrorMessage(c, taskDto.FailReason)
+	return taskDto
 }

@@ -161,8 +161,6 @@ func IsUpstreamUnavailableError(text string) bool {
 		"bad response status code 504",
 		"connection reset by peer",
 		"connection refused",
-		"do request failed",
-		"upstream error: do request failed",
 		"download image failed",
 		"rehost upstream image url",
 	}
@@ -183,7 +181,7 @@ func IsTimeoutError(text string) bool {
 		return false
 	}
 	lower := strings.ToLower(stripStatusCodePrefix(text))
-	if containsAny(lower, text, "proxy read timeout", "timed out", "timeout", "任务超时", "生图超时") {
+	if containsAny(lower, text, "proxy read timeout", "timed out", "timeout", "任务超时", "生图超时", "do request failed", "upstream error: do request failed", "context deadline exceeded", "client.timeout") {
 		return true
 	}
 	return strings.HasPrefix(text, "status_code=524")
