@@ -128,6 +128,10 @@ func (s *BillingSession) needsRefundLocked() bool {
 		// fundingSettled 时资金来源已提交结算，不能再退预扣费
 		return false
 	}
+	// 无限额度令牌跳过 tokenConsumed，但钱包/订阅仍可能已预扣
+	if s.preConsumedQuota > 0 {
+		return true
+	}
 	if s.tokenConsumed > 0 {
 		return true
 	}

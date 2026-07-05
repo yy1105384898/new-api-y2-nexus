@@ -76,19 +76,20 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
   }, [resolvedFullKey, resolveRealKey, apiKey.id, markKeyCopied, t])
 
   return (
-    <div className='flex max-w-full min-w-0 items-center'>
-      <Popover open={popoverOpen} onOpenChange={handlePopoverOpen}>
-        <PopoverTrigger
-          render={
-            <Button
-              variant='ghost'
-              size='sm'
-              className='text-muted-foreground h-7 max-w-full min-w-0 justify-start truncate px-0 font-mono text-xs hover:bg-transparent aria-expanded:bg-transparent'
-            />
-          }
-        >
-          <span className='truncate'>{maskedKey}</span>
-        </PopoverTrigger>
+    <div className='flex max-w-full min-w-0 items-start gap-1'>
+      <div className='min-w-0 flex-1'>
+        <Popover open={popoverOpen} onOpenChange={handlePopoverOpen}>
+          <PopoverTrigger
+            render={
+              <Button
+                variant='ghost'
+                size='sm'
+                className='text-muted-foreground h-auto min-h-7 max-w-full min-w-0 justify-start px-0 py-0.5 text-left font-mono text-xs break-all whitespace-normal hover:bg-transparent aria-expanded:bg-transparent'
+              />
+            }
+          >
+            {maskedKey}
+          </PopoverTrigger>
         <PopoverContent
           className='w-auto max-w-[min(90vw,28rem)]'
           align='start'
@@ -113,7 +114,8 @@ export function ApiKeyCell({ apiKey }: { apiKey: ApiKey }) {
             )}
           </div>
         </PopoverContent>
-      </Popover>
+        </Popover>
+      </div>
       <Tooltip>
         <TooltipTrigger
           render={
