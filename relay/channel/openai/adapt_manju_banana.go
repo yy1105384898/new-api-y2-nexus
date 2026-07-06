@@ -1,5 +1,15 @@
 package openai
 
+// Manju Gemini Banana 适配层。
+//
+// 主路径（Image API）：
+//   imagevendor.IsManjuBananaOriginModel → buildManjuBananaImageBody → 上游 POST /v1/images/generations
+//   含 JSON 文生图/图生图（image/images/mask）及 multipart /images/edits（转为 JSON + data URI）
+//
+// Legacy 路径（chat/completions，含 async task 快照）：
+//   manjuBananaAdaptIfNeeded → AdaptManjuBananaChatCompletionResponse
+//   调用方：relay_openai.go、relay_chat_image.go、IsAsyncChatImageRequest 异步提交
+
 import (
 	"context"
 	"encoding/base64"
@@ -13,8 +23,11 @@ import (
 	"time"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/relay/imagevendor"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -26,10 +39,146 @@ const (
 	defaultManjuBananaPollTimeout  = 180 * time.Second
 )
 
-// IsManjuBananaOriginModel：Manju Gemini Banana 渠道（manjuapi 上游）走 chat/completions 异步任务适配。
-func IsManjuBananaOriginModel(originModel string) bool {
+// BuildManjuBananaImageGenerationBody 将 OpenAI Image 请求转为 Manju 上游 /v1/images/generations body。
+func BuildManjuBananaImageGenerationBody(originModel string, request dto.ImageRequest) map[string]any {
+	body, _ := buildManjuBananaImageBody(nil, originModel, request)
+	return body
+}
+
+// buildManjuBananaImageBody 构建上游 JSON body；c 非 nil 时可从 multipart 读取参考图/蒙版。
+func buildManjuBananaImageBody(c *gin.Context, originModel string, request dto.ImageRequest) (map[string]any, error) {
+	body := map[string]any{
+		"model":  request.Model,
+		"prompt": request.Prompt,
+	}
+	if aspect := resolveManjuBananaAspectRatio(request.Size); aspect != "" {
+		body["aspect_ratio"] = aspect
+	}
+	if resolution := resolveManjuBananaOutputResolution(originModel, request.Quality); resolution != "" {
+		body["output_resolution"] = resolution
+	}
+	if request.N != nil && *request.N > 0 {
+		body["n"] = *request.N
+	}
+	body["stream"] = false
+	if err := applyManjuBananaReferenceFields(body, c, request); err != nil {
+		return nil, err
+	}
+	return body, nil
+}
+
+func applyManjuBananaReferenceFields(body map[string]any, c *gin.Context, request dto.ImageRequest) error {
+	images, mask, err := collectManjuBananaReferenceImages(c, request)
+	if err != nil {
+		return err
+	}
+	switch len(images) {
+	case 0:
+	case 1:
+		body["image"] = images[0]
+	default:
+		body["images"] = images
+	}
+	if mask != "" {
+		body["mask"] = mask
+	}
+	return nil
+}
+
+func collectManjuBananaReferenceImages(c *gin.Context, request dto.ImageRequest) (images []string, mask string, err error) {
+	images = append(images, parseJSONStringList(request.Image)...)
+	images = append(images, parseJSONStringList(request.Images)...)
+
+	if c != nil && c.Request != nil {
+		mf := c.Request.MultipartForm
+		if mf == nil {
+			mf, err = common.ParseMultipartFormReusable(c)
+			if err != nil {
+				return nil, "", err
+			}
+			c.Request.MultipartForm = mf
+			c.Request.PostForm = mf.Value
+		}
+		if mf != nil {
+			for _, key := range []string{"image", "image[]"} {
+				for _, fh := range mf.File[key] {
+					dataURI, convErr := multipartFileToDataURI(fh)
+					if convErr != nil {
+						return nil, "", convErr
+					}
+					images = append(images, dataURI)
+				}
+			}
+			for fieldName, files := range mf.File {
+				if strings.HasPrefix(fieldName, "image[") && len(files) > 0 {
+					for _, fh := range files {
+						dataURI, convErr := multipartFileToDataURI(fh)
+						if convErr != nil {
+							return nil, "", convErr
+						}
+						images = append(images, dataURI)
+					}
+				}
+			}
+			if maskFiles, ok := mf.File["mask"]; ok && len(maskFiles) > 0 {
+				mask, err = multipartFileToDataURI(maskFiles[0])
+				if err != nil {
+					return nil, "", err
+				}
+			}
+		}
+	}
+
+	maskURLs := parseJSONStringList(request.Mask)
+	if mask == "" && len(maskURLs) > 0 {
+		mask = maskURLs[0]
+	}
+	return images, mask, nil
+}
+
+func resolveManjuBananaAspectRatio(size string) string {
+	value := strings.TrimSpace(size)
+	if value == "" || strings.EqualFold(value, "auto") {
+		return ""
+	}
+	if strings.Contains(value, ":") {
+		return value
+	}
+	switch strings.ToLower(value) {
+	case "1024x1024":
+		return "1:1"
+	case "1536x1024":
+		return "3:2"
+	case "1024x1536":
+		return "2:3"
+	case "1792x1024", "1920x1080":
+		return "16:9"
+	case "1024x1792", "1080x1920":
+		return "9:16"
+	default:
+		return ""
+	}
+}
+
+func resolveManjuBananaOutputResolution(originModel, quality string) string {
 	name := strings.ToLower(strings.TrimSpace(originModel))
-	return strings.HasPrefix(name, "manju-gemini-banana")
+	switch {
+	case strings.HasSuffix(name, "-4k"):
+		return "4K"
+	case strings.Contains(name, "flash-lite"):
+		return "1K"
+	}
+	value := strings.ToLower(strings.TrimSpace(quality))
+	switch value {
+	case "high", "hd", "4k":
+		return "4K"
+	case "medium", "2k":
+		return "2K"
+	case "low", "standard", "1k", "1/2k":
+		return "1K"
+	default:
+		return "1K"
+	}
 }
 
 // AdaptManjuBananaChatCompletionResponse 将上游异步任务或 URL 出图响应转为下游同步 data URI Markdown。
@@ -326,8 +475,9 @@ func stripManjuUpstreamTaskFields(body []byte) []byte {
 	return result
 }
 
+// manjuBananaAdaptIfNeeded 仅用于 Legacy chat/completions 响应；Image API 主路径不经此函数。
 func manjuBananaAdaptIfNeeded(ctx context.Context, info *relaycommon.RelayInfo, responseBody []byte) ([]byte, *types.NewAPIError) {
-	if !IsManjuBananaOriginModel(info.OriginModelName) {
+	if !imagevendor.IsManjuBananaOriginModel(info.OriginModelName) {
 		return responseBody, nil
 	}
 	return AdaptManjuBananaChatCompletionResponse(ctx, info, responseBody)

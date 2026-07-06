@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relay/imagevendor"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -25,8 +26,12 @@ var (
 	chatImageMarkdownHTTPImageRE = regexp.MustCompile(`!\[[^\]]*\]\((https?://[^)]+)\)`)
 )
 
-// IsChatImageModel：Banana / Flash Image 等走 chat upstream、下游 Image API 的出图模型。
+// IsChatImageModel：Flash Image 等走 chat upstream、下游 Image API 的出图模型。
+// Manju Gemini Banana（manju-gemini-banana-*）改走上游 POST /v1/images/generations。
 func IsChatImageModel(model string) bool {
+	if imagevendor.IsManjuBananaOriginModel(model) {
+		return false
+	}
 	name := strings.ToLower(strings.TrimSpace(model))
 	if strings.Contains(name, "banana") {
 		return true

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""补全 Gemini Banana 系列 models.api_doc（sync + async chat/completions）与 image_profile_id（源站执行）。"""
+"""[已废弃] 非 Manju legacy Banana 已下线；请用 seed_manju_gemini_banana_api_doc.py。
+
+本脚本保留模板结构供参考，main() 不再写入数据库。
+"""
 
 from __future__ import annotations
 
@@ -27,7 +30,7 @@ CREATE_SYNC = {
 }
 
 COMMON_PARAMS = [
-    {"name": "model", "description": "必填，固定传模型广场展示名（如 gemini-banana-2.0 / gemini-banana-2.0-pro）。"},
+    {"name": "model", "description": "必填，固定传模型广场展示名（如 gemini-banana-pro-4k / gemini-banana-2.0-1/2k）。"},
     {"name": "prompt", "description": "必填，文生图提示词；图生图/参考图时在 prompt 中说明 @图片1 等引用顺序。"},
     {
         "name": "size",
@@ -187,21 +190,7 @@ def psql(sql: str) -> None:
 
 
 def main() -> None:
-    esc = json.dumps(BANANA_API_DOC, ensure_ascii=False, separators=(",", ":")).replace("'", "''")
-    psql(
-        f"UPDATE models SET api_doc = '{esc}', "
-        f"image_profile_id = '{IMAGE_PROFILE}', "
-        f"updated_time = extract(epoch from now())::bigint "
-        f"WHERE model_name ILIKE '%banana%' AND deleted_at IS NULL "
-        f"AND model_name NOT LIKE 'manju-%';"
-    )
-    print("updated banana models api_doc + image_profile_id")
-
-    psql(
-        "SELECT model_name, image_profile_id, length(api_doc) AS doc_len, "
-        "CASE WHEN api_doc LIKE '%modes%' THEN 'dual' ELSE 'single' END AS mode "
-        "FROM models WHERE model_name ILIKE '%banana%' AND deleted_at IS NULL ORDER BY 1;"
-    )
+    print("skip: legacy non-manju banana retired; run seed_manju_gemini_banana_api_doc.py instead")
 
 
 if __name__ == "__main__":

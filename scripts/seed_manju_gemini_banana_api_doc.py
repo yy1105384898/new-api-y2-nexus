@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Manju Gemini Banana 系列：api_doc（sync + async chat/completions）+ ModelPrice（源站执行）。"""
+"""Manju Gemini Banana 系列：api_doc（统一 Image API sync/async）+ ModelPrice（源站 docker 内执行）。"""
 
 from __future__ import annotations
 
@@ -24,21 +24,16 @@ QUERY_ASYNC = {
 }
 CREATE_SYNC = {
     "created": 1715923200,
-    "data": [{"b64_json": "..."}],
+    "data": [{"url": "https://example.com/image.png"}],
 }
 
-CREATE_SYNC = {
-    "created": 1715923200,
-    "data": [{"b64_json": "..."}],
-}
+REFERENCE_PARAMS = [
+    {"name": "image", "description": "图生图：单张参考图 URL 或 data URI。"},
+    {"name": "images", "description": "图生图：多张参考图 URL 数组。"},
+    {"name": "mask", "description": "局部编辑蒙版 URL 或 data URI（PNG）。"},
+]
 
 COMMON_PARAMS_TAIL = [
-    {"name": "prompt", "description": "必填，文生图提示词；图生图时在 prompt 中说明 @图片1 等引用顺序。"},
-    {"name": "size", "description": "画幅比例（aspect_ratio）：1:1、16:9 等；auto 可省略。"},
-    {"name": "quality", "description": "分辨率档位：low/1K、medium/2K、high/4K。"},
-    {"name": "image", "description": "单张参考图 URL 或 data URI。"},
-    {"name": "images", "description": "多张参考图 URL 数组。"},
-    {"name": "mask", "description": "局部编辑蒙版 URL 或 data URI（PNG）。"},
     {"name": "stream", "description": "须为 false。"},
     {"name": "n", "description": "生成张数：客户端可对同一请求多次调用实现 1–15 张（每次返回 1 张图）。"},
 ]
@@ -52,7 +47,7 @@ ASYNC_ENDPOINTS = [
     {
         "method": "POST",
         "path": "{{base}}/images/edits",
-        "description": "异步图生图 multipart（参考图/蒙版）。",
+        "description": "图生图 multipart（参考图/蒙版）；与 JSON 传 image/images 等价，均走 Image API。",
     },
     {
         "method": "GET",
@@ -80,7 +75,7 @@ SYNC_ENDPOINTS = [
     {
         "method": "POST",
         "path": "{{base}}/images/edits",
-        "description": "同步图生图 multipart。",
+        "description": "图生图 multipart（参考图/蒙版）；与 JSON 传 image/images 等价。",
     },
     {
         "method": "POST",
@@ -95,14 +90,13 @@ MODELS: list[dict] = [
         "public": "gemini-banana-pro-4k",
         "price": 0.18,
         "image_profile_id": "image-tpl-banana-chat",
-        "intro_async": (
-            "Gemini Banana Pro 4K 异步：POST /v1/images/generations（async: true，stream: false），"
-            "GET /v1/images/generations/{task_id} 轮询，完成后 data[].url 取图；"
-            "也可 GET /v1/images/{task_id}/content 下载。"
-        ),
         "intro_sync": (
-            "Gemini Banana Pro 4K 同步：POST /v1/images/generations（stream: false），"
-            "响应为标准 Image API（data[].b64_json 或 url）。"
+            "Gemini Banana Pro 4K 同步（推荐）：POST /v1/images/generations（勿传 async，stream: false），"
+            "响应 data[].url 或 b64_json；图生图 JSON 传 image/images，或 multipart POST /v1/images/edits。"
+        ),
+        "intro_async": (
+            "可选异步：POST /v1/images/generations 带 async: true，"
+            "GET /v1/images/generations/{task_id} 轮询取 data[].url；4K/多参考图场景推荐。"
         ),
         "basic_size": "4K",
         "full_size": "4K",
@@ -113,13 +107,12 @@ MODELS: list[dict] = [
         "public": "gemini-banana-flash-lite",
         "price": 0.075,
         "image_profile_id": "image-tpl-banana-chat-flash-lite",
-        "intro_async": (
-            "Gemini Banana Flash Lite 异步：POST /v1/images/generations（async: true），"
-            "GET 轮询取图；仅支持 1K 出图。"
-        ),
         "intro_sync": (
-            "Gemini Banana Flash Lite 同步：POST /v1/images/generations（stream: false），"
-            "仅支持 1K 出图。"
+            "Gemini Banana Flash Lite 同步（推荐）：POST /v1/images/generations（stream: false），"
+            "仅支持 1K；图生图 JSON 传 image/images。"
+        ),
+        "intro_async": (
+            "可选异步：POST /v1/images/generations 带 async: true 后轮询；仅支持 1K。"
         ),
         "basic_size": "1K",
         "full_size": "1K",
@@ -130,13 +123,12 @@ MODELS: list[dict] = [
         "public": "gemini-banana-pro-1/2k",
         "price": 0.12,
         "image_profile_id": "image-tpl-banana-chat",
-        "intro_async": (
-            "Gemini Banana Pro 1K/2K 异步：POST /v1/images/generations（async: true），"
-            "GET /v1/images/generations/{task_id} 轮询取图。"
-        ),
         "intro_sync": (
-            "Gemini Banana Pro 1K/2K 同步：POST /v1/images/generations（stream: false），"
-            "响应为标准 Image API（data[].b64_json 或 url）。"
+            "Gemini Banana Pro 1K/2K 同步（推荐）：POST /v1/images/generations（stream: false）；"
+            "quality 省略默认 1K；图生图 JSON 传 image/images。"
+        ),
+        "intro_async": (
+            "可选异步：POST /v1/images/generations 带 async: true，GET 轮询取图。"
         ),
         "basic_size": "2K",
         "full_size": "2K",
@@ -147,13 +139,12 @@ MODELS: list[dict] = [
         "public": "gemini-banana-2.0-1/2k",
         "price": 0.081,
         "image_profile_id": "image-tpl-banana-chat",
-        "intro_async": (
-            "Nano Banana 2.0 1K/2K 异步：POST /v1/images/generations（async: true），"
-            "GET 轮询取图；图生图/参考图场景推荐异步。"
-        ),
         "intro_sync": (
-            "Nano Banana 2.0 1K/2K 同步：POST /v1/images/generations（stream: false），"
-            "响应为标准 Image API（data[].b64_json 或 url）。"
+            "Nano Banana 2.0 1K/2K 同步（推荐）：POST /v1/images/generations（stream: false）；"
+            "quality 省略默认 1K；图生图 JSON 传 image/images。"
+        ),
+        "intro_async": (
+            "可选异步：带 async: true 后轮询；多参考图/大图场景可选。"
         ),
         "basic_size": "1K",
         "full_size": "2K",
@@ -164,13 +155,12 @@ MODELS: list[dict] = [
         "public": "gemini-banana-2.0-4k",
         "price": 0.135,
         "image_profile_id": "image-tpl-banana-chat",
-        "intro_async": (
-            "Nano Banana 2.0 4K 异步：POST /v1/images/generations（async: true），"
-            "GET 轮询取图；4K/参考图场景推荐异步。"
-        ),
         "intro_sync": (
-            "Nano Banana 2.0 4K 同步：POST /v1/images/generations（stream: false），"
-            "响应为标准 Image API（data[].b64_json 或 url）。"
+            "Nano Banana 2.0 4K 同步（推荐）：POST /v1/images/generations（stream: false）；"
+            "图生图 JSON 传 image/images，或 multipart /v1/images/edits。"
+        ),
+        "intro_async": (
+            "可选异步：带 async: true 后轮询；4K/多参考图场景推荐。"
         ),
         "basic_size": "1K",
         "full_size": "4K",
@@ -185,10 +175,16 @@ def build_params(public: str, size_desc: str, *, async_mode: bool) -> list[dict]
             "name": "model",
             "description": f"必填，固定传模型广场展示名（{public}）。",
         },
-        {"name": "prompt", "description": "必填，文生图提示词。"},
-        {"name": "size", "description": "画幅比例（aspect_ratio）。"},
+        {
+            "name": "prompt",
+            "description": "必填，文生图提示词；图生图时在 prompt 中说明 @图片1 等引用顺序。",
+        },
+        {
+            "name": "size",
+            "description": "画幅比例（aspect_ratio）：1:1、16:9 等；auto 可省略。",
+        },
         {"name": "quality", "description": size_desc},
-    ] + COMMON_PARAMS_TAIL
+    ] + REFERENCE_PARAMS + COMMON_PARAMS_TAIL
     if async_mode:
         params.append({"name": "async", "description": "异步模式必填 true。"})
     return params

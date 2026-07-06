@@ -27,6 +27,9 @@ const (
 	GenerationFailedMessageZH = "视频生成失败，请稍后重试。"
 	GenerationFailedMessageEN = "Video generation failed, please retry later."
 
+	GenerationFailedNoDetailZH = "Leonardo 上游生成失败（未返回具体原因），建议减少参考素材或简化提示词后重试。"
+	GenerationFailedNoDetailEN = "Leonardo upstream generation failed without details. Try fewer references or a simpler prompt."
+
 	InvalidRequestMessageZH = "请求参数不符合要求，请检查后重试。"
 	InvalidRequestMessageEN = "Request parameters are invalid, please check and retry."
 
@@ -271,7 +274,26 @@ func IsLeonardoPoolGenerationFailed(text string) bool {
 	lower := strings.ToLower(text)
 	return strings.Contains(lower, "all cookies failed") ||
 		strings.Contains(lower, "video generation failed") ||
+		strings.Contains(lower, "leonardo: video generation failed") ||
+		strings.Contains(lower, "leonardo: generation failed") ||
 		strings.Contains(lower, "generation_failed")
+}
+
+func extractLeonardoUpstreamFailureDetail(raw string) (detail string, noDetail bool) {
+	lower := strings.ToLower(strings.TrimSpace(raw))
+	if !strings.Contains(lower, "leonardo:") || !strings.Contains(lower, "generation failed") {
+		return "", false
+	}
+	if strings.Contains(lower, "upstream returned no detail") {
+		return "", true
+	}
+	// leonardo: video generation failed (FAILED): reason from upstream
+	if idx := strings.Index(raw, "):"); idx >= 0 {
+		if d := strings.TrimSpace(raw[idx+2:]); d != "" {
+			return d, false
+		}
+	}
+	return "", false
 }
 
 func NormalizeClientErrorMessage(c *gin.Context, raw string) string {
@@ -325,6 +347,20 @@ func NormalizeClientErrorMessageForLang(preferChinese bool, raw string) string {
 			return PoolUnavailableMessageZH
 		}
 		return PoolUnavailableMessageEN
+	}
+	if detail, noDetail := extractLeonardoUpstreamFailureDetail(raw); noDetail {
+		if preferChinese {
+			return GenerationFailedNoDetailZH
+		}
+		return GenerationFailedNoDetailEN
+	} else if detail != "" {
+		if IsContentPolicyViolation(detail) {
+			if preferChinese {
+				return ContentPolicyMessageZH
+			}
+			return ContentPolicyMessageEN
+		}
+		return detail
 	}
 	if IsLeonardoPoolGenerationFailed(raw) {
 		if preferChinese {

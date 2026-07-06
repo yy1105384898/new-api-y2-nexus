@@ -1,5 +1,7 @@
 package service
 
+// 通用 R2 图片转存执行（上传/下载）；转存策略见 relay/imagevendor。
+
 import (
 	"context"
 	"encoding/base64"
@@ -13,37 +15,8 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/imagevendor"
 )
-
-// ImageModelUsesURLRehost：上游回 url 时需转存 R2，避免暴露渠道地址。
-// - 4K 档位（别名后缀 -4k）
-// - Geek2API FLUX 系列（flux-pro-2 等，前缀 flux-）
-func ImageModelUsesURLRehost(originModel string) bool {
-	name := strings.ToLower(strings.TrimSpace(originModel))
-	return strings.HasSuffix(name, "-4k") || strings.HasPrefix(name, "flux-")
-}
-
-// imageAsyncAcceptsGulieStyleURL：cy-img1-/gulie- 及 public gpt-image-2 系列；上游回 url 时异步转存 R2。
-func imageAsyncAcceptsGulieStyleURL(originModel string) bool {
-	name := strings.ToLower(strings.TrimSpace(originModel))
-	if strings.HasPrefix(name, "cy-img1-") || strings.HasPrefix(name, "gulie-") {
-		return true
-	}
-	return name == "gpt-image-2" || strings.HasPrefix(name, "gpt-image-2-")
-}
-
-// ImageSyncPreferUpstreamB64JSON：同步生图对客户要 url 时，对内改请求上游 b64_json，避免 loopback URL 二次下载挂住。
-func ImageSyncPreferUpstreamB64JSON(originModel string) bool {
-	return imageAsyncAcceptsGulieStyleURL(originModel)
-}
-
-// ImageAsyncAcceptsUpstreamURL：同步/异步生图允许上游回 url（如 Gulie loopback、4K），转存 R2 后返回。
-func ImageAsyncAcceptsUpstreamURL(originModel string) bool {
-	if ImageModelUsesURLRehost(originModel) {
-		return true
-	}
-	return imageAsyncAcceptsGulieStyleURL(originModel)
-}
 
 // RewriteLoopbackUpstreamImageURL 将上游 loopback 图片地址（如 Gulie 127.0.0.1:3001）
 // 映射为渠道主机名 + 原端口，便于服务端下载。
@@ -112,7 +85,8 @@ func decodeImageB64Payload(b64 string) ([]byte, string, error) {
 }
 
 func syncImageNeedsRehost(originModel string, images []dto.ImageData, clientWantsURL bool) bool {
-	if !ImageAsyncAcceptsUpstreamURL(originModel) || len(images) == 0 {
+	policy := imagevendor.ResolveRehostPolicy(originModel)
+	if !policy.AcceptUpstreamURL || len(images) == 0 {
 		return false
 	}
 	if imageDataNeedsURLRehost(images) {
@@ -155,7 +129,7 @@ func RehostImageDataForClient(ctx context.Context, userID int, storeID, channelB
 		if strings.TrimSpace(item.Url) == "" {
 			continue
 		}
-		if !ImageAsyncAcceptsUpstreamURL(originModel) {
+		if !imagevendor.ResolveRehostPolicy(originModel).AcceptUpstreamURL {
 			continue
 		}
 		downloadURL := RewriteLoopbackUpstreamImageURL(channelBaseURL, item.Url)
@@ -201,4 +175,107 @@ func RehostSyncImageResponseBody(ctx context.Context, userID int, originModel, c
 	}
 	raw["data"] = dataJSON
 	return common.Marshal(raw)
+}
+
+// DecodeImageDataItem 解析 ImageData：b64_json、data URI（url 字段）或上游 http(s) url。
+// 有字节数据时返回 (data, mimeType, nil)；仅有 URL 时返回 (nil, url, nil)。
+func DecodeImageDataItem(item dto.ImageData) ([]byte, string, error) {
+	if item.B64Json != "" {
+		data, err := base64.StdEncoding.DecodeString(item.B64Json)
+		if err != nil {
+			return nil, "", err
+		}
+		return data, detectImageBytesMimeType(data), nil
+	}
+	if item.Url == "" {
+		return nil, "", fmt.Errorf("image item has no url or b64_json")
+	}
+	if strings.HasPrefix(item.Url, "data:") {
+		data, mime, err := decodeDataURI(item.Url)
+		if err != nil {
+			return nil, "", err
+		}
+		return data, mime, nil
+	}
+	return nil, item.Url, nil
+}
+
+func decodeDataURI(uri string) ([]byte, string, error) {
+	comma := strings.Index(uri, ",")
+	if comma < 0 {
+		return nil, "", fmt.Errorf("invalid data uri")
+	}
+	meta := uri[5:comma]
+	payload := uri[comma+1:]
+	mimeType := "image/png"
+	if semi := strings.Index(meta, ";"); semi > 0 {
+		mimeType = meta[:semi]
+	}
+	data, err := base64.StdEncoding.DecodeString(payload)
+	if err != nil {
+		return nil, "", err
+	}
+	if !strings.HasPrefix(mimeType, "image/") {
+		mimeType = detectImageBytesMimeType(data)
+	}
+	return data, mimeType, nil
+}
+
+func detectImageBytesMimeType(data []byte) string {
+	if len(data) == 0 {
+		return "image/png"
+	}
+	mimeType := http.DetectContentType(data)
+	if strings.HasPrefix(mimeType, "image/") {
+		return mimeType
+	}
+	return "image/png"
+}
+
+// RehostTaskImageResultURLs 异步 task 专用：转存后返回公网 URL 列表。
+// 支持 b64_json、data URI（url 字段）、上游 http(s) url（受 policy 约束）。
+func RehostTaskImageResultURLs(ctx context.Context, userID int, storeID, channelBaseURL, originModel string, images []dto.ImageData) ([]string, error) {
+	acceptUpstreamURL := imagevendor.ImageAsyncAcceptsUpstreamURL(originModel)
+	resultURLs := make([]string, 0, len(images))
+	storeID = strings.TrimSpace(storeID)
+	for index, item := range images {
+		data, mimeOrURL, err := DecodeImageDataItem(item)
+		if err != nil {
+			return nil, err
+		}
+		if len(data) > 0 {
+			if getR2Config() == nil {
+				return nil, fmt.Errorf("R2 not configured")
+			}
+			mimeType := mimeOrURL
+			if !strings.HasPrefix(mimeType, "image/") {
+				mimeType = "image/png"
+			}
+			uploaded, err := UploadGeneratedImageBytes(ctx, userID, storeID, index, data, mimeType)
+			if err != nil {
+				return nil, err
+			}
+			resultURLs = append(resultURLs, uploaded.PublicURL)
+			continue
+		}
+		if mimeOrURL != "" {
+			if acceptUpstreamURL {
+				if getR2Config() == nil {
+					return nil, fmt.Errorf("R2 not configured")
+				}
+				downloadURL := RewriteLoopbackUpstreamImageURL(channelBaseURL, mimeOrURL)
+				uploaded, err := UploadGeneratedImageFromURL(ctx, userID, storeID, index, downloadURL)
+				if err != nil {
+					return nil, fmt.Errorf("rehost upstream image url: %w", err)
+				}
+				resultURLs = append(resultURLs, uploaded.PublicURL)
+				continue
+			}
+			return nil, fmt.Errorf("upstream returned url without b64_json; use response_format=b64_json")
+		}
+	}
+	if len(resultURLs) == 0 {
+		return nil, fmt.Errorf("no image results from upstream")
+	}
+	return resultURLs, nil
 }

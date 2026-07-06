@@ -20,10 +20,10 @@ func TestIsChatImageModel(t *testing.T) {
 		model string
 		want  bool
 	}{
-		{"gemini-banana-pro-4k", true},
-		{"manju-gemini-banana-pro-4k", true},
+		{"manju-gemini-banana-pro-4k", false},
 		{"0lll0-gemini-3.1-flash-lite-image", true},
 		{"some-flash-image-model", true},
+		{"byte-gemini-banana-2.0", true},
 		{"gpt-image-2", false},
 		{"Gulie-gpt-image-2", false},
 	}
@@ -39,10 +39,10 @@ func TestConvertImageRequestForChatImageGeneration(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	info := &relaycommon.RelayInfo{
 		RelayMode:       relayconstant.RelayModeImagesGenerations,
-		OriginModelName: "gemini-banana-pro-4k",
+		OriginModelName: "0lll0-gemini-3.1-flash-lite-image",
 	}
 	request := dto.ImageRequest{
-		Model:   "gemini-banana-pro-4k",
+		Model:   "0lll0-gemini-3.1-flash-lite-image",
 		Prompt:  "a cat on windowsill",
 		Size:    "16:9",
 		Quality: "high",
@@ -84,10 +84,10 @@ func TestConvertImageRequestForChatImageWithReferences(t *testing.T) {
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	info := &relaycommon.RelayInfo{
 		RelayMode:       relayconstant.RelayModeImagesGenerations,
-		OriginModelName: "gemini-banana-pro-4k",
+		OriginModelName: "0lll0-gemini-3.1-flash-lite-image",
 	}
 	request := dto.ImageRequest{
-		Model:  "gemini-banana-pro-4k",
+		Model:  "0lll0-gemini-3.1-flash-lite-image",
 		Prompt: "edit this",
 		Image:  json.RawMessage(`"https://example.com/ref.png"`),
 	}

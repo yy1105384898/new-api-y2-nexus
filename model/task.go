@@ -82,6 +82,7 @@ type Properties struct {
 	Input             string `json:"input"`
 	UpstreamModelName string `json:"upstream_model_name,omitempty"`
 	OriginModelName   string `json:"origin_model_name,omitempty"`
+	ClientModelName   string `json:"client_model_name,omitempty"`
 	TaskKind          string `json:"task_kind,omitempty"`
 }
 
@@ -203,6 +204,9 @@ func InitTask(platform constant.TaskPlatform, relayInfo *commonRelay.RelayInfo) 
 	}
 	if relayInfo.OriginModelName != "" {
 		properties.OriginModelName = relayInfo.OriginModelName
+	}
+	if relayInfo.ClientModelName != "" {
+		properties.ClientModelName = relayInfo.ClientModelName
 	}
 
 	// 使用预生成的公开 ID（如果有），否则新生成
@@ -725,6 +729,8 @@ func StripFinishedTaskRequestSnapshots(ctx context.Context, maxUpdates int) (int
 	return updated, nil
 }
 
+// ToOpenAIVideo 构建 Video DTO；Model 为 internal 名。
+// 对外响应请 marshal 后使用 service.PatchClientFacingModelJSONFromTask。
 func (t *Task) ToOpenAIVideo() *dto.OpenAIVideo {
 	openAIVideo := dto.NewOpenAIVideo()
 	openAIVideo.ID = t.TaskID
@@ -737,6 +743,8 @@ func (t *Task) ToOpenAIVideo() *dto.OpenAIVideo {
 	return openAIVideo
 }
 
+// ToOpenAIImageJob 构建 Image Job DTO；Model 为 internal 名。
+// 对外响应请 marshal 后使用 service.PatchClientFacingModelJSONFromTask。
 func (t *Task) ToOpenAIImageJob(object string) *dto.OpenAIImageJob {
 	job := dto.NewOpenAIImageJob(object)
 	job.ID = t.TaskID

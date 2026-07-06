@@ -10,8 +10,8 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
-	"github.com/QuantumNous/new-api/relay"
 	openai "github.com/QuantumNous/new-api/relay/channel/openai"
+	"github.com/QuantumNous/new-api/relay/image"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
@@ -20,7 +20,7 @@ import (
 )
 
 func RelayOpenAIImageGenerations(c *gin.Context) {
-	if relay.IsAsyncImageRequest(c) {
+	if image.IsAsyncRequest(c) {
 		RelayImageTaskSubmit(c)
 		return
 	}
@@ -28,7 +28,7 @@ func RelayOpenAIImageGenerations(c *gin.Context) {
 }
 
 func RelayOpenAIImageEdits(c *gin.Context) {
-	if relay.IsAsyncImageRequest(c) {
+	if image.IsAsyncRequest(c) {
 		RelayImageTaskSubmit(c)
 		return
 	}
@@ -58,7 +58,7 @@ func RelayImageTaskFetch(c *gin.Context) {
 		})
 		return
 	}
-	if taskErr := relay.RelayImageTaskFetch(c, relayInfo.RelayMode); taskErr != nil {
+	if taskErr := image.FetchTask(c, relayInfo.RelayMode); taskErr != nil {
 		respondTaskError(c, taskErr)
 	}
 }
@@ -210,8 +210,11 @@ func RelayImageTaskSubmit(c *gin.Context) {
 			break
 		}
 
-		relay.EnqueueImageAsyncTask(task.TaskID)
-		job := task.ToOpenAIImageJob(relay.ImageJobObjectForPathExported(requestPath))
+		image.EnqueueTask(task.TaskID)
+		job := task.ToOpenAIImageJob(image.JobObjectForPath(requestPath))
+		if public := service.ClientFacingModelFromTask(task); public != "" {
+			job.Model = public
+		}
 		c.JSON(http.StatusOK, job)
 		return
 	}
@@ -223,7 +226,7 @@ func RelayImageTaskSubmit(c *gin.Context) {
 
 func snapshotAsyncImageRequest(c *gin.Context, relayMode int) ([]byte, string, error) {
 	if relayMode == relayconstant.RelayModeImagesEdits {
-		body, err := relay.SnapshotAsyncImageEditRequest(c)
+		body, err := image.SnapshotEditRequest(c)
 		return body, "/v1/images/edits", err
 	}
 	if relayMode == relayconstant.RelayModeChatCompletions {
