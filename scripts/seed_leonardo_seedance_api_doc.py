@@ -25,7 +25,7 @@ MODEL_DESCRIPTIONS = {
 }
 
 ENDPOINTS = [
-    {"method": "POST", "path": "{{base}}/videos", "description": "创建视频任务（application/json）。"},
+    {"method": "POST", "path": "{{base}}/videos", "description": "创建视频任务（application/json 或 multipart/form-data）。"},
     {"method": "GET", "path": "{{base}}/videos/{task_id}", "description": "查询任务状态与结果。"},
     {"method": "GET", "path": "{{base}}/videos/{task_id}/content", "description": "下载成片（亦可直接使用响应中的 video_url）。"},
 ]
@@ -39,11 +39,11 @@ PARAMS = [
     {"name": "audio", "description": "是否生成原生音频，默认 true。"},
     {
         "name": "image_url",
-        "description": "主参考图 HTTPS 公网直链。单图生视频或多模态第 1 张。不支持 base64。",
+        "description": "主参考图：公网 HTTPS 直链或 data:image/...;base64,...。单图生视频或多模态第 1 张。",
     },
     {
         "name": "reference_image_urls",
-        "description": "多模态额外参考图 HTTPS 直链数组（与 image_url 合计最多 4 张）。不支持 base64。",
+        "description": "多模态额外参考图（HTTPS 直链或 data URI，与 image_url 合计最多 4 张）。",
     },
     {
         "name": "reference_videos",
@@ -53,8 +53,9 @@ PARAMS = [
         "name": "reference_audios",
         "description": "参考音频 HTTPS 直链数组（≤1，≤15 秒）。",
     },
-    {"name": "first_image_url", "description": "首尾帧：首帧 HTTPS 直链（须与 last_image_url 成对，与多模态互斥）。"},
-    {"name": "last_image_url", "description": "首尾帧：尾帧 HTTPS 直链（须与 first_image_url 成对）。"},
+    {"name": "first_image_url", "description": "首尾帧：首帧（HTTPS 直链或 data URI；须与 last_image_url 成对，与多模态互斥）。"},
+    {"name": "last_image_url", "description": "首尾帧：尾帧（HTTPS 直链或 data URI；须与 first_image_url 成对）。"},
+    {"name": "image", "description": "multipart 单图上传（-F image=@photo.jpg）；多图请用 JSON 数组。"},
 ]
 
 GENERATION_MODES = [
@@ -120,8 +121,8 @@ def model_intro(price: float) -> str:
         "限制\n"
         "多模态：参考图≤4、参考视频≤3（单条 4–15 秒，总时长 ≤15 秒）、参考音频≤1（≤15 秒）。\n"
         "参考素材\n"
-        "一律传 HTTPS 公网直链：image_url、reference_image_urls、reference_videos、reference_audios、首尾帧字段均为 URL 字符串。\n"
-        "不支持 base64 / data URL。素材 URL 须公网可达。\n"
+        "参考图支持三种方式：HTTPS 公网直链、data:image Base64、multipart 字段 image。\n"
+        "参考视频/音频仍须传 HTTPS 公网直链（reference_videos、reference_audios）。\n"
         "参考视频分辨率：每边 720–2160 px。\n"
         "多模态与首尾帧互斥。\n\n"
         "常见错误码\n"

@@ -90,7 +90,9 @@ func collectManjuBananaReferenceImages(c *gin.Context, request dto.ImageRequest)
 	images = append(images, parseJSONStringList(request.Image)...)
 	images = append(images, parseJSONStringList(request.Images)...)
 
-	if c != nil && c.Request != nil {
+	// JSON 文生图/图生图（image/images 在 body 里）无需解析 multipart；强行 ParseMultipartFormReusable 会在
+	// Content-Type: application/json 时触发 "multipart boundary not found"。
+	if c != nil && c.Request != nil && !isJSONRequest(c) {
 		mf := c.Request.MultipartForm
 		if mf == nil {
 			mf, err = common.ParseMultipartFormReusable(c)
