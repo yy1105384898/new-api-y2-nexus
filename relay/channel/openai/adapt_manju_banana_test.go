@@ -10,7 +10,35 @@ import (
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/gin-gonic/gin"
 )
+
+func TestBuildManjuBananaImageBodyJSONRequestSkipsMultipartParse(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(
+		`{"model":"gemini-banana-pro-4k","prompt":"test","size":"1:1","quality":"high","n":1,"stream":false}`,
+	))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	n := uint(1)
+	body, err := buildManjuBananaImageBody(c, "manju-gemini-banana-pro-4k", dto.ImageRequest{
+		Model:   "gemini-banana-pro-4k",
+		Prompt:  "test",
+		Size:    "1:1",
+		Quality: "high",
+		N:       &n,
+	})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if body["aspect_ratio"] != "1:1" {
+		t.Fatalf("aspect_ratio = %v", body["aspect_ratio"])
+	}
+	if body["output_resolution"] != "4K" {
+		t.Fatalf("output_resolution = %v", body["output_resolution"])
+	}
+}
 
 func TestBuildManjuBananaImageGenerationBody(t *testing.T) {
 	n := uint(1)
