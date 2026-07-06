@@ -2,20 +2,74 @@ package openai
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/dto"
 )
 
-func TestIsManjuBananaOriginModel(t *testing.T) {
-	if !IsManjuBananaOriginModel("manju-gemini-banana-2.0-1/2k") {
-		t.Fatal("expected manju model")
+func TestBuildManjuBananaImageGenerationBody(t *testing.T) {
+	n := uint(1)
+	body := BuildManjuBananaImageGenerationBody("manju-gemini-banana-pro-4k", dto.ImageRequest{
+		Model:   "gemini-3.0-pro-image 4K",
+		Prompt:  "a red apple",
+		Size:    "1024x1024",
+		Quality: "low",
+		N:       &n,
+	})
+	if body["model"] != "gemini-3.0-pro-image 4K" {
+		t.Fatalf("model = %v", body["model"])
 	}
-	if IsManjuBananaOriginModel("byte-gemini-banana-2.0") {
-		t.Fatal("byte model should not match")
+	if body["aspect_ratio"] != "1:1" {
+		t.Fatalf("aspect_ratio = %v", body["aspect_ratio"])
+	}
+	if body["output_resolution"] != "4K" {
+		t.Fatalf("output_resolution = %v", body["output_resolution"])
+	}
+	if body["stream"] != false {
+		t.Fatalf("stream = %v", body["stream"])
+	}
+}
+
+func TestBuildManjuBananaImageGenerationBodyWithReferenceImage(t *testing.T) {
+	body := BuildManjuBananaImageGenerationBody("manju-gemini-banana-pro-1/2k", dto.ImageRequest{
+		Model:  "gemini-3.0-pro-image",
+		Prompt: "edit style",
+		Image:  json.RawMessage(`"https://example.com/ref.png"`),
+		Size:   "16:9",
+	})
+	if body["image"] != "https://example.com/ref.png" {
+		t.Fatalf("image = %v", body["image"])
+	}
+	if body["aspect_ratio"] != "16:9" {
+		t.Fatalf("aspect_ratio = %v", body["aspect_ratio"])
+	}
+}
+
+func TestBuildManjuBananaImageGenerationBodyWithMultipleImages(t *testing.T) {
+	body := BuildManjuBananaImageGenerationBody("manju-gemini-banana-2.0-1/2k", dto.ImageRequest{
+		Model:  "Nano Banana 2",
+		Prompt: "combine",
+		Images: json.RawMessage(`["https://example.com/a.png","https://example.com/b.png"]`),
+	})
+	images, ok := body["images"].([]string)
+	if !ok || len(images) != 2 {
+		t.Fatalf("images = %v", body["images"])
+	}
+}
+
+func TestResolveManjuBananaOutputResolutionDefault1K(t *testing.T) {
+	for _, model := range []string{
+		"manju-gemini-banana-pro-1/2k",
+		"manju-gemini-banana-2.0-1/2k",
+	} {
+		if got := resolveManjuBananaOutputResolution(model, ""); got != "1K" {
+			t.Fatalf("%s: output_resolution = %q, want 1K", model, got)
+		}
 	}
 }
 

@@ -24,7 +24,8 @@ service/       — Business logic
 model/         — Data models and DB access (GORM)
 relay/         — AI API relay/proxy with provider adapters
   relay/channel/ — Provider-specific adapters (openai/, claude/, gemini/, aws/, etc.)
-  relay/helper/vendorpatch/ — Vendor-specific request patches (same protocol, per-model-prefix tweaks)
+  relay/image/           — Sync/async image relay (Helper, worker, fetch)
+  relay/imagevendor/     — Image vendor registry (match + rehost policy + request patch per vendor)
 middleware/    — Auth, rate limiting, CORS, logging, distribution
 setting/       — Configuration management (ratio, model, operation, system, performance)
 common/        — Shared utilities (JSON, crypto, Redis, env, rate-limit, etc.)
@@ -107,19 +108,66 @@ When implementing a new channel:
 - Confirm whether the provider supports `StreamOptions`.
 - If supported, add the channel to `streamSupportedChannels`.
 
-### Rule 4b: Vendor request patches (`relay/helper/vendorpatch/`)
+### Rule 4b: Image vendor registry (`relay/imagevendor/`)
 
-Use this layer when a **DB channel** shares an existing protocol adaptor (e.g. OpenAI image) but needs **code** to adjust the outbound request or consume-log metadata. Do **not** add a new `relay/channel/<vendor>/` package unless the upstream protocol differs.
+**One file per vendor family** (`vendor_<name>.go`). Register in `init()` via internal `register()`. Order matters: more specific rules first (e.g. Gulie before large-url `-4k` suffix).
+
+Each [`Descriptor`](relay/imagevendor/descriptor.go) defines:
+
+| Field | Purpose |
+|-------|---------|
+| `Name` | Debug / documentation identifier |
+| `Match(originModel)` | Model prefix/suffix identity |
+| `Rehost` | R2 rehost policy (`AcceptUpstreamURL`, `PreferUpstreamB64JSON`, `AsyncPreferURLResponse`) |
+| `PatchRequest` | Optional: mutate `dto.ImageRequest` before upstream (strip fields, resize, prompt hints); may no-op inside for subset of matches |
+
+**When to use what:**
 
 | Tool | Use when |
 |------|----------|
 | Channel `param_override` | Config-only JSON/header tweaks |
-| `vendorpatch` | Size clamp, prompt injection, strip fields, log-size overrides |
-| `relay/channel/` | New upstream API shape |
+| `imagevendor` `PatchRequest` | Code: size clamp, strip fields, prompt injection, consume-log metadata |
+| `imagevendor` `Rehost` | Upstream returns url/b64; async `response_format` choice |
+| `relay/channel/openai/` | New upstream API shape (e.g. Manju Image API body) |
 
-**Image patches:** implement `ImagePatcher` in `vendorpatch/image_<vendor>.go`, register in `init()` via `registerImagePatcher`, match on internal model prefix (e.g. `kedaya-`). Handlers call `vendorpatch.ApplyImage(originModel, request)` after `ModelMappedHelper`, before `ConvertImageRequest`.
+**Handler order:** `ModelMappedHelper` → `imagevendor.ApplyRequestPatch` → `image.Helper` / async worker → adaptor `ConvertImageRequest` → `param_override` → upstream.
 
-**Order:** `ModelMappedHelper` → `vendorpatch` → adaptor convert → `param_override` → upstream.
+**Adding a new image vendor (checklist):**
+
+1. Add `relay/imagevendor/vendor_<name>.go` with `Match`, `Rehost` (if needed), `PatchRequest` (if needed).
+2. If upstream API shape differs, extend `relay/channel/openai/` (`adapt_*.go`, `ConvertImageRequest`).
+3. Do not duplicate prefix logic elsewhere; `service/image_r2_rehost.go` is generic R2 upload only.
+
+**Lookup API:** `ApplyRequestPatch`, `ResolveRehostPolicy`, `ImageAsyncAcceptsUpstreamURL`, `ImageSyncPreferUpstreamB64JSON`, `ImageModelUsesURLRehost`.
+
+### Rule 4c: Image model routing & R2 execution
+
+**Routing priority** (`ConvertImageRequest` in `relay/channel/openai/adaptor.go`; request patch runs in `image.Helper` via `ApplyRequestPatch`):
+
+| Priority | Condition | Entry | Upstream |
+|----------|-----------|-------|----------|
+| 1 | `imagevendor.IsManjuBananaOriginModel` | `BuildManjuBananaImageGenerationBody` | `POST /v1/images/generations` |
+| 2 | `IsChatImageModel` | `ConvertImageRequestForChatImage` | `POST /v1/chat/completions` |
+| 3 | Default | Standard `ImageRequest` | Per `RelayMode` |
+
+**R2 rehost layers:**
+
+| Concern | Location |
+|---------|----------|
+| Vendor match + rehost policy | `relay/imagevendor/` |
+| Sync/async upload execution | `service/image_r2_rehost.go` |
+| Client-facing task `model` field | `service/client_facing_model.go` (`PatchClientFacingModelJSONFromTask`) |
+
+**Model naming contract (public / internal):**
+
+| Boundary | Location | Responsibility |
+|----------|----------|----------------|
+| **Entry** | `middleware.PublicModelName()` | Sole inbound translator: public → internal; sets `ContextKeyClientModelName` |
+| **Interior** | relay / service / `imagevendor` | `OriginModelName` only — never match public names in vendor or adaptor code |
+| **Exit** | `service.PatchClientFacingModelJSON` / `PatchClientFacingModelStreamChunk` | Sole outbound translators for response `model` fields |
+| **Async** | `task.Properties.ClientModelName` | Persist at submit; fetch uses `ClientFacingModelFromTask` |
+
+Do not duplicate model-prefix checks, `ResolveInternalModelName`, or upload logic in relay handlers; extend `imagevendor`, `service/client_facing_model.go`, and `service/image_r2_rehost` instead.
 
 ### Rule 5: Protected Project Information — DO NOT Modify or Delete
 

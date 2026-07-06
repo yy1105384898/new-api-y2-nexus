@@ -1,4 +1,4 @@
-package vendorpatch
+package imagevendor
 
 import (
 	"fmt"
@@ -17,29 +17,35 @@ const (
 
 var kedayaSizePattern = regexp.MustCompile(`(?i)^(\d+)x(\d+)$`)
 
-type kedayaImagePatcher struct{}
-
-func (kedayaImagePatcher) Match(originModel string) bool {
-	return matchModelPrefix(originModel, "kedaya-")
+func init() {
+	register(Descriptor{
+		Name:         "kedaya",
+		Match:        matchKedayaModel,
+		PatchRequest: patchKedayaImageRequest,
+	})
 }
 
-func (kedayaImagePatcher) Apply(request *dto.ImageRequest) (ImageTransformResult, error) {
+func matchKedayaModel(originModel string) bool {
+	return strings.HasPrefix(normalizeOriginModel(originModel), "kedaya-")
+}
+
+func patchKedayaImageRequest(_ string, request *dto.ImageRequest) (RequestPatchResult, error) {
 	if request == nil {
-		return ImageTransformResult{}, fmt.Errorf("kedaya image patch: request is nil")
+		return RequestPatchResult{}, fmt.Errorf("kedaya image patch: request is nil")
 	}
 
 	stripKedayaUnsupportedFields(request)
 
 	originalSize := strings.TrimSpace(request.Size)
-	result := ImageTransformResult{SuppressQualityLog: true}
+	result := RequestPatchResult{SuppressQualityLog: true}
 	if originalSize == "" || strings.EqualFold(originalSize, "auto") {
 		request.Size = ""
 		return result, nil
 	}
 
-	width, height, ok := parsePixelSize(originalSize)
+	width, height, ok := parseKedayaPixelSize(originalSize)
 	if !ok {
-		return ImageTransformResult{}, fmt.Errorf("kedaya image patch: invalid size %q", originalSize)
+		return RequestPatchResult{}, fmt.Errorf("kedaya image patch: invalid size %q", originalSize)
 	}
 
 	upstreamWidth, upstreamHeight := mapKedayaUpstreamSize(width, height)
@@ -47,10 +53,6 @@ func (kedayaImagePatcher) Apply(request *dto.ImageRequest) (ImageTransformResult
 	request.Prompt = appendKedayaSizeHint(request.Prompt, width, height)
 	result.LogSize = originalSize
 	return result, nil
-}
-
-func init() {
-	registerImagePatcher(kedayaImagePatcher{})
 }
 
 func stripKedayaUnsupportedFields(request *dto.ImageRequest) {
@@ -61,20 +63,20 @@ func stripKedayaUnsupportedFields(request *dto.ImageRequest) {
 	request.OutputCompression = nil
 }
 
-func parsePixelSize(size string) (width, height int, ok bool) {
+func parseKedayaPixelSize(size string) (width, height int, ok bool) {
 	match := kedayaSizePattern.FindStringSubmatch(strings.TrimSpace(size))
 	if match == nil {
 		return 0, 0, false
 	}
-	width, errW := parsePositiveInt(match[1])
-	height, errH := parsePositiveInt(match[2])
+	width, errW := parseKedayaPositiveInt(match[1])
+	height, errH := parseKedayaPositiveInt(match[2])
 	if errW != nil || errH != nil {
 		return 0, 0, false
 	}
 	return width, height, true
 }
 
-func parsePositiveInt(raw string) (int, error) {
+func parseKedayaPositiveInt(raw string) (int, error) {
 	parsed, err := strconv.Atoi(raw)
 	if err != nil || parsed <= 0 {
 		return 0, fmt.Errorf("invalid integer %q", raw)

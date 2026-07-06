@@ -173,6 +173,24 @@ func TestNormalizeClientErrorMessageUnified(t *testing.T) {
 			raw:  "All cookies failed.",
 			want: GenerationFailedMessageEN,
 		},
+		{
+			name: "leonardo_upstream_no_detail_zh",
+			raw:  "leonardo: video generation failed (FAILED, upstream returned no detail; try fewer references or a simpler prompt)",
+			preferChinese: true,
+			want: GenerationFailedNoDetailZH,
+		},
+		{
+			name: "leonardo_upstream_detail_passthrough_zh",
+			raw:  "leonardo: video generation failed (FAILED): Unsafe content detected",
+			preferChinese: true,
+			want: "Unsafe content detected",
+		},
+		{
+			name: "leonardo_upstream_detail_moderation_zh",
+			raw:  "leonardo: video generation failed (FAILED): rejected by content moderation",
+			preferChinese: true,
+			want: ContentPolicyMessageZH,
+		},
 	}
 
 	for _, tc := range cases {

@@ -1,4 +1,4 @@
-package relay
+package image
 
 import (
 	"bytes"
@@ -19,7 +19,7 @@ var imageFetchRespBuilders = map[int]func(c *gin.Context) (respBody []byte, task
 	relayconstant.RelayModeImageEditsFetchByID: imageFetchByIDRespBodyBuilder,
 }
 
-func RelayImageTaskFetch(c *gin.Context, relayMode int) *dto.TaskError {
+func FetchTask(c *gin.Context, relayMode int) *dto.TaskError {
 	builder, ok := imageFetchRespBuilders[relayMode]
 	if !ok {
 		return service.TaskErrorWrapperLocal(errors.New("invalid_relay_mode"), "invalid_relay_mode", http.StatusBadRequest)
@@ -54,10 +54,15 @@ func imageFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 		taskResp = service.TaskErrorWrapperLocal(errors.New("task_not_exist"), "task_not_exist", http.StatusBadRequest)
 		return
 	}
-	object := imageJobObjectForPath(c.Request.URL.Path)
+	object := JobObjectForPath(c.Request.URL.Path)
 	job := originTask.ToOpenAIImageJob(object)
 	service.NormalizeOpenAIImageJobError(c, job)
 	respBody, err = common.Marshal(job)
+	if err != nil {
+		taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
+		return
+	}
+	respBody, err = service.PatchClientFacingModelJSONFromTask(originTask, respBody)
 	if err != nil {
 		taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
 	}
