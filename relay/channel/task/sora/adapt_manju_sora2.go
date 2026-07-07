@@ -199,7 +199,13 @@ func extractManjuSoraFailReason(respBody []byte) string {
 	if len(respBody) == 0 {
 		return ""
 	}
-	for _, path := range []string{"fail_reason", "data.fail_reason", "message"} {
+	for _, path := range []string{
+		"fail_reason",
+		"data.fail_reason",
+		"message",
+		"error.message",
+		"data.message",
+	} {
 		raw := strings.TrimSpace(gjson.GetBytes(respBody, path).String())
 		if raw == "" || raw == "[object Object]" {
 			continue
@@ -207,6 +213,24 @@ func extractManjuSoraFailReason(respBody []byte) string {
 		return raw
 	}
 	return extractErrorMessage(respBody)
+}
+
+func isManjuSoraFailedStatus(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "failed", "failure", "error", "cancelled", "canceled":
+		return true
+	default:
+		return false
+	}
+}
+
+func isGenericTaskFailureReason(reason string) bool {
+	switch strings.ToLower(strings.TrimSpace(reason)) {
+	case "task failed", "upstream returned empty status", "upstream returned unrecognized message":
+		return true
+	default:
+		return false
+	}
 }
 
 // IsManjuSora2Response 检测 Manju sora2 轮询/创建响应（platform=sora2 或 id 前缀 sora2-）。
@@ -240,8 +264,9 @@ func enrichManjuSoraTaskResult(taskResult *relaycommon.TaskInfo, respBody []byte
 			taskResult.TotalTokens = sec
 		}
 	}
-	if taskResult.Status == model.TaskStatusFailure && taskResult.Reason == "" {
-		if reason := extractManjuSoraFailReason(respBody); reason != "" {
+	if taskResult.Status == model.TaskStatusFailure {
+		if reason := extractManjuSoraFailReason(respBody); reason != "" &&
+			(taskResult.Reason == "" || isGenericTaskFailureReason(taskResult.Reason)) {
 			taskResult.Reason = reason
 		}
 	}
@@ -301,7 +326,7 @@ func manjuSoraResponseTaskFromGJSON(respBody []byte) responseTask {
 	return res
 }
 
-func buildOpenAIVideoCreateResponse(info *relaycommon.RelayInfo, res responseTask) map[string]any {
+func buildOpenAIVideoCreateResponse(info *relaycommon.RelayInfo, res responseTask, respBody []byte) map[string]any {
 	out := map[string]any{
 		"id":     info.PublicTaskID,
 		"object": "video",
@@ -317,6 +342,12 @@ func buildOpenAIVideoCreateResponse(info *relaycommon.RelayInfo, res responseTas
 	if res.Size != "" {
 		out["size"] = res.Size
 	}
+	if isManjuSoraFailedStatus(res.Status) {
+		if reason := extractManjuSoraFailReason(respBody); reason != "" {
+			out["error"] = map[string]any{"message": reason}
+			out["fail_reason"] = reason
+		}
+	}
 	return out
 }
 
@@ -328,7 +359,42 @@ func normalizeManjuSoraStatusForClient(status string) string {
 		return "completed"
 	case "queued", "pending":
 		return "queued"
+	case "failed", "failure", "error", "cancelled", "canceled":
+		return "failed"
 	default:
 		return strings.TrimSpace(status)
 	}
+}
+
+// BuildManjuSoraOpenAIErrorResponse 将 Manju 失败 task 转为 OpenAI error JSON，供 chat/completions 客户端识别。
+func BuildManjuSoraOpenAIErrorResponse(respBody []byte) ([]byte, bool) {
+	if len(respBody) == 0 || !IsManjuSora2Response(respBody) {
+		return nil, false
+	}
+	status := strings.TrimSpace(gjson.GetBytes(respBody, "status").String())
+	if !isManjuSoraFailedStatus(status) {
+		return nil, false
+	}
+	reason := extractManjuSoraFailReason(respBody)
+	if reason == "" {
+		reason = "task failed"
+	}
+	out, err := common.Marshal(map[string]any{
+		"error": map[string]any{
+			"message": reason,
+			"type":    "upstream_error",
+		},
+	})
+	if err != nil {
+		return nil, false
+	}
+	return out, true
+}
+
+// ExtractManjuSoraFailReasonForChat 提取非 task 形态的上游错误（如创建阶段仅返回 message）。
+func ExtractManjuSoraFailReasonForChat(respBody []byte) string {
+	if len(respBody) == 0 || IsManjuSora2Response(respBody) {
+		return ""
+	}
+	return extractManjuSoraFailReason(respBody)
 }

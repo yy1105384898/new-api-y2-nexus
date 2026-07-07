@@ -14,7 +14,7 @@ import time
 
 MODEL = "manju-openai-sora2"
 UPSTREAM = "sora2"
-PROFILE = "video-tpl-chat-no-params"
+PROFILE = "video-tpl-manju-sora-async"
 PRICE_PER_SECOND = 0.40
 
 ENDPOINTS = [

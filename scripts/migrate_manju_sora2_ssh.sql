@@ -32,7 +32,7 @@ FROM (VALUES
         'Manju OpenAI Sora2 视频生成。创建走 POST /v1/chat/completions（Apifox sora2）；GET /v1/videos/{task_id} 轮询取片。',
         'video,sora,manju,video-sora',
         '{"openai-chat-video": {"path": "/v1/chat/completions", "method": "POST"}, "openai-video": {"path": "/v1/videos", "method": "GET"}}',
-        'video-tpl-chat-no-params'
+        'video-tpl-manju-sora-async'
     )
 ) AS v(model_name, description, tags, endpoints, video_profile_id)
 WHERE NOT EXISTS (
@@ -53,7 +53,7 @@ FROM (VALUES
         'Manju OpenAI Sora2 视频生成。创建走 POST /v1/chat/completions（Apifox sora2）；GET /v1/videos/{task_id} 轮询取片。',
         'video,sora,manju,video-sora',
         '{"openai-chat-video": {"path": "/v1/chat/completions", "method": "POST"}, "openai-video": {"path": "/v1/videos", "method": "GET"}}',
-        'video-tpl-chat-no-params'
+        'video-tpl-manju-sora-async'
     )
 ) AS v(model_name, description, tags, endpoints, video_profile_id)
 WHERE m.model_name = v.model_name AND m.deleted_at IS NULL;

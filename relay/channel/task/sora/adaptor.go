@@ -300,12 +300,16 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 		upstreamID = dResp.TaskID
 	}
 	if upstreamID == "" {
+		if reason := extractManjuSoraFailReason(responseBody); reason != "" {
+			taskErr = service.TaskErrorWrapperLocal(fmt.Errorf("%s", reason), "upstream_error", http.StatusBadRequest)
+			return
+		}
 		taskErr = service.TaskErrorWrapper(fmt.Errorf("task_id is empty"), "invalid_response", http.StatusInternalServerError)
 		return
 	}
 
 	if IsManjuSora2Response(responseBody) {
-		c.JSON(http.StatusOK, buildOpenAIVideoCreateResponse(info, dResp))
+		c.JSON(http.StatusOK, buildOpenAIVideoCreateResponse(info, dResp, responseBody))
 		return upstreamID, responseBody, nil
 	}
 
@@ -375,17 +379,30 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 			taskResult.CompletionTokens = seconds
 			taskResult.TotalTokens = seconds
 		}
-	case "failed", "cancelled", "canceled", "error":
+	case "failed", "failure", "cancelled", "canceled", "error":
 		taskResult.Status = model.TaskStatusFailure
 		taskResult.Progress = "100%"
 		if msg, _ := parseErrorField(resTask.Error); msg != "" {
 			taskResult.Reason = msg
+		} else if reason := extractManjuSoraFailReason(respBody); reason != "" {
+			taskResult.Reason = reason
 		} else if reason := extractErrorMessage(respBody); reason != "" {
 			taskResult.Reason = reason
 		} else {
 			taskResult.Reason = "task failed"
 		}
 	default:
+		if IsManjuSora2Response(respBody) {
+			status := strings.ToLower(strings.TrimSpace(gjson.GetBytes(respBody, "status").String()))
+			if status == "" || isManjuSoraFailedStatus(status) {
+				if reason := extractManjuSoraFailReason(respBody); reason != "" {
+					taskResult.Status = model.TaskStatusFailure
+					taskResult.Progress = "100%"
+					taskResult.Reason = reason
+					break
+				}
+			}
+		}
 		// Grok/119337 等内容审核失败：无 status，error 为字符串（见 api.119337.xyz 轮询响应）
 		if taskResult.Status == "" {
 			if reason := extractErrorMessage(respBody); reason != "" {
@@ -604,6 +621,11 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	if task.Status == model.TaskStatusFailure {
 		reason := task.FailReason
 		code := ""
+		if reason == "" || isGenericTaskFailureReason(reason) {
+			if extracted := extractManjuSoraFailReason(task.Data); extracted != "" {
+				reason = extracted
+			}
+		}
 		if reason == "" {
 			reason = extractErrorMessage(task.Data)
 		}
@@ -622,6 +644,11 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	if videoURL != "" {
 		if data, err = sjson.SetBytes(data, "video_url", videoURL); err != nil {
 			return nil, errors.Wrap(err, "set video_url failed")
+		}
+	}
+	if task.Status == model.TaskStatusFailure && openAIVideo.Error != nil && openAIVideo.Error.Message != "" {
+		if data, err = sjson.SetBytes(data, "fail_reason", openAIVideo.Error.Message); err != nil {
+			return nil, errors.Wrap(err, "set fail_reason failed")
 		}
 	}
 	return data, nil
