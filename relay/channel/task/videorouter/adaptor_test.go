@@ -1,4 +1,4 @@
-package openaivideo
+package videorouter
 
 import (
 	"testing"

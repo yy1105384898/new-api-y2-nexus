@@ -1,4 +1,4 @@
-package openaivideo
+package videorouter
 
 import (
 	"io"
@@ -38,8 +38,8 @@ type openAIVideoDelegate interface {
 
 // RouterAdaptor 按模型路由到独立适配器，避免 Sora / Manju / Seedance 互相污染。
 type RouterAdaptor struct {
-	sora    delegate
-	manju   delegate
+	sora     delegate
+	manju    delegate
 	seedance delegate
 }
 
