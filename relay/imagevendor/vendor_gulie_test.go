@@ -41,6 +41,28 @@ func TestPatchGulieImageRequestSkipsNonGulieInternal(t *testing.T) {
 	require.Equal(t, "high", request.Quality)
 }
 
+func TestPatchGulieImageRequestCyImg2TwoK(t *testing.T) {
+	request := &dto.ImageRequest{
+		Model:   "gpt-image-2",
+		Quality: "high",
+		Size:    "1:1",
+	}
+	result, err := patchGulieImageRequest("cy-img2-gpt-image-2-2k", request)
+	require.NoError(t, err)
+	require.True(t, result.SuppressQualityLog)
+	require.Empty(t, request.Quality)
+	require.NotNil(t, request.Stream)
+	require.False(t, *request.Stream)
+}
+
+func TestPatchGulieImageRequestSkipsCyImg2FourK(t *testing.T) {
+	request := &dto.ImageRequest{Quality: "high", Size: "3840x2160"}
+	result, err := patchGulieImageRequest("cy-img2-gpt-image-2-4k", request)
+	require.NoError(t, err)
+	require.False(t, result.SuppressQualityLog)
+	require.Equal(t, "high", request.Quality)
+}
+
 func TestPatchGulieImageRequestAutoSize(t *testing.T) {
 	request := &dto.ImageRequest{Size: "auto"}
 	_, err := patchGulieImageRequest("gulie-gpt-image-2", request)

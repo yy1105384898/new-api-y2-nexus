@@ -22,12 +22,15 @@ func init() {
 
 func matchGulieGPTImageModel(originModel string) bool {
 	name := normalizeOriginModel(originModel)
-	return strings.HasPrefix(name, "cy-img1-") || strings.HasPrefix(name, "gulie-")
+	if strings.HasPrefix(name, "cy-img1-") || strings.HasPrefix(name, "gulie-") {
+		return true
+	}
+	// cy-img2- 默认走 Geek2 4K；仅 2K 经济档挂在 Gulie 渠道 72
+	return name == "cy-img2-gpt-image-2-2k"
 }
 
 func patchGulieImageRequest(originModel string, request *dto.ImageRequest) (RequestPatchResult, error) {
-	name := normalizeOriginModel(originModel)
-	if !strings.HasPrefix(name, "cy-img1-") && !strings.HasPrefix(name, "gulie-") {
+	if !matchGulieGPTImageModel(originModel) {
 		return RequestPatchResult{}, nil
 	}
 	if request == nil {

@@ -19,6 +19,10 @@ func TestResolveRehostPolicyGulie(t *testing.T) {
 	if policy.AsyncPreferURLResponse {
 		t.Fatal("gulie should not prefer async url response")
 	}
+	policy2k := ResolveRehostPolicy("cy-img2-gpt-image-2-2k")
+	if !policy2k.AcceptUpstreamURL || !policy2k.PreferUpstreamB64JSON {
+		t.Fatalf("gulie 2k policy = %+v", policy2k)
+	}
 }
 
 func TestResolveRehostPolicy4K(t *testing.T) {

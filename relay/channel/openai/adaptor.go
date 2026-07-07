@@ -361,6 +361,10 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		}
 	}
 
+	if IsManjuSora2OriginModel(info.OriginModelName) {
+		return convertManjuSora2OpenAIChatRequest(request, info)
+	}
+
 	return request, nil
 }
 
