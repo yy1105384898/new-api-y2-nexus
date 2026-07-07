@@ -100,6 +100,93 @@
             ]
         },
         {
+            "id": "image-tpl-gulie-2k",
+            "api_mode": "images-json-async",
+            "match": [
+                "gpt-image-2-2k",
+                "cy-img2-gpt-image-2-2k"
+            ],
+            "params": {
+                "quality": {
+                    "enabled": false
+                },
+                "aspectRatio": {
+                    "enabled": true,
+                    "options": [
+                        {
+                            "value": "1:1",
+                            "label": "1:1",
+                            "size": "1024x1024",
+                            "width": 1024,
+                            "height": 1024,
+                            "icon": "square"
+                        },
+                        {
+                            "value": "3:2",
+                            "label": "3:2",
+                            "size": "1536x1024",
+                            "width": 1536,
+                            "height": 1024,
+                            "icon": "landscape"
+                        },
+                        {
+                            "value": "2:3",
+                            "label": "2:3",
+                            "size": "1024x1536",
+                            "width": 1024,
+                            "height": 1536,
+                            "icon": "portrait"
+                        },
+                        {
+                            "value": "auto",
+                            "label": "自动",
+                            "width": 0,
+                            "height": 0,
+                            "icon": "auto"
+                        }
+                    ]
+                },
+                "customDimensions": {
+                    "enabled": false
+                },
+                "count": {
+                    "enabled": true,
+                    "min": 1,
+                    "max": 10,
+                    "quickCount": 10
+                },
+                "background": {
+                    "enabled": false
+                },
+                "outputFormat": {
+                    "enabled": false
+                },
+                "outputCompression": {
+                    "enabled": false
+                },
+                "moderation": {
+                    "enabled": false
+                }
+            },
+            "hints": [
+                {
+                    "text": "Gulie 2K 线路：size 请传画幅比例（如 1:1、3:2），勿传像素字符串。"
+                },
+                {
+                    "text": "连接参考图后，在提示词中用 @图片1 说明要改动的素材；参考图须 multipart POST /images/edits。"
+                },
+                {
+                    "text": "画幅选「自动」时，有参考图会按参考图比例出图。"
+                },
+                {
+                    "text": "异步出图请传 async:true 且 stream:false，GET 轮询取 data.url。"
+                },
+                {
+                    "text": "并发生成可能触发上游限流，建议控制单次张数与并发。"
+                }
+            ]
+        },
+        {
             "id": "image-tpl-kedaya-1k",
             "api_mode": "images-json-async",
             "match": [
@@ -343,8 +430,7 @@
                 "gpt-image-2",
                 "gpt-image-1.5",
                 "gpt-image-1",
-                "gpt-image-2-1k",
-                "gpt-image-2-2k"
+                "gpt-image-2-1k"
             ],
             "params": {
                 "quality": {

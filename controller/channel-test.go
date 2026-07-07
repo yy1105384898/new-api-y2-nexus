@@ -43,6 +43,17 @@ type testResult struct {
 	newAPIError *types.NewAPIError
 }
 
+func isOpenAIImageGenerationTestModel(model string) bool {
+	lowered := strings.ToLower(strings.TrimSpace(model))
+	if lowered == "" {
+		return false
+	}
+	return strings.Contains(lowered, "gpt-image") ||
+		strings.Contains(lowered, "dall-e") ||
+		strings.Contains(lowered, "dalle") ||
+		strings.Contains(lowered, "flux-pro")
+}
+
 func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointType string) string {
 	normalized := strings.TrimSpace(endpointType)
 	if normalized != "" {
@@ -136,6 +147,11 @@ func testChannel(channel *model.Channel, testUserID int, testModel string, endpo
 
 		// VolcEngine 图像生成模型
 		if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
+			requestPath = "/v1/images/generations"
+		}
+
+		// OpenAI 兼容生图模型（gpt-image / dall-e / flux-pro 等）
+		if requestPath == "/v1/chat/completions" && isOpenAIImageGenerationTestModel(testModel) {
 			requestPath = "/v1/images/generations"
 		}
 
@@ -779,6 +795,22 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		return &dto.EmbeddingRequest{
 			Model: model,
 			Input: []any{"hello world"},
+		}
+	}
+
+	// OpenAI 兼容生图模型
+	if isOpenAIImageGenerationTestModel(model) {
+		size := "1024x1024"
+		if strings.Contains(strings.ToLower(model), "gulie") ||
+			strings.Contains(model, "cy-img1-") ||
+			strings.Contains(model, "cy-img2-gpt-image-2-2k") {
+			size = "1:1"
+		}
+		return &dto.ImageRequest{
+			Model:  model,
+			Prompt: "a cute cat",
+			N:      lo.ToPtr(uint(1)),
+			Size:   size,
 		}
 	}
 

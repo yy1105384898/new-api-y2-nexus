@@ -181,7 +181,7 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 	if hasInputReference {
 		action = constant.TaskActionGenerate
 	}
-	if strings.HasPrefix(model, "sora-2") {
+	if strings.HasPrefix(model, "sora-2") || model == "manju-openai-sora2" {
 
 		if size == "" {
 			size = "720x1280"
@@ -191,7 +191,7 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 			seconds = 4
 		}
 
-		if model == "sora-2" && !lo.Contains([]string{"720x1280", "1280x720"}, size) {
+		if (model == "sora-2" || model == "manju-openai-sora2") && !lo.Contains([]string{"720x1280", "1280x720", "1024x1024"}, size) {
 			return createTaskError(fmt.Errorf("sora-2 size is invalid"), "invalid_size", http.StatusBadRequest, true)
 		}
 		if model == "sora-2-pro" && !lo.Contains([]string{"720x1280", "1280x720", "1792x1024", "1024x1792"}, size) {

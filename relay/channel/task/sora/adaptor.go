@@ -148,6 +148,9 @@ func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, erro
 	if info.Action == constant.TaskActionRemix {
 		return fmt.Sprintf("%s/v1/videos/%s/remix", a.baseURL, info.OriginTaskID), nil
 	}
+	if IsManjuSora2Relay(info.OriginModelName, info.UpstreamModelName) {
+		return fmt.Sprintf("%s/v1/chat/completions", a.baseURL), nil
+	}
 	return fmt.Sprintf("%s/v1/videos", a.baseURL), nil
 }
 
@@ -179,6 +182,13 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 					return nil, convErr
 				}
 				bodyMap = converted
+			} else if IsManjuSora2Relay(info.OriginModelName, info.UpstreamModelName) {
+				converted, convErr := ConvertManjuSora2ChatBody(bodyMap, info.UpstreamModelName)
+				if convErr != nil {
+					return nil, convErr
+				}
+				bodyMap = converted
+				c.Request.Header.Set("Content-Type", "application/json")
 			}
 			if newBody, err := common.Marshal(bodyMap); err == nil {
 				return bytes.NewReader(newBody), nil
@@ -191,6 +201,29 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		formData, err := common.ParseMultipartFormReusable(c)
 		if err != nil {
 			return bytes.NewReader(cachedBody), nil
+		}
+		if IsManjuSora2Relay(info.OriginModelName, info.UpstreamModelName) {
+			bodyMap := map[string]interface{}{}
+			for key, values := range formData.Value {
+				if len(values) == 0 {
+					continue
+				}
+				if len(values) == 1 {
+					bodyMap[key] = values[0]
+				} else {
+					bodyMap[key] = values
+				}
+			}
+			converted, convErr := ConvertManjuSora2ChatBody(bodyMap, info.UpstreamModelName)
+			if convErr != nil {
+				return nil, convErr
+			}
+			newBody, err := common.Marshal(converted)
+			if err != nil {
+				return nil, err
+			}
+			c.Request.Header.Set("Content-Type", "application/json")
+			return bytes.NewReader(newBody), nil
 		}
 		var buf bytes.Buffer
 		writer := multipart.NewWriter(&buf)
@@ -255,9 +288,9 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	}
 	_ = resp.Body.Close()
 
-	// Parse Sora response
-	var dResp responseTask
-	if err := common.Unmarshal(responseBody, &dResp); err != nil {
+	// Parse Sora / Manju Sora2 response
+	dResp, err := parseResponseTask(responseBody)
+	if err != nil {
 		taskErr = service.TaskErrorWrapper(errors.Wrapf(err, "body: %s", responseBody), "unmarshal_response_body_failed", http.StatusInternalServerError)
 		return
 	}
@@ -269,6 +302,11 @@ func (a *TaskAdaptor) DoResponse(c *gin.Context, resp *http.Response, info *rela
 	if upstreamID == "" {
 		taskErr = service.TaskErrorWrapper(fmt.Errorf("task_id is empty"), "invalid_response", http.StatusInternalServerError)
 		return
+	}
+
+	if IsManjuSora2Response(responseBody) {
+		c.JSON(http.StatusOK, buildOpenAIVideoCreateResponse(info, dResp))
+		return upstreamID, responseBody, nil
 	}
 
 	// 使用公开 task_xxxx ID 返回给客户端
@@ -310,8 +348,8 @@ func (a *TaskAdaptor) GetChannelName() string {
 }
 
 func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
-	resTask := responseTask{}
-	if err := common.Unmarshal(respBody, &resTask); err != nil {
+	resTask, err := parseResponseTask(respBody)
+	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal task result failed")
 	}
 
@@ -360,6 +398,8 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 	if resTask.Progress > 0 && resTask.Progress < 100 {
 		taskResult.Progress = fmt.Sprintf("%d%%", resTask.Progress)
 	}
+
+	enrichManjuSoraTaskResult(&taskResult, respBody)
 
 	return &taskResult, nil
 }
@@ -422,6 +462,9 @@ func usageSecondsFromResponseTask(res responseTask) int {
 func usageSecondsFromTaskData(data []byte) int {
 	if len(data) == 0 {
 		return 0
+	}
+	if sec := usageSecondsFromManjuSoraBody(data); sec > 0 {
+		return sec
 	}
 	var res responseTask
 	if err := common.Unmarshal(data, &res); err == nil {
@@ -532,8 +575,8 @@ func extractErrorMessage(respBody []byte) string {
 }
 
 func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
-	var dResp responseTask
-	if err := common.Unmarshal(task.Data, &dResp); err != nil {
+	dResp, err := parseResponseTask(task.Data)
+	if err != nil {
 		return nil, errors.Wrap(err, "unmarshal task data failed")
 	}
 
@@ -550,7 +593,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 		openAIVideo.CompletedAt = dResp.CompletedAt
 	}
 
-	videoURL := extractVideoURL(dResp)
+	videoURL := extractVideoURLWithManjuFallback(dResp, task.Data)
 	if videoURL == "" {
 		videoURL = task.GetResultURL()
 	}
