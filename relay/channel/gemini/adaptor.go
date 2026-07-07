@@ -40,6 +40,9 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 			}
 		}
 	}
+	if isGeminiImageGenerationRequest(info, request) {
+		request.SafetySettings = buildGeminiSafetySettings()
+	}
 	return request, nil
 }
 
@@ -58,6 +61,9 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	if model_setting.IsGeminiModelSupportImagine(info.UpstreamModelName) {
+		return ConvertGeminiBananaImageRequest(c, request)
+	}
 	if !strings.HasPrefix(info.UpstreamModelName, "imagen") {
 		return nil, errors.New("not supported model for image generation, only imagen models are supported")
 	}
@@ -261,6 +267,15 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 
 	if strings.HasPrefix(info.UpstreamModelName, "imagen") {
 		return GeminiImageHandler(c, info, resp)
+	}
+
+	if info.RelayMode == constant.RelayModeImagesGenerations || info.RelayMode == constant.RelayModeImagesEdits {
+		if model_setting.IsGeminiModelSupportImagine(info.UpstreamModelName) {
+			if info.IsStream {
+				return nil, types.NewOpenAIError(fmt.Errorf("gemini generateContent image models do not support stream"), types.ErrorCodeInvalidRequest, http.StatusBadRequest)
+			}
+			return GeminiGenerateContentImageHandler(c, info, resp)
+		}
 	}
 
 	// check if the model is an embedding model

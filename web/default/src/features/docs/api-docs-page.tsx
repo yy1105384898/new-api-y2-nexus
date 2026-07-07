@@ -117,7 +117,7 @@ export function ApiDocsPage() {
       <DocsSection
         id='api-image-api'
         title='图像生成 API'
-        description='图像分两种出图模式：画布及多数模型为异步（async: true + 轮询）；部分模型为同步单次返回。各模型具体模式与参数见下方弹窗。'
+        description='统一入口 POST /v1/images/generations：文生图、图生图（JSON 传 image/images）与可选 async 均走同一路径；multipart 图生图可用 POST /v1/images/edits。各模型 sync/async 与参数见下方弹窗。'
       >
         <p className='text-muted-foreground text-sm'>{PRICING_NOTE}</p>
 
@@ -129,9 +129,10 @@ export function ApiDocsPage() {
         <DocsTable
           headers={['步骤', '方法', '说明']}
           rows={[
-            ['1. 提交任务', 'POST /v1/images/generations', 'JSON body 中 async: true'],
-            ['2. 轮询进度', 'GET /v1/images/generations/{task_id}', 'status: queued / in_progress / completed / failed'],
-            ['3. 取图', '响应 data[0].url', '或 GET /v1/images/{task_id}/content'],
+            ['1. 提交', 'POST /v1/images/generations', '文生图/图生图 JSON；图生图加 image 或 images；async: true 走异步'],
+            ['1b. 图生图 multipart', 'POST /v1/images/edits', '上传 image/mask 文件（与 JSON 图生图等价）'],
+            ['2. 轮询（仅 async）', 'GET /v1/images/generations/{task_id}', 'status: queued / in_progress / completed / failed'],
+            ['3. 取图', '响应 data[0].url', '同步直接返回；异步 completed 后取；或 GET /v1/images/{task_id}/content'],
           ]}
         />
 
@@ -139,24 +140,51 @@ export function ApiDocsPage() {
         <DocsTable
           headers={['模式', '适用', '说明']}
           rows={[
-            ['异步 async', '画布、多数图像模型', 'POST 带 async: true，再 GET 轮询 task_id'],
-            ['同步 sync', '部分轻量模型', '单次 POST 直接返回 data.url，勿传 async'],
+            ['同步 sync', 'Banana 等推荐', 'POST 勿传 async，stream: false，单次返回 data[].url'],
+            ['异步 async', '大图/批量/画布部分模型', 'POST 带 async: true，再 GET 轮询 task_id'],
           ]}
         />
 
-        <h3 className='mt-8 text-lg font-semibold'>对外接口（异步）</h3>
+        <h3 className='mt-8 text-lg font-semibold'>对外接口</h3>
         <DocsTable
           headers={['端点', '说明']}
           rows={[
-            ['POST /v1/images/generations', '统一入口（async: true 走异步）'],
-            ['GET /v1/images/generations/{task_id}', '查询任务状态'],
+            ['POST /v1/images/generations', '统一入口（文生图、JSON 图生图、sync/async）'],
+            ['POST /v1/images/edits', 'multipart 图生图（参考图/蒙版）'],
+            ['GET /v1/images/generations/{task_id}', '异步任务查询'],
             ['GET /v1/images/{task_id}/content', '下载图片（部分模型）'],
           ]}
         />
 
         <h3 className='mt-8 text-lg font-semibold'>快速示例</h3>
         <CodeBlock
-          title='异步文生图（画布默认）'
+          title='同步文生图（Banana 等）'
+          code={`curl -X POST ${base}/images/generations \\
+  -H "Authorization: Bearer sk-xxx" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "gemini-banana-pro-4k",
+    "prompt": "一只橘猫趴在窗台上晒太阳，水彩画风格",
+    "size": "1:1",
+    "quality": "high",
+    "stream": false
+  }'`}
+        />
+        <CodeBlock
+          title='JSON 图生图（参考图）'
+          code={`curl -X POST ${base}/images/generations \\
+  -H "Authorization: Bearer sk-xxx" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "gemini-banana-pro-4k",
+    "prompt": "将 @图片1 的风格应用到新场景",
+    "size": "3:2",
+    "image": "https://example.com/ref.png",
+    "stream": false
+  }'`}
+        />
+        <CodeBlock
+          title='异步文生图'
           code={`curl -X POST ${base}/images/generations \\
   -H "Authorization: Bearer sk-xxx" \\
   -H "Content-Type: application/json" \\
@@ -165,7 +193,8 @@ export function ApiDocsPage() {
     "prompt": "一只橘猫趴在窗台上晒太阳，水彩画风格",
     "size": "1024x1024",
     "n": 1,
-    "async": true
+    "async": true,
+    "stream": false
   }'`}
         />
         <CodeBlock
@@ -175,8 +204,10 @@ export function ApiDocsPage() {
         />
 
         <ul className='list-disc space-y-2 pl-5'>
-          <li>画布生图为异步任务，轮询间隔建议 3–5 秒，客户端超时建议 ≥120 秒（大图 ≥300 秒）</li>
-          <li>completed 后从 data[0].url 取图；status 为 failed 时查看 error.message</li>
+          <li>Banana / Nano Banana 等模型推荐同步（勿传 async）；大图或多参考图可选用 async: true</li>
+          <li>图生图优先 JSON 传 image/images；multipart 走 POST /v1/images/edits</li>
+          <li>（已弃用）POST /v1/chat/completions 出图仍兼容，响应带 Deprecation 头</li>
+          <li>异步轮询间隔建议 3–5 秒；completed 后从 data[0].url 取图</li>
           <li>仅成功出图才计费</li>
         </ul>
       </DocsSection>

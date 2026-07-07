@@ -436,12 +436,21 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		if task.FinishTime == 0 {
 			task.FinishTime = now
 		}
-		if strings.HasPrefix(taskResult.Url, "data:") {
+		resultURL := taskResult.Url
+		if strings.HasPrefix(resultURL, "data:") {
 			// data: URI (e.g. Vertex base64 encoded video) — keep in Data, not in ResultURL
 			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
-		} else if taskResult.Url != "" {
-			// Direct upstream URL (e.g. Kling, Ali, Doubao, etc.)
-			task.PrivateData.ResultURL = taskResult.Url
+		} else if resultURL != "" {
+			rehostedURL, patchedData, rehostErr := RehostVideoTaskResult(ctx, task.UserId, task.TaskID, resultURL, task.Data)
+			if rehostErr != nil {
+				logger.LogError(ctx, fmt.Sprintf("Task %s video rehost failed, keep upstream url: %s", task.TaskID, rehostErr.Error()))
+				task.PrivateData.ResultURL = resultURL
+			} else {
+				task.PrivateData.ResultURL = rehostedURL
+				if len(patchedData) > 0 {
+					task.Data = patchedData
+				}
+			}
 		} else {
 			// No URL from adaptor — construct proxy URL using public task ID
 			task.PrivateData.ResultURL = taskcommon.BuildProxyURL(task.TaskID)
@@ -458,7 +467,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		logger.LogInfo(ctx, fmt.Sprintf("Task %s failed: %s", task.TaskID, task.FailReason))
 		taskResult.Progress = taskcommon.ProgressComplete
 		if quota != 0 {
-			if ShouldRefundTaskOnFailure(taskResult.Reason, responseBody) {
+			if ShouldRefundTaskOnFailure(task.UserId, taskResult.Reason, responseBody) {
 				shouldRefund = true
 			} else {
 				logger.LogInfo(ctx, fmt.Sprintf("Task %s failed with non-refundable error, skip refund: %s", task.TaskID, taskResult.Reason))
@@ -549,7 +558,12 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 	}
 	// 1. 优先让 adaptor 决定最终额度
 	if actualQuota := adaptor.AdjustBillingOnComplete(task, taskResult); actualQuota > 0 {
-		RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
+		if actualQuota != task.Quota {
+			RecalculateTaskQuota(ctx, task, actualQuota, "adaptor计费调整")
+		} else {
+			logger.LogInfo(ctx, fmt.Sprintf("任务 %s 预扣费准确（%s，adaptor计费确认）",
+				task.TaskID, logger.LogQuota(actualQuota)))
+		}
 		return
 	}
 	// 2. 回退到 token 重算

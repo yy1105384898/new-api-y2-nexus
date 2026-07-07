@@ -341,6 +341,16 @@ def enrich_prefixed_descriptions() -> None:
             "video,seedance,tengd,geeknow,special-offer",
             VENDOR_GOOGLE,
         ),
+        "leonardo-seedance-2.0": (
+            "Leonardo 订阅号 Seedance 2.0。文生/图生/多模态/首尾帧，标准 480p / HD 720p，4–15 秒。",
+            "video,seedance,leonardo,subscription",
+            VENDOR_GOOGLE,
+        ),
+        "leonardo-seedance-2.0-fast": (
+            "Leonardo 订阅号 Seedance 2.0 Fast。更快出片，参数同标准版。",
+            "video,seedance,leonardo,subscription,fast",
+            VENDOR_GOOGLE,
+        ),
     }
     for name, (desc, tags, vendor) in patches.items():
         upsert_model_meta(name, desc, tags, vendor)

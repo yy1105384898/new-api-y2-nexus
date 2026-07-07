@@ -8,12 +8,13 @@ import (
 
 const tengdaSeedanceUpstreamModel = "manxue-2.0"
 
-// IsTengdaSeedanceRelay 是否走腾达 Geeknow Seedance（flat → content[] 转换）。
+// IsTengdaSeedanceRelay Seedance 特惠档（cy-sd2- / 上游 manxue-2.0）：flat → content[] 转换。
 func IsTengdaSeedanceRelay(originModel, upstreamModel string) bool {
 	if strings.EqualFold(strings.TrimSpace(upstreamModel), tengdaSeedanceUpstreamModel) {
 		return true
 	}
-	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(originModel)), "tengd-seedance")
+	origin := strings.ToLower(strings.TrimSpace(originModel))
+	return strings.HasPrefix(origin, "cy-sd2-seedance") || strings.HasPrefix(origin, "tengd-seedance")
 }
 
 func maybeConvertTengdaSeedanceBody(body map[string]interface{}, upstreamModel string) (map[string]interface{}, error) {

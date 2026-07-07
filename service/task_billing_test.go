@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -13,7 +14,9 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -725,13 +728,16 @@ func TestShouldRefundTaskOnFailure(t *testing.T) {
 	moderationBody := []byte(`{"code":"Client specified an invalid argument","error":"Generated video rejected by content moderation."}`)
 	unsafeImageBody := []byte(`{"error":{"code":"content_policy_violation","message":"The generated images appear to be unsafe. Try modifying the prompts or the seeds."}}`)
 
-	assert.False(t, ShouldRefundTaskOnFailure("Generated video rejected by content moderation.", moderationBody))
-	assert.False(t, ShouldRefundTaskOnFailure("", moderationBody))
-	assert.True(t, ShouldRefundTaskOnFailure("The generated images appear to be unsafe. Try modifying the prompts or the seeds.", unsafeImageBody))
-	assert.True(t, ShouldRefundTaskOnFailure("", unsafeImageBody))
-	assert.True(t, ShouldRefundTaskOnFailure("unexpected end of JSON input", nil))
-	assert.True(t, ShouldRefundTaskOnFailure("upstream timeout", nil))
-	assert.True(t, ShouldRefundTaskOnFailure("network error", []byte(`{"error":"connection reset"}`)))
+	assert.True(t, ShouldRefundTaskOnFailure(0, "Generated video rejected by content moderation.", moderationBody))
+	assert.True(t, ShouldRefundTaskOnFailure(0, "", moderationBody))
+	assert.True(t, ShouldRefundTaskOnFailure(0, "The generated images appear to be unsafe. Try modifying the prompts or the seeds.", unsafeImageBody))
+	assert.True(t, ShouldRefundTaskOnFailure(0, "", unsafeImageBody))
+	assert.True(t, ShouldRefundTaskOnFailure(0, "非常抱歉，该提示可能违反了我们的内容政策。如果你认为此判断有误，请重试或修改提示语。", nil))
+	assert.True(t, ShouldRefundTaskOnFailure(0, "非常抱歉，生成的图片可能违反了关于与第三方内容相似性的防护限制。如果你认为此判断有误，请重试或修改提示语。", nil))
+	assert.True(t, ShouldRefundTaskOnFailure(0, "invalid character 'e' looking for beginning of value", nil))
+	assert.True(t, ShouldRefundTaskOnFailure(0, "unexpected end of JSON input", nil))
+	assert.True(t, ShouldRefundTaskOnFailure(0, "upstream timeout", nil))
+	assert.True(t, ShouldRefundTaskOnFailure(0, "network error", []byte(`{"error":"connection reset"}`)))
 }
 
 func TestShouldRefundRelayError_UnsafeImage(t *testing.T) {
@@ -741,13 +747,61 @@ func TestShouldRefundRelayError_UnsafeImage(t *testing.T) {
 		Code:    "content_policy_violation",
 	}, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 
-	assert.True(t, ShouldRefundRelayError(apiErr))
+	assert.True(t, ShouldRefundRelayError(nil, apiErr))
+}
+
+func TestShouldRefundRelayError_LocalSensitive(t *testing.T) {
+	apiErr := types.NewErrorWithStatusCode(
+		fmt.Errorf("%s", ContentPolicyMessageEN),
+		types.ErrorCodeSensitiveWordsDetected,
+		http.StatusBadRequest,
+	)
+
+	assert.True(t, ShouldRefundRelayError(nil, apiErr))
+}
+
+func TestShouldRefundTaskOnFailure_WhitelistUpstreamContentPolicy(t *testing.T) {
+	prev := setting.SensitiveReviewWhitelistUserIds
+	t.Cleanup(func() {
+		setting.SensitiveReviewWhitelistUserIds = prev
+	})
+	setting.SensitiveReviewWhitelistUserIds = map[int]struct{}{158: {}}
+
+	assert.False(t, ShouldRefundTaskOnFailure(158, ContentPolicyMessageEN, nil))
+	assert.False(t, ShouldRefundTaskOnFailure(158, "invalid character 'e' looking for beginning of value", nil))
+	assert.True(t, ShouldRefundTaskOnFailure(1, "invalid character 'e' looking for beginning of value", nil))
+	assert.True(t, ShouldRefundTaskOnFailure(158, "upstream timeout", nil))
+}
+
+func TestShouldRefundRelayError_WhitelistUpstreamContentPolicy(t *testing.T) {
+	prev := setting.SensitiveReviewWhitelistUserIds
+	t.Cleanup(func() {
+		setting.SensitiveReviewWhitelistUserIds = prev
+	})
+	setting.SensitiveReviewWhitelistUserIds = map[int]struct{}{158: {}}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set("id", 158)
+
+	apiErr := types.WithOpenAIError(types.OpenAIError{
+		Message: ContentPolicyMessageEN,
+		Type:    "invalid_request_error",
+		Code:    "content_policy_violation",
+	}, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+
+	assert.False(t, ShouldRefundRelayError(c, apiErr))
+}
+
+func TestShouldRefundTaskOnFailure_NonWhitelistUnsafeWithBody(t *testing.T) {
+	unsafeImageBody := []byte(`{"error":{"code":"content_policy_violation","message":"The generated images appear to be unsafe. Try modifying the prompts or the seeds."}}`)
+	assert.True(t, ShouldRefundTaskOnFailure(1, "", unsafeImageBody))
 }
 
 func TestShouldRefundRelayError_UpstreamTimeout(t *testing.T) {
 	apiErr := types.NewError(fmt.Errorf("upstream timeout"), types.ErrorCodeDoRequestFailed, types.ErrOptionWithSkipRetry())
 
-	assert.True(t, ShouldRefundRelayError(apiErr))
+	assert.True(t, ShouldRefundRelayError(nil, apiErr))
 }
 
 func TestRefundTaskQuota_UnsafeImageFailure(t *testing.T) {
@@ -755,6 +809,7 @@ func TestRefundTaskQuota_UnsafeImageFailure(t *testing.T) {
 	ctx := context.Background()
 	seedUser(t, 18, 100000)
 	seedToken(t, 63, 18, "sk-test", 100000)
+	seedChannel(t, 48)
 	task := makeTask(18, 48, 5555, 63, BillingSourceWallet, 0)
 	task.TaskID = "task_unsafe_test"
 	initQuota := getUserQuota(t, 18)
@@ -767,6 +822,33 @@ func TestRefundTaskQuota_UnsafeImageFailure(t *testing.T) {
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
+	assert.Equal(t, 5555, log.Quota)
+}
+
+func TestRefundTaskQuota_WhitelistUnsafeKeepsCharge(t *testing.T) {
+	prev := setting.SensitiveReviewWhitelistUserIds
+	t.Cleanup(func() {
+		setting.SensitiveReviewWhitelistUserIds = prev
+	})
+	setting.SensitiveReviewWhitelistUserIds = map[int]struct{}{158: {}}
+
+	truncate(t)
+	ctx := context.Background()
+	seedUser(t, 158, 100000)
+	seedToken(t, 64, 158, "sk-test", 100000)
+	seedChannel(t, 48)
+	task := makeTask(158, 48, 5555, 64, BillingSourceWallet, 0)
+	task.TaskID = "task_whitelist_unsafe"
+	initQuota := getUserQuota(t, 158)
+	initToken := getTokenRemainQuota(t, 64)
+
+	RefundTaskQuota(ctx, task, "The generated images appear to be unsafe. Try modifying the prompts or the seeds.")
+
+	assert.Equal(t, initQuota, getUserQuota(t, 158))
+	assert.Equal(t, initToken, getTokenRemainQuota(t, 64))
+	log := getLastLog(t)
+	require.NotNil(t, log)
+	assert.Equal(t, model.LogTypeConsume, log.Type)
 	assert.Equal(t, 5555, log.Quota)
 }
 

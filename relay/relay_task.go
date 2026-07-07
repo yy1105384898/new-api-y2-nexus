@@ -19,6 +19,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 )
 
@@ -56,7 +57,7 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 	}
 
 	// 查找原始任务
-	originTask, exist, err := model.GetByTaskId(info.UserId, info.OriginTaskID)
+	originTask, exist, err := model.GetByTaskIdForFetch(info.UserId, info.OriginTaskID)
 	if err != nil {
 		return service.TaskErrorWrapper(err, "get_origin_task_failed", http.StatusInternalServerError)
 	}
@@ -156,6 +157,12 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	adaptor.Init(info)
 	if taskErr := adaptor.ValidateRequestAndSetAction(c, info); taskErr != nil {
 		return nil, taskErr
+	}
+
+	if info.Billing == nil && setting.ShouldCheckPromptSensitiveForUser(info.UserId) {
+		if taskErr := service.TaskErrorIfSensitivePrompt(c, relaycommon.PromptInputFromContext(c)); taskErr != nil {
+			return nil, taskErr
+		}
 	}
 
 	// 2. 确定模型名称
@@ -321,13 +328,13 @@ func sunoFetchRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dto.Ta
 	}
 	var tasks []any
 	if len(condition.IDs) > 0 {
-		taskModels, err := model.GetByTaskIds(userId, condition.IDs)
+		taskModels, err := model.GetByTaskIdsForFetch(userId, condition.IDs)
 		if err != nil {
 			taskResp = service.TaskErrorWrapper(err, "get_tasks_failed", http.StatusInternalServerError)
 			return
 		}
 		for _, task := range taskModels {
-			tasks = append(tasks, TaskModel2Dto(task))
+			tasks = append(tasks, TaskModel2DtoForClient(c, task))
 		}
 	} else {
 		tasks = make([]any, 0)
@@ -343,7 +350,7 @@ func sunoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dt
 	taskId := c.Param("id")
 	userId := c.GetInt("id")
 
-	originTask, exist, err := model.GetByTaskId(userId, taskId)
+	originTask, exist, err := model.GetByTaskIdForFetch(userId, taskId)
 	if err != nil {
 		taskResp = service.TaskErrorWrapper(err, "get_task_failed", http.StatusInternalServerError)
 		return
@@ -355,7 +362,7 @@ func sunoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *dt
 
 	respBody, err = common.Marshal(dto.TaskResponse[any]{
 		Code: "success",
-		Data: TaskModel2Dto(originTask),
+		Data: TaskModel2DtoForClient(c, originTask),
 	})
 	return
 }
@@ -367,7 +374,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	}
 	userId := c.GetInt("id")
 
-	originTask, exist, err := model.GetByTaskId(userId, taskId)
+	originTask, exist, err := model.GetByTaskIdForFetch(userId, taskId)
 	if err != nil {
 		taskResp = service.TaskErrorWrapper(err, "get_task_failed", http.StatusInternalServerError)
 		return
@@ -398,6 +405,11 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 				taskResp = service.TaskErrorWrapper(err, "convert_to_openai_video_failed", http.StatusInternalServerError)
 				return
 			}
+			openAIVideoData, err = service.PatchClientFacingModelJSONFromTask(originTask, openAIVideoData)
+			if err != nil {
+				taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
+				return
+			}
 			respBody = service.NormalizeOpenAIVideoResponse(c, openAIVideoData)
 			return
 		}
@@ -406,8 +418,7 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 	}
 
 	// 通用 TaskDto 格式
-	taskDto := TaskModel2Dto(originTask)
-	taskDto.FailReason = service.NormalizeClientErrorMessage(c, taskDto.FailReason)
+	taskDto := TaskModel2DtoForClient(c, originTask)
 	respBody, err = common.Marshal(dto.TaskResponse[any]{
 		Code: "success",
 		Data: taskDto,
@@ -564,4 +575,11 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 		Username:   task.Username,
 		Data:       task.Data,
 	}
+}
+
+// TaskModel2DtoForClient 返回任务 DTO，并将 fail_reason 映射为面向用户的友好提示。
+func TaskModel2DtoForClient(c *gin.Context, task *model.Task) *dto.TaskDto {
+	taskDto := TaskModel2Dto(task)
+	taskDto.FailReason = service.NormalizeClientErrorMessage(c, taskDto.FailReason)
+	return taskDto
 }

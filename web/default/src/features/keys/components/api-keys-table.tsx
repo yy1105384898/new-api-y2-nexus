@@ -153,7 +153,7 @@ function ApiKeysMobileList({
             </div>
 
             <div className='flex min-w-0 items-center justify-between gap-2'>
-              <div className='min-w-0 flex-1 [&_button:first-child]:max-w-full [&_button:first-child]:truncate [&_button:first-child]:px-0'>
+              <div className='min-w-0 flex-1 [&_button:first-child]:max-w-full [&_button:first-child]:px-0 [&_button:first-child]:break-all [&_button:first-child]:whitespace-normal'>
                 <ApiKeyCell apiKey={apiKey} />
               </div>
               <DataTableRowActions row={row} />
@@ -283,6 +283,7 @@ export function ApiKeysTable() {
       columns={columns}
       isLoading={isLoading}
       isFetching={isFetching}
+      fixedHeight={false}
       emptyTitle={t('No API Keys Found')}
       emptyDescription={t(
         'No API keys available. Create your first API key to get started.'
@@ -290,34 +291,37 @@ export function ApiKeysTable() {
       skeletonKeyPrefix='api-keys-skeleton'
       applyHeaderSize
       toolbar={
-        <div className='flex w-full flex-col gap-2'>
-          <DataTableToolbar
-            table={table}
-            searchPlaceholder={t('Filter by name...')}
-            additionalSearch={
-              <Input
-                placeholder={t('Filter by API key...')}
-                aria-label={t('Filter by API key...')}
-                value={tokenFilterInput}
-                onChange={(e) => setTokenFilterInput(e.target.value)}
-                className='w-full sm:w-50 lg:w-60'
-              />
-            }
-            filters={[
-              {
-                columnId: 'status',
-                title: t('Status'),
-                options: API_KEY_STATUS_OPTIONS,
-                singleSelect: true,
-              },
-            ]}
-          />
-          <ApiEndpointHints />
-        </div>
+        <DataTableToolbar
+          table={table}
+          searchPlaceholder={t('Filter by name...')}
+          additionalSearch={
+            <Input
+              placeholder={t('Filter by API key...')}
+              aria-label={t('Filter by API key...')}
+              value={tokenFilterInput}
+              onChange={(e) => setTokenFilterInput(e.target.value)}
+              className='w-full sm:w-50 lg:w-60'
+            />
+          }
+          filters={[
+            {
+              columnId: 'status',
+              title: t('Status'),
+              options: API_KEY_STATUS_OPTIONS,
+              singleSelect: true,
+            },
+          ]}
+        />
       }
+      afterTable={<ApiEndpointHints />}
       mobile={<ApiKeysMobileList table={table} isLoading={isLoading} />}
       getRowClassName={(row) =>
         isDisabledApiKeyRow(row.original) ? DISABLED_ROW_DESKTOP : undefined
+      }
+      getColumnClassName={(columnId, kind) =>
+        columnId === 'key' && kind === 'cell'
+          ? 'whitespace-normal align-top'
+          : undefined
       }
       bulkActions={<DataTableBulkActions table={table} />}
     />

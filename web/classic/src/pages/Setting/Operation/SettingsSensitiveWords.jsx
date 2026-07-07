@@ -34,6 +34,8 @@ export default function SettingsSensitiveWords(props) {
   const [inputs, setInputs] = useState({
     CheckSensitiveEnabled: false,
     CheckSensitiveOnPromptEnabled: false,
+    LocalSensitivePromptBlockEnabled: true,
+    SensitiveReviewWhitelistUserIds: '',
     SensitiveWords: '',
   });
   const refForm = useRef();
@@ -123,6 +125,39 @@ export default function SettingsSensitiveWords(props) {
                       CheckSensitiveOnPromptEnabled: value,
                     })
                   }
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'LocalSensitivePromptBlockEnabled'}
+                  label={t('本地敏感词前置拦截')}
+                  extraText={t('关闭后不拦截提示词，直接转发上游；非加白用户被上游内容审查拒绝时将退还预扣额度')}
+                  size='default'
+                  checkedText='｜'
+                  uncheckedText='〇'
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      LocalSensitivePromptBlockEnabled: value,
+                    })
+                  }
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Col span={24}>
+                <Form.TextArea
+                  label={t('审查白名单用户 ID')}
+                  extraText={t('一行一个用户 ID；跳过本地词表拦截，被上游内容审查拒绝时不退还预扣额度')}
+                  placeholder={t('一行一个用户 ID')}
+                  field={'SensitiveReviewWhitelistUserIds'}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      SensitiveReviewWhitelistUserIds: value,
+                    })
+                  }
+                  autosize={{ minRows: 4, maxRows: 12 }}
                 />
               </Col>
             </Row>

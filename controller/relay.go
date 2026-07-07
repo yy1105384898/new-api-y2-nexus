@@ -20,6 +20,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relay/image"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -36,7 +37,7 @@ func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIErro
 	var err *types.NewAPIError
 	switch info.RelayMode {
 	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
-		err = relay.ImageHelper(c, info)
+		err = image.Helper(c, info)
 	case relayconstant.RelayModeAudioSpeech:
 		fallthrough
 	case relayconstant.RelayModeAudioTranslation:
@@ -124,7 +125,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
-	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
+	needSensitiveCheck := setting.ShouldCheckPromptSensitiveForUser(c.GetInt("id"))
 	needCountToken := constant.CountToken
 	// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.
 	var meta *types.TokenCountMeta
@@ -137,15 +138,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		relaycommon.StorePromptInput(c, meta.CombineText)
 	}
 
-	if needSensitiveCheck && meta != nil {
-		contains, words := service.CheckSensitiveText(meta.CombineText)
-		if contains {
-			logger.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", ")))
-			newAPIError = types.NewErrorWithStatusCode(
-				fmt.Errorf("%s", service.ContentPolicyMessage(c)),
-				types.ErrorCodeSensitiveWordsDetected,
-				http.StatusBadRequest,
-			)
+	if meta != nil && needSensitiveCheck {
+		if rejected, apiErr := service.PromptSensitiveRejection(c, meta.CombineText); rejected {
+			newAPIError = apiErr
 			return
 		}
 	}
@@ -180,7 +175,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		if newAPIError != nil {
 			newAPIError = service.NormalizeViolationFeeError(newAPIError)
 			if relayInfo.Billing != nil {
-				if service.ShouldRefundRelayError(newAPIError) {
+				if service.ShouldRefundRelayError(c, newAPIError) {
 					relayInfo.Billing.Refund(c)
 				} else {
 					logger.LogInfo(c, fmt.Sprintf("skip billing refund for non-refundable relay error: %s", newAPIError.Error()))

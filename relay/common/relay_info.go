@@ -103,6 +103,7 @@ type RelayInfo struct {
 	UsePrice               bool
 	RelayMode              int
 	OriginModelName        string
+	ClientModelName        string
 	RequestURLPath         string
 	RequestHeaders         map[string]string
 	ShouldIncludeUsage     bool
@@ -188,6 +189,8 @@ type RelayInfo struct {
 	*ResponsesUsageInfo
 	*ChannelMeta
 	*TaskRelayInfo
+	// ImageClientWantsURL：客户请求 response_format=url；Gulie 类模型对内改走 b64_json 后仍按 url 形态返回 R2 公网地址。
+	ImageClientWantsURL bool
 }
 
 func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
@@ -473,6 +476,7 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		UserEmail:  common.GetContextKeyString(c, constant.ContextKeyUserEmail),
 
 		OriginModelName: common.GetContextKeyString(c, constant.ContextKeyOriginalModel),
+		ClientModelName: common.GetContextKeyString(c, constant.ContextKeyClientModelName),
 
 		TokenId:        common.GetContextKeyInt(c, constant.ContextKeyTokenId),
 		TokenKey:       common.GetContextKeyString(c, constant.ContextKeyTokenKey),

@@ -11,6 +11,46 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGetByTaskIdForFetchOmitsRequestSnapshot(t *testing.T) {
+	truncateTables(t)
+
+	largeSnapshot := []byte(strings.Repeat("A", 1024*512))
+	task := &Task{
+		UserId:     7,
+		TaskID:     "task_fetch_select",
+		Platform:   "image",
+		Action:     "imageEdit",
+		Status:     TaskStatusInProgress,
+		Progress:   "30%",
+		SubmitTime: time.Now().Unix(),
+		Properties: Properties{
+			OriginModelName: "gpt-image-2",
+			TaskKind:        "image",
+		},
+		PrivateData: TaskPrivateData{
+			ResultURL:       "https://example.com/result.png",
+			RequestSnapshot: largeSnapshot,
+			ImageResultURLs: []string{"https://example.com/1.png"},
+		},
+		Data: json.RawMessage(`{}`),
+	}
+	insertTask(t, task)
+
+	reloaded, exist, err := GetByTaskIdForFetch(7, "task_fetch_select")
+	require.NoError(t, err)
+	require.True(t, exist)
+	assert.Equal(t, TaskStatusInProgress, reloaded.Status)
+	assert.Equal(t, "gpt-image-2", reloaded.Properties.OriginModelName)
+	assert.Equal(t, "https://example.com/result.png", reloaded.GetResultURL())
+	assert.Equal(t, []string{"https://example.com/1.png"}, reloaded.PrivateData.ImageResultURLs)
+	assert.Empty(t, reloaded.PrivateData.RequestSnapshot)
+
+	job := reloaded.ToOpenAIImageJob("image.generation")
+	require.NotNil(t, job)
+	assert.Equal(t, "task_fetch_select", job.ID)
+	assert.Len(t, job.Data, 1)
+}
+
 func TestTaskListSelectLoadsResultURLWithoutSnapshot(t *testing.T) {
 	truncateTables(t)
 

@@ -328,16 +328,10 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		shouldSelectChannel = false
 		modelRequest.Model = getTaskOriginModelName(c)
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
-		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent
+		// Gemini API 路径：PublicModelName middleware 已将 path 改写为 internal 名
 		relayMode := relayconstant.RelayModeGemini
-		modelName := service.ExtractGeminiPathModel(c.Request.URL.Path)
-		if modelName != "" {
-			if internal, clientPublic, err := service.ResolveInternalModelName(modelName); err == nil {
-				service.SetClientModelNameContext(c, clientPublic)
-				modelRequest.Model = internal
-			} else {
-				modelRequest.Model = modelName
-			}
+		if modelName := service.ExtractGeminiPathModel(c.Request.URL.Path); modelName != "" {
+			modelRequest.Model = modelName
 		}
 		c.Set("relay_mode", relayMode)
 	} else if !strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") && !strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
@@ -431,7 +425,7 @@ func getTaskOriginModelName(c *gin.Context) string {
 	}
 
 	userId := c.GetInt("id")
-	if task, exist, err := model.GetByTaskId(userId, taskId); err == nil && exist && task != nil {
+	if task, exist, err := model.GetByTaskIdForFetch(userId, taskId); err == nil && exist && task != nil {
 		return task.Properties.OriginModelName
 	}
 	return ""

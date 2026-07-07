@@ -20,6 +20,21 @@ const (
 
 	MissingReferenceMessageZH = "参考图未正确传递，请重新上传后重试。"
 	MissingReferenceMessageEN = "Reference image was not delivered correctly, please re-upload and retry."
+
+	ReferenceMaterialMessageZH = "参考素材处理失败，请重新上传后重试。"
+	ReferenceMaterialMessageEN = "Reference material could not be processed, please re-upload and retry."
+
+	GenerationFailedMessageZH = "视频生成失败，请稍后重试。"
+	GenerationFailedMessageEN = "Video generation failed, please retry later."
+
+	GenerationFailedNoDetailZH = "Leonardo 上游生成失败（未返回具体原因），建议减少参考素材或简化提示词后重试。"
+	GenerationFailedNoDetailEN = "Leonardo upstream generation failed without details. Try fewer references or a simpler prompt."
+
+	InvalidRequestMessageZH = "请求参数不符合要求，请检查后重试。"
+	InvalidRequestMessageEN = "Request parameters are invalid, please check and retry."
+
+	PoolUnavailableMessageZH = "视频服务暂时不可用，请稍后重试。"
+	PoolUnavailableMessageEN = "Video service is temporarily unavailable, please retry later."
 )
 
 func PreferChineseClient(c *gin.Context) bool {
@@ -56,6 +71,7 @@ func IsContentPolicyViolation(text string) bool {
 		"content policy",
 		"content_policy",
 		"content_policy_violation",
+		"content_moderation_failed",
 		"appear to be unsafe",
 		"unsafe content",
 		"policy violation",
@@ -72,12 +88,16 @@ func IsContentPolicyViolation(text string) bool {
 		"model output was blocked",
 		"generated video rejected by content moderation",
 		"the generated images appear to be unsafe",
+		"modifying the prompts or the seeds",
 		"unexpected end of json input",
 		"invalid character",
 		"looking for beginning of value",
 		"parse image json",
 		"图片内容不合规",
 		"内容政策",
+		"该提示可能违反了",
+		"生成的图片可能违反了",
+		"第三方内容相似",
 		"裸露",
 		"色情",
 		"情色",
@@ -97,7 +117,8 @@ func IsContentPolicyViolation(text string) bool {
 			strings.Contains(text, "色情") ||
 			strings.Contains(text, "情色") ||
 			strings.Contains(text, "暴力") ||
-			strings.Contains(text, "防护限制")
+			strings.Contains(text, "防护限制") ||
+			strings.Contains(text, "第三方")
 	}
 
 	return false
@@ -155,8 +176,6 @@ func IsUpstreamUnavailableError(text string) bool {
 		"bad response status code 504",
 		"connection reset by peer",
 		"connection refused",
-		"do request failed",
-		"upstream error: do request failed",
 		"download image failed",
 		"rehost upstream image url",
 	}
@@ -177,7 +196,7 @@ func IsTimeoutError(text string) bool {
 		return false
 	}
 	lower := strings.ToLower(stripStatusCodePrefix(text))
-	if containsAny(lower, text, "proxy read timeout", "timed out", "timeout", "任务超时", "生图超时") {
+	if containsAny(lower, text, "proxy read timeout", "timed out", "timeout", "任务超时", "生图超时", "do request failed", "upstream error: do request failed", "context deadline exceeded", "client.timeout") {
 		return true
 	}
 	return strings.HasPrefix(text, "status_code=524")
@@ -202,6 +221,79 @@ func IsMissingReferenceError(text string) bool {
 		return true
 	}
 	return false
+}
+
+func IsLeonardoPoolReferenceMaterialError(text string) bool {
+	lower := strings.ToLower(stripStatusCodePrefix(text))
+	patterns := []string{
+		"leonardo: download",
+		"upload reference",
+		"upload start_frame",
+		"upload end_frame",
+		"originalfilename",
+		"leonardo: uploadimage:",
+		"media upload failed",
+		"uploaded media processing timeout",
+		"reference material could not be processed",
+	}
+	return containsAny(lower, text, patterns...)
+}
+
+func IsLeonardoPoolInvalidRequestError(text string) bool {
+	lower := strings.ToLower(stripStatusCodePrefix(text))
+	patterns := []string{
+		"reference video duration",
+		"reference audio duration",
+		"exceed leonardo limit",
+		"requires start_frame",
+		"multimodal references cannot",
+		"request parameters are invalid",
+	}
+	return containsAny(lower, text, patterns...)
+}
+
+func IsLeonardoPoolCapacityError(text string) bool {
+	lower := strings.ToLower(stripStatusCodePrefix(text))
+	patterns := []string{
+		"no active cookie",
+		"depleted (auto-disabled)",
+		"token balance is empty",
+		"insufficient credits",
+		"dynamic proxy fetch failed",
+		"auth_expired",
+		"failed to fetch token",
+	}
+	return containsAny(lower, text, patterns...)
+}
+
+func IsLeonardoPoolGenerationFailed(text string) bool {
+	text = strings.TrimSpace(stripStatusCodePrefix(text))
+	if text == "" {
+		return false
+	}
+	lower := strings.ToLower(text)
+	return strings.Contains(lower, "all cookies failed") ||
+		strings.Contains(lower, "video generation failed") ||
+		strings.Contains(lower, "leonardo: video generation failed") ||
+		strings.Contains(lower, "leonardo: generation failed") ||
+		strings.Contains(lower, "generation_failed")
+}
+
+func extractLeonardoUpstreamFailureDetail(raw string) (detail string, noDetail bool) {
+	lower := strings.ToLower(strings.TrimSpace(raw))
+	if !strings.Contains(lower, "leonardo:") || !strings.Contains(lower, "generation failed") {
+		return "", false
+	}
+	if strings.Contains(lower, "upstream returned no detail") {
+		return "", true
+	}
+	// leonardo: video generation failed (FAILED): reason from upstream
+	if idx := strings.Index(raw, "):"); idx >= 0 {
+		if d := strings.TrimSpace(raw[idx+2:]); d != "" {
+			return d, false
+		}
+	}
+	return "", false
 }
 
 func NormalizeClientErrorMessage(c *gin.Context, raw string) string {
@@ -237,6 +329,44 @@ func NormalizeClientErrorMessageForLang(preferChinese bool, raw string) string {
 			return MissingReferenceMessageZH
 		}
 		return MissingReferenceMessageEN
+	}
+	if IsLeonardoPoolReferenceMaterialError(raw) {
+		if preferChinese {
+			return ReferenceMaterialMessageZH
+		}
+		return ReferenceMaterialMessageEN
+	}
+	if IsLeonardoPoolInvalidRequestError(raw) {
+		if preferChinese {
+			return InvalidRequestMessageZH
+		}
+		return InvalidRequestMessageEN
+	}
+	if IsLeonardoPoolCapacityError(raw) {
+		if preferChinese {
+			return PoolUnavailableMessageZH
+		}
+		return PoolUnavailableMessageEN
+	}
+	if detail, noDetail := extractLeonardoUpstreamFailureDetail(raw); noDetail {
+		if preferChinese {
+			return GenerationFailedNoDetailZH
+		}
+		return GenerationFailedNoDetailEN
+	} else if detail != "" {
+		if IsContentPolicyViolation(detail) {
+			if preferChinese {
+				return ContentPolicyMessageZH
+			}
+			return ContentPolicyMessageEN
+		}
+		return detail
+	}
+	if IsLeonardoPoolGenerationFailed(raw) {
+		if preferChinese {
+			return GenerationFailedMessageZH
+		}
+		return GenerationFailedMessageEN
 	}
 	return raw
 }

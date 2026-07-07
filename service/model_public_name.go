@@ -22,6 +22,11 @@ import (
 )
 
 // 渠道注册前缀由 model_channel_prefixes 表配置，RefreshModelPublicNameRegistry 加载到内存。
+//
+// 入站命名契约（由 middleware.PublicModelName 保证）：
+//   - ApplyPublicModelTranslation 之后，请求 body/path/query 中的 model 必为 internal 名
+//   - ContextKeyClientModelName 保存客户端传入的 public 名，供出站 Patch 使用
+//   - 域内逻辑（relay/service/imagevendor）只应使用 OriginModelName（internal），不得再解析 public 名
 
 type modelPublicRegistry struct {
 	internalSet       map[string]struct{}

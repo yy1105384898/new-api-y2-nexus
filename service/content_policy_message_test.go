@@ -9,7 +9,12 @@ func TestIsContentPolicyViolation(t *testing.T) {
 	}{
 		{"Generated video rejected by content moderation.", true},
 		{"The generated images appear to be unsafe. Try modifying the prompts or the seeds.", true},
+		{"非常抱歉，该提示可能违反了我们的内容政策。如果你认为此判断有误，请重试或修改提示语。", true},
+		{"非常抱歉，生成的图片可能违反了关于与第三方内容相似性的防护限制。如果你认为此判断有误，请重试或修改提示语。", true},
+		{"非常抱歉，生成的图片可能违反了关于暴力内容的防护限制。如果你认为此判断有误，请重试或修改提示语。", true},
+		{"非常抱歉，生成的图片可能违反了我们的内容政策。如果你认为此判断有误，请重试或修改提示语。", true},
 		{"非常抱歉，该提示可能违反了关于裸露、色情或情色内容的防护限制。", true},
+		{"非常抱歉，生成的图片可能违反了关于裸露、色情或情色内容的防护限制。", true},
 		{"status_code=400, I can't create an image with that level of explicit sexualization or erotic focus.", true},
 		{"parse image json: unexpected end of JSON input", true},
 		{"unexpected end of JSON input", true},
@@ -92,6 +97,23 @@ func TestNormalizeClientErrorMessageUnified(t *testing.T) {
 			want: ContentPolicyMessageEN,
 		},
 		{
+			name: "gulie_prompt_policy_zh",
+			raw:  "非常抱歉，该提示可能违反了我们的内容政策。如果你认为此判断有误，请重试或修改提示语。",
+			preferChinese: true,
+			want: ContentPolicyMessageZH,
+		},
+		{
+			name: "gulie_third_party_similarity_zh",
+			raw:  "非常抱歉，生成的图片可能违反了关于与第三方内容相似性的防护限制。如果你认为此判断有误，请重试或修改提示语。",
+			preferChinese: true,
+			want: ContentPolicyMessageZH,
+		},
+		{
+			name: "geek2_unsafe_en",
+			raw:  "The generated images appear to be unsafe. Try modifying the prompts or the seeds.",
+			want: ContentPolicyMessageEN,
+		},
+		{
 			name: "upstream_safety_policy_en",
 			raw:  "status_code=400, The model output was blocked by the upstream safety policy.",
 			want: ContentPolicyMessageEN,
@@ -101,6 +123,17 @@ func TestNormalizeClientErrorMessageUnified(t *testing.T) {
 			raw:  "status_code=400, The model output was blocked by the upstream safety policy.",
 			preferChinese: true,
 			want: ContentPolicyMessageZH,
+		},
+		{
+			name: "upstream_do_request_failed_timeout_en",
+			raw:  "upstream error: do request failed",
+			want: TimeoutMessageEN,
+		},
+		{
+			name: "upstream_do_request_failed_timeout_zh",
+			raw:  "upstream error: do request failed",
+			preferChinese: true,
+			want: TimeoutMessageZH,
 		},
 		{
 			name: "upstream_capacity_en",
@@ -117,6 +150,46 @@ func TestNormalizeClientErrorMessageUnified(t *testing.T) {
 			name: "size_limit_passthrough",
 			raw:  "gpt-image 最长边须 ≤3840（收到 4096×4096）",
 			want: "gpt-image 最长边须 ≤3840（收到 4096×4096）",
+		},
+		{
+			name: "leonardo_reference_download_zh",
+			raw:  `All cookies failed. cookie#8: leonardo: download https://tmp.cangyuansuanli.cn/temp/video-refs/x: OK`,
+			preferChinese: true,
+			want: ReferenceMaterialMessageZH,
+		},
+		{
+			name: "leonardo_audio_upload_en",
+			raw:  "All cookies failed. cookie#8: leonardo: UploadImage: originalFilename is required for audio uploads",
+			want: ReferenceMaterialMessageEN,
+		},
+		{
+			name: "leonardo_pool_depleted_zh",
+			raw:  "All cookies failed. cookie#5: depleted (auto-disabled)",
+			preferChinese: true,
+			want: PoolUnavailableMessageZH,
+		},
+		{
+			name: "leonardo_generic_failure_en",
+			raw:  "All cookies failed.",
+			want: GenerationFailedMessageEN,
+		},
+		{
+			name: "leonardo_upstream_no_detail_zh",
+			raw:  "leonardo: video generation failed (FAILED, upstream returned no detail; try fewer references or a simpler prompt)",
+			preferChinese: true,
+			want: GenerationFailedNoDetailZH,
+		},
+		{
+			name: "leonardo_upstream_detail_passthrough_zh",
+			raw:  "leonardo: video generation failed (FAILED): Unsafe content detected",
+			preferChinese: true,
+			want: "Unsafe content detected",
+		},
+		{
+			name: "leonardo_upstream_detail_moderation_zh",
+			raw:  "leonardo: video generation failed (FAILED): rejected by content moderation",
+			preferChinese: true,
+			want: ContentPolicyMessageZH,
 		},
 	}
 

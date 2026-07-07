@@ -85,20 +85,15 @@ func resolveProfileDocument(
 	profiles map[string]ModelUiParamProfile,
 	registry *ModelUiParamRegistry,
 ) (map[string]interface{}, error) {
-	if profileID != "" {
-		if profile, ok := profiles[profileID]; ok {
-			return profileToDocument(profile)
-		}
+	profileID = strings.TrimSpace(profileID)
+	if profileID == "" {
+		return nil, nil
 	}
-	if registry != nil {
-		if profile, ok := profiles[registry.DefaultProfileId]; ok {
-			return profileToDocument(profile)
-		}
+	profile, ok := profiles[profileID]
+	if !ok {
+		return nil, nil
 	}
-	for _, profile := range profiles {
-		return profileToDocument(profile)
-	}
-	return nil, nil
+	return profileToDocument(profile)
 }
 
 func profileToDocument(profile ModelUiParamProfile) (map[string]interface{}, error) {
@@ -114,6 +109,12 @@ func profileToDocument(profile ModelUiParamProfile) (map[string]interface{}, err
 
 	if profile.ApiMode != "" {
 		doc["apiMode"] = profile.ApiMode
+	}
+	if profile.PayloadBuilder != "" {
+		doc["payloadBuilder"] = profile.PayloadBuilder
+	}
+	if profile.ValidationKey != "" {
+		doc["validationKey"] = profile.ValidationKey
 	}
 	if profile.Capability == ModelUiParamCapabilityVideo {
 		if profile.RequiresReferenceMedia {

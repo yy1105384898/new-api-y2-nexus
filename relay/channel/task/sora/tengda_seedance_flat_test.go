@@ -126,11 +126,14 @@ func TestMaybeConvertTengdaSeedanceBody_AudioRequiresImage(t *testing.T) {
 }
 
 func TestIsTengdaSeedanceRelay(t *testing.T) {
-	if !IsTengdaSeedanceRelay("tengd-Seedance-2.0", "manxue-2.0") {
-		t.Fatal("expected tengd relay")
+	if !IsTengdaSeedanceRelay("cy-sd2-Seedance-2.0", "manxue-2.0") {
+		t.Fatal("expected cy-sd2 relay")
 	}
-	if IsTengdaSeedanceRelay("oairegbox-seedance-2.0-720p", "Seedance-2.0-720p") {
-		t.Fatal("oairegbox should not use tengd relay")
+	if !IsTengdaSeedanceRelay("tengd-Seedance-2.0", "manxue-2.0") {
+		t.Fatal("legacy tengd prefix still supported")
+	}
+	if IsTengdaSeedanceRelay("cy-sd1-seedance-2.0-720p", "Seedance-2.0-720p") {
+		t.Fatal("cy-sd1 should not use tengd relay")
 	}
 }
 

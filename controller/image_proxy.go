@@ -32,7 +32,7 @@ func ImageProxy(c *gin.Context) {
 	}
 
 	userID := c.GetInt("id")
-	task, exists, err := model.GetByTaskId(userID, taskID)
+	task, exists, err := model.GetByTaskIdForFetch(userID, taskID)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Failed to query image task %s: %s", taskID, err.Error()))
 		imageProxyError(c, http.StatusInternalServerError, "server_error", "Failed to query task")

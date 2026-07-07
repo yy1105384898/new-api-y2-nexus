@@ -35,6 +35,55 @@ func TestProfileToDocumentImageApiMode(t *testing.T) {
 	}
 }
 
+func TestResolveProfileDocumentRequiresExplicitProfileID(t *testing.T) {
+	profiles := map[string]ModelUiParamProfile{
+		"default-video": {
+			ProfileId:  "default-video",
+			Capability: ModelUiParamCapabilityVideo,
+			Params:     `{"resolution":{"enabled":true}}`,
+			Hints:      "[]",
+		},
+	}
+	registry := &ModelUiParamRegistry{DefaultProfileId: "default-video"}
+
+	doc, err := resolveProfileDocument(ModelUiParamCapabilityVideo, "", profiles, registry)
+	if err != nil {
+		t.Fatalf("resolveProfileDocument() error = %v", err)
+	}
+	if doc != nil {
+		t.Fatalf("empty profileID doc = %#v, want nil", doc)
+	}
+
+	doc, err = resolveProfileDocument(ModelUiParamCapabilityVideo, "default-video", profiles, registry)
+	if err != nil {
+		t.Fatalf("resolveProfileDocument() error = %v", err)
+	}
+	if doc == nil || doc["id"] != "default-video" {
+		t.Fatalf("explicit profile doc = %#v", doc)
+	}
+}
+
+func TestProfileToDocumentVideoRoutingFields(t *testing.T) {
+	doc, err := profileToDocument(ModelUiParamProfile{
+		ProfileId:      "video-tpl-seedance-480p-async",
+		Capability:     ModelUiParamCapabilityVideo,
+		ApiMode:        "videos-json-async",
+		PayloadBuilder: "seedance-flat",
+		ValidationKey:  "seedance-oairegbox",
+		Params:         `{"resolution":{"enabled":true}}`,
+		Hints:          "[]",
+	})
+	if err != nil {
+		t.Fatalf("profileToDocument() error = %v", err)
+	}
+	if doc["payloadBuilder"] != "seedance-flat" {
+		t.Fatalf("payloadBuilder = %#v, want seedance-flat", doc["payloadBuilder"])
+	}
+	if doc["validationKey"] != "seedance-oairegbox" {
+		t.Fatalf("validationKey = %#v, want seedance-oairegbox", doc["validationKey"])
+	}
+}
+
 func TestApplyImagePollDefaults(t *testing.T) {
 	registry := &ModelUiParamRegistry{
 		PollDefaults: `{"images-json-async":{"delayMs":5000,"maxAttempts":72},"images-edits-async":{"delayMs":5000,"maxAttempts":72}}`,
