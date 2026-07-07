@@ -358,13 +358,12 @@ func EnabledListModels(c *gin.Context) {
 
 func RetrieveModel(c *gin.Context, modelType int) {
 	modelId := c.Param("model")
-	resolvedID := modelId
-	if service.ModelPublicNameEnabled() {
-		if internal, clientPublic, err := service.ResolveInternalModelName(modelId); err == nil {
-			resolvedID = internal
-			service.SetClientModelNameContext(c, clientPublic)
-			modelId = clientPublic
-		}
+	resolvedID := common.GetContextKeyString(c, constant.ContextKeyOriginalModel)
+	if resolvedID == "" {
+		resolvedID = modelId
+	}
+	if clientPublic := service.GetClientModelName(c); clientPublic != "" {
+		modelId = clientPublic
 	}
 	if found, ok := openAIModelsMap[resolvedID]; ok {
 		aiModel := found

@@ -405,6 +405,11 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 				taskResp = service.TaskErrorWrapper(err, "convert_to_openai_video_failed", http.StatusInternalServerError)
 				return
 			}
+			openAIVideoData, err = service.PatchClientFacingModelJSONFromTask(originTask, openAIVideoData)
+			if err != nil {
+				taskResp = service.TaskErrorWrapper(err, "marshal_response_failed", http.StatusInternalServerError)
+				return
+			}
 			respBody = service.NormalizeOpenAIVideoResponse(c, openAIVideoData)
 			return
 		}

@@ -10,7 +10,8 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
-	"github.com/QuantumNous/new-api/relay"
+	openai "github.com/QuantumNous/new-api/relay/channel/openai"
+	"github.com/QuantumNous/new-api/relay/image"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
@@ -19,7 +20,7 @@ import (
 )
 
 func RelayOpenAIImageGenerations(c *gin.Context) {
-	if relay.IsAsyncImageRequest(c) {
+	if image.IsAsyncRequest(c) {
 		RelayImageTaskSubmit(c)
 		return
 	}
@@ -27,11 +28,24 @@ func RelayOpenAIImageGenerations(c *gin.Context) {
 }
 
 func RelayOpenAIImageEdits(c *gin.Context) {
-	if relay.IsAsyncImageRequest(c) {
+	if image.IsAsyncRequest(c) {
 		RelayImageTaskSubmit(c)
 		return
 	}
 	Relay(c, types.RelayFormatOpenAIImage)
+}
+
+func RelayOpenAIChatCompletions(c *gin.Context) {
+	if openai.IsAsyncChatImageRequest(c) {
+		openai.SetChatImageDeprecationHeaders(c)
+		c.Set("relay_mode", relayconstant.RelayModeChatCompletions)
+		RelayImageTaskSubmit(c)
+		return
+	}
+	if openai.IsLegacyChatImageRequest(c) {
+		openai.SetChatImageDeprecationHeaders(c)
+	}
+	Relay(c, types.RelayFormatOpenAI)
 }
 
 func RelayImageTaskFetch(c *gin.Context) {
@@ -44,7 +58,7 @@ func RelayImageTaskFetch(c *gin.Context) {
 		})
 		return
 	}
-	if taskErr := relay.RelayImageTaskFetch(c, relayInfo.RelayMode); taskErr != nil {
+	if taskErr := image.FetchTask(c, relayInfo.RelayMode); taskErr != nil {
 		respondTaskError(c, taskErr)
 	}
 }
@@ -52,20 +66,36 @@ func RelayImageTaskFetch(c *gin.Context) {
 func RelayImageTaskSubmit(c *gin.Context) {
 	relayMode := c.GetInt("relay_mode")
 	if relayMode == 0 {
-		if strings.Contains(c.Request.URL.Path, "/edits") {
+		if strings.Contains(c.Request.URL.Path, "/chat/completions") {
+			relayMode = relayconstant.RelayModeChatCompletions
+		} else if strings.Contains(c.Request.URL.Path, "/edits") {
 			relayMode = relayconstant.RelayModeImagesEdits
 		} else {
 			relayMode = relayconstant.RelayModeImagesGenerations
 		}
 	}
 
-	request, err := helper.GetAndValidateRequest(c, types.RelayFormatOpenAIImage)
-	if err != nil {
-		respondTaskError(c, service.TaskErrorWrapper(err, "invalid_request", http.StatusBadRequest))
-		return
+	var request dto.Request
+	var relayFormat types.RelayFormat
+	if relayMode == relayconstant.RelayModeChatCompletions {
+		textReq, err := helper.GetAndValidateTextRequest(c, relayMode)
+		if err != nil {
+			respondTaskError(c, service.TaskErrorWrapper(err, "invalid_request", http.StatusBadRequest))
+			return
+		}
+		request = textReq
+		relayFormat = types.RelayFormatOpenAI
+	} else {
+		imgReq, err := helper.GetAndValidateRequest(c, types.RelayFormatOpenAIImage)
+		if err != nil {
+			respondTaskError(c, service.TaskErrorWrapper(err, "invalid_request", http.StatusBadRequest))
+			return
+		}
+		request = imgReq
+		relayFormat = types.RelayFormatOpenAIImage
 	}
 
-	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatOpenAIImage, request, nil)
+	relayInfo, err := relaycommon.GenRelayInfo(c, relayFormat, request, nil)
 	if err != nil {
 		respondTaskError(c, service.TaskErrorWrapper(err, "gen_relay_info_failed", http.StatusInternalServerError))
 		return
@@ -180,8 +210,11 @@ func RelayImageTaskSubmit(c *gin.Context) {
 			break
 		}
 
-		relay.EnqueueImageAsyncTask(task.TaskID)
-		job := task.ToOpenAIImageJob(relay.ImageJobObjectForPathExported(requestPath))
+		image.EnqueueTask(task.TaskID)
+		job := task.ToOpenAIImageJob(image.JobObjectForPath(requestPath))
+		if public := service.ClientFacingModelFromTask(task); public != "" {
+			job.Model = public
+		}
 		c.JSON(http.StatusOK, job)
 		return
 	}
@@ -193,8 +226,19 @@ func RelayImageTaskSubmit(c *gin.Context) {
 
 func snapshotAsyncImageRequest(c *gin.Context, relayMode int) ([]byte, string, error) {
 	if relayMode == relayconstant.RelayModeImagesEdits {
-		body, err := relay.SnapshotAsyncImageEditRequest(c)
+		body, err := image.SnapshotEditRequest(c)
 		return body, "/v1/images/edits", err
+	}
+	if relayMode == relayconstant.RelayModeChatCompletions {
+		storage, err := common.GetBodyStorage(c)
+		if err != nil {
+			return nil, "", err
+		}
+		body, err := storage.Bytes()
+		if err != nil {
+			return nil, "", err
+		}
+		return body, "/v1/chat/completions", nil
 	}
 	storage, err := common.GetBodyStorage(c)
 	if err != nil {

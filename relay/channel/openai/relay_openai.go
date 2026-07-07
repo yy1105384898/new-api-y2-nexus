@@ -25,7 +25,7 @@ func sendStreamData(c *gin.Context, info *relaycommon.RelayInfo, data string, fo
 	}
 
 	if !forceFormat && !thinkToContent {
-		return helper.StringData(c, helper.SanitizeStreamChunkForPublicModel(c, data))
+		return helper.StringData(c, service.PatchClientFacingModelStreamChunkFromContext(c, data))
 	}
 
 	var lastStreamResponse dto.ChatCompletionsStreamResponse
@@ -251,6 +251,15 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 
 	applyUsagePostProcessing(info, &simpleResponse.Usage, responseBody)
 
+	adaptedBody, adaptErr := manjuBananaAdaptIfNeeded(c.Request.Context(), info, responseBody)
+	if adaptErr != nil {
+		return nil, adaptErr
+	}
+	responseBody = adaptedBody
+	if err := common.Unmarshal(responseBody, &simpleResponse); err != nil {
+		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	}
+
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:
 		if usageModified {
@@ -286,7 +295,10 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		responseBody = geminiRespStr
 	}
 
-	responseBody = helper.SanitizeResponseBodyForPublicModel(c, responseBody)
+	patchedBody, patchErr := service.PatchClientFacingModelJSONFromContext(c, responseBody)
+	if patchErr == nil {
+		responseBody = patchedBody
+	}
 
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 

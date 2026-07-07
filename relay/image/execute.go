@@ -1,8 +1,7 @@
-package relay
+package image
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,25 +17,13 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
-	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/setting/system_setting"
+	openai "github.com/QuantumNous/new-api/relay/channel/openai"
+	"github.com/QuantumNous/new-api/relay/imagevendor"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
 
-type AsyncImageEditFile struct {
-	Field       string `json:"field"`
-	Filename    string `json:"filename"`
-	ContentType string `json:"content_type"`
-	Data        []byte `json:"data"`
-}
-
-type AsyncImageEditPayload struct {
-	Fields map[string]string    `json:"fields"`
-	Files  []AsyncImageEditFile `json:"files"`
-}
-
-func ExecuteImageTaskUpstream(task *model.Task) ([]dto.ImageData, *dto.Usage, error) {
+func executeTaskUpstream(task *model.Task) ([]dto.ImageData, *dto.Usage, error) {
 	channel, err := model.GetChannelById(task.ChannelId, true)
 	if err != nil {
 		return nil, nil, err
@@ -68,6 +55,10 @@ func ExecuteImageTaskUpstream(task *model.Task) ([]dto.ImageData, *dto.Usage, er
 	}
 	c.Set("relay_mode", relayMode)
 
+	if strings.Contains(strings.TrimSpace(task.PrivateData.RequestPath), "/chat/completions") {
+		return executeLegacyAsyncChatImageTask(c, task, w)
+	}
+
 	request, err := helper.GetAndValidateRequest(c, types.RelayFormatOpenAIImage)
 	if err != nil {
 		return nil, nil, err
@@ -95,7 +86,7 @@ func ExecuteImageTaskUpstream(task *model.Task) ([]dto.ImageData, *dto.Usage, er
 		}
 	}
 
-	apiErr := ImageHelper(c, relayInfo)
+	apiErr := Helper(c, relayInfo)
 	if apiErr != nil {
 		return nil, nil, apiErr.Err
 	}
@@ -107,6 +98,35 @@ func ExecuteImageTaskUpstream(task *model.Task) ([]dto.ImageData, *dto.Usage, er
 	return images, usage, nil
 }
 
+func executeLegacyAsyncChatImageTask(c *gin.Context, task *model.Task, w *httptest.ResponseRecorder) ([]dto.ImageData, *dto.Usage, error) {
+	request, err := helper.GetAndValidateTextRequest(c, relayconstant.RelayModeChatCompletions)
+	if err != nil {
+		return nil, nil, err
+	}
+	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatOpenAI, request, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	relayInfo.InitChannelMeta(c)
+	if relayInfo.TaskRelayInfo == nil {
+		relayInfo.TaskRelayInfo = &relaycommon.TaskRelayInfo{}
+	}
+	relayInfo.TaskRelayInfo.PublicTaskID = task.TaskID
+	relayInfo.IsStream = false
+	relayInfo.SkipConsumeQuota = true
+	if textReq, ok := relayInfo.Request.(*dto.GeneralOpenAIRequest); ok {
+		textReq.Stream = common.GetPointer(false)
+	}
+	if textRelay == nil {
+		return nil, nil, fmt.Errorf("image: text relay not configured")
+	}
+	apiErr := textRelay(c, relayInfo)
+	if apiErr != nil {
+		return nil, nil, apiErr.Err
+	}
+	return openai.ParseLegacyChatImageResponse(w.Body.Bytes())
+}
+
 func buildHTTPRequestForImageTask(task *model.Task) (*http.Request, int, error) {
 	path := strings.TrimSpace(task.PrivateData.RequestPath)
 	if path == "" {
@@ -116,9 +136,12 @@ func buildHTTPRequestForImageTask(task *model.Task) (*http.Request, int, error) 
 	if strings.Contains(path, "/edits") {
 		relayMode = relayconstant.RelayModeImagesEdits
 	}
+	if strings.Contains(path, "/chat/completions") {
+		relayMode = relayconstant.RelayModeChatCompletions
+	}
 
 	if relayMode == relayconstant.RelayModeImagesEdits {
-		payload := AsyncImageEditPayload{}
+		payload := EditPayload{}
 		if err := common.Unmarshal(task.PrivateData.RequestSnapshot, &payload); err != nil {
 			return nil, 0, fmt.Errorf("unmarshal edit payload: %w", err)
 		}
@@ -160,6 +183,15 @@ func buildHTTPRequestForImageTask(task *model.Task) (*http.Request, int, error) 
 	if len(body) == 0 {
 		return nil, 0, fmt.Errorf("empty request snapshot")
 	}
+	if relayMode == relayconstant.RelayModeChatCompletions {
+		normalized, err := openai.NormalizeAsyncLegacyChatImageBody(body)
+		if err != nil {
+			return nil, 0, err
+		}
+		req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(normalized))
+		req.Header.Set("Content-Type", "application/json")
+		return req, relayMode, nil
+	}
 	normalized, err := normalizeAsyncGenerationBody(body, imageAsyncUsesURLResponse(task.Properties.OriginModelName))
 	if err != nil {
 		return nil, 0, err
@@ -171,7 +203,7 @@ func buildHTTPRequestForImageTask(task *model.Task) (*http.Request, int, error) 
 
 // imageAsyncUsesURLResponse：4K / Geek2 FLUX 等走 url 响应，避免超大 b64_json 被上游截断。
 func imageAsyncUsesURLResponse(originModel string) bool {
-	return service.ImageModelUsesURLRehost(originModel)
+	return imagevendor.ImageModelUsesURLRehost(originModel)
 }
 
 func normalizeAsyncGenerationBody(body []byte, useURLResponse bool) ([]byte, error) {
@@ -272,65 +304,11 @@ func readJSONStringField(event map[string]json.RawMessage, key string) string {
 	return strings.Trim(string(raw), "\"")
 }
 
-func decodeImageDataItem(item dto.ImageData) ([]byte, string, error) {
-	if item.B64Json != "" {
-		data, err := base64.StdEncoding.DecodeString(item.B64Json)
-		if err != nil {
-			return nil, "", err
-		}
-		return data, detectImageBytesMimeType(data), nil
-	}
-	if item.Url == "" {
-		return nil, "", fmt.Errorf("image item has no url or b64_json")
-	}
-	if strings.HasPrefix(item.Url, "data:") {
-		data, mime, err := decodeDataURI(item.Url)
-		return data, mime, err
-	}
-	return nil, item.Url, nil
-}
-
-func DecodeImageDataItemExported(item dto.ImageData) ([]byte, string, error) {
-	return decodeImageDataItem(item)
-}
-
-func decodeDataURI(uri string) ([]byte, string, error) {
-	comma := strings.Index(uri, ",")
-	if comma < 0 {
-		return nil, "", fmt.Errorf("invalid data uri")
-	}
-	meta := uri[5:comma]
-	payload := uri[comma+1:]
-	mimeType := "image/png"
-	if semi := strings.Index(meta, ";"); semi > 0 {
-		mimeType = meta[:semi]
-	}
-	data, err := base64.StdEncoding.DecodeString(payload)
-	if err != nil {
-		return nil, "", err
-	}
-	if !strings.HasPrefix(mimeType, "image/") {
-		mimeType = detectImageBytesMimeType(data)
-	}
-	return data, mimeType, nil
-}
-
-func detectImageBytesMimeType(data []byte) string {
-	if len(data) == 0 {
-		return "image/png"
-	}
-	mimeType := http.DetectContentType(data)
-	if strings.HasPrefix(mimeType, "image/") {
-		return mimeType
-	}
-	return "image/png"
-}
-
-func SnapshotAsyncImageEditRequest(c *gin.Context) ([]byte, error) {
+func SnapshotEditRequest(c *gin.Context) ([]byte, error) {
 	if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
 		return nil, err
 	}
-	payload := AsyncImageEditPayload{
+	payload := EditPayload{
 		Fields: make(map[string]string),
 	}
 	for key, values := range c.Request.MultipartForm.Value {
@@ -353,7 +331,7 @@ func SnapshotAsyncImageEditRequest(c *gin.Context) ([]byte, error) {
 			if strings.HasSuffix(key, "[]") {
 				field = strings.TrimSuffix(key, "[]")
 			}
-			payload.Files = append(payload.Files, AsyncImageEditFile{
+			payload.Files = append(payload.Files, EditFile{
 				Field:       field,
 				Filename:    fh.Filename,
 				ContentType: fh.Header.Get("Content-Type"),
@@ -400,7 +378,7 @@ func setupImageTaskChannelContext(c *gin.Context, channel *model.Channel, modelN
 	return nil
 }
 
-func IsAsyncImageRequest(c *gin.Context) bool {
+func IsAsyncRequest(c *gin.Context) bool {
 	if c.Request.Method != http.MethodPost {
 		return false
 	}
@@ -430,22 +408,14 @@ func IsAsyncImageRequest(c *gin.Context) bool {
 	return probe.Async != nil && *probe.Async
 }
 
-func imageJobObjectForPath(path string) string {
+// IsAsyncChatImageRequest 兼容期：POST /chat/completions + async 的 chat 出图（Banana / Flash Image 等）。
+func IsAsyncChatImageRequest(c *gin.Context) bool {
+	return openai.IsAsyncChatImageRequest(c)
+}
+
+func JobObjectForPath(path string) string {
 	if strings.Contains(path, "/edits") {
 		return "image.edit"
 	}
 	return "image.generation"
-}
-
-func ImageJobObjectForPathExported(path string) string {
-	return imageJobObjectForPath(path)
-}
-
-// buildImageProxyURL 构建异步任务图片代理地址。
-func buildImageProxyURL(taskID string) string {
-	base := strings.TrimRight(system_setting.ServerAddress, "/")
-	if base == "" {
-		return fmt.Sprintf("/v1/images/%s/content", taskID)
-	}
-	return fmt.Sprintf("%s/v1/images/%s/content", base, taskID)
 }

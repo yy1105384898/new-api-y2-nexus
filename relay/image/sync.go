@@ -1,4 +1,4 @@
-package relay
+package image
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
-	"github.com/QuantumNous/new-api/relay/helper/vendorpatch"
+	"github.com/QuantumNous/new-api/relay/imagevendor"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -22,7 +22,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
+func Helper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 
 	imageReq, ok := info.Request.(*dto.ImageRequest)
@@ -40,14 +40,14 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
-	imagePatch, err := vendorpatch.ApplyImage(info.OriginModelName, request)
+	imagePatch, err := imagevendor.ApplyRequestPatch(info.OriginModelName, request)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 	applySyncImageUpstreamB64Override(c, info, request)
 	syncImageRequestStreamToForm(c, request)
 
-	adaptor := GetAdaptor(info.ApiType)
+	adaptor := getAdaptor(info.ApiType)
 	if adaptor == nil {
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
@@ -81,7 +81,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 			if len(info.ParamOverride) > 0 {
 				jsonData, err = relaycommon.ApplyParamOverrideWithRelayInfo(jsonData, info)
 				if err != nil {
-					return newAPIErrorFromParamOverride(err)
+					return apiErrorFromParamOverride(err)
 				}
 			}
 
@@ -182,7 +182,7 @@ func applySyncImageUpstreamB64Override(c *gin.Context, info *relaycommon.RelayIn
 	if !strings.EqualFold(strings.TrimSpace(request.ResponseFormat), "url") {
 		return
 	}
-	if !service.ImageSyncPreferUpstreamB64JSON(info.OriginModelName) {
+	if !imagevendor.ImageSyncPreferUpstreamB64JSON(info.OriginModelName) {
 		return
 	}
 	info.ImageClientWantsURL = true

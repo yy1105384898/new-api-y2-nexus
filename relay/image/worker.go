@@ -1,4 +1,4 @@
-package relay
+package image
 
 import (
 	"context"
@@ -19,7 +19,7 @@ import (
 
 var imageAsyncQueue chan string
 
-func StartImageAsyncWorker() {
+func StartWorker() {
 	maxConcurrent := 32
 	if v := strings.TrimSpace(os.Getenv("IMAGE_ASYNC_MAX_CONCURRENT")); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -42,14 +42,14 @@ func recoverPendingImageAsyncTasks() {
 	common.SysLog(fmt.Sprintf("image async recovering %d pending tasks", len(tasks)))
 	for _, task := range tasks {
 		if task != nil && task.TaskID != "" {
-			EnqueueImageAsyncTask(task.TaskID)
+			EnqueueTask(task.TaskID)
 		}
 	}
 }
 
-func EnqueueImageAsyncTask(taskID string) {
+func EnqueueTask(taskID string) {
 	if imageAsyncQueue == nil {
-		StartImageAsyncWorker()
+		StartWorker()
 	}
 	select {
 	case imageAsyncQueue <- taskID:
@@ -88,7 +88,7 @@ func processImageAsyncTask(taskID string) {
 		return
 	}
 
-	images, _, execErr := ExecuteImageTaskUpstream(task)
+	images, _, execErr := executeTaskUpstream(task)
 	if execErr != nil {
 		failImageAsyncTask(ctx, task, model.TaskStatusInProgress, execErr.Error())
 		return
@@ -132,42 +132,7 @@ func imageAsyncTransitionStatus(ctx context.Context, task *model.Task, fromStatu
 
 // resolveTaskImageResultURLs：b64_json / data URI / Gulie·4K 上游 url 均转存 R2 后返回公网 URL。
 func resolveTaskImageResultURLs(ctx context.Context, task *model.Task, images []dto.ImageData) ([]string, error) {
-	acceptUpstreamURL := service.ImageAsyncAcceptsUpstreamURL(task.Properties.OriginModelName)
-	resultURLs := make([]string, 0, len(images))
-	for index, item := range images {
-		data, mimeOrURL, err := DecodeImageDataItemExported(item)
-		if err != nil {
-			return nil, err
-		}
-		if len(data) > 0 {
-			mimeType := mimeOrURL
-			if !strings.HasPrefix(mimeType, "image/") {
-				mimeType = "image/png"
-			}
-			uploaded, err := service.UploadGeneratedImageBytes(ctx, task.UserId, task.TaskID, index, data, mimeType)
-			if err != nil {
-				return nil, err
-			}
-			resultURLs = append(resultURLs, uploaded.PublicURL)
-			continue
-		}
-		if mimeOrURL != "" {
-			if acceptUpstreamURL {
-				downloadURL := service.RewriteLoopbackUpstreamImageURL(taskUpstreamBaseURL(task), mimeOrURL)
-				uploaded, err := service.UploadGeneratedImageFromURL(ctx, task.UserId, task.TaskID, index, downloadURL)
-				if err != nil {
-					return nil, fmt.Errorf("rehost upstream image url: %w", err)
-				}
-				resultURLs = append(resultURLs, uploaded.PublicURL)
-				continue
-			}
-			return nil, fmt.Errorf("upstream returned url without b64_json; use response_format=b64_json")
-		}
-	}
-	if len(resultURLs) == 0 {
-		return nil, fmt.Errorf("no image results from upstream")
-	}
-	return resultURLs, nil
+	return service.RehostTaskImageResultURLs(ctx, task.UserId, task.TaskID, taskUpstreamBaseURL(task), task.Properties.OriginModelName, images)
 }
 
 func failImageAsyncTask(ctx context.Context, task *model.Task, fromStatus model.TaskStatus, reason string) {

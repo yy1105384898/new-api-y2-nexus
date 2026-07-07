@@ -45,6 +45,9 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponse, http.StatusBadGateway)
 	}
 	responseBody = rehostedBody
+	if patched, patchErr := service.PatchClientFacingModelJSONFromContext(c, responseBody); patchErr == nil {
+		responseBody = patched
+	}
 
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
