@@ -1,6 +1,7 @@
 package sora
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/model"
@@ -104,7 +105,7 @@ func TestBuildOpenAIVideoCreateResponse(t *testing.T) {
 		PublicTaskID:    "task_public",
 		OriginModelName: "manju-openai-sora2",
 	}
-	out := buildOpenAIVideoCreateResponse(info, responseTask{Status: "running", Progress: 13, Seconds: "8"})
+	out := buildOpenAIVideoCreateResponse(info, responseTask{Status: "running", Progress: 13, Seconds: "8"}, nil)
 	if out["id"] != "task_public" {
 		t.Fatalf("expected public task id")
 	}
@@ -117,5 +118,37 @@ func TestExtractManjuSoraVideoURL(t *testing.T) {
 	body := []byte(`{"metadata":{"url":"https://example.com/a.mp4"}}`)
 	if got := extractManjuSoraVideoURL(body); got != "https://example.com/a.mp4" {
 		t.Fatalf("expected metadata url, got %q", got)
+	}
+}
+
+func TestParseTaskResult_ManjuSora2FailedWithMessage(t *testing.T) {
+	adaptor := &TaskAdaptor{}
+	body := []byte(`{
+		"id":"sora2-failed001",
+		"platform":"sora2",
+		"status":"failed",
+		"message":"某张上传的参考图未通过平台内容审核（常见于含可识别真人肖像或敏感内容）；重试无效，请更换涉及的参考图后重试"
+	}`)
+	result, err := adaptor.ParseTaskResult(body)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Status != model.TaskStatusFailure {
+		t.Fatalf("expected FAILURE, got %s", result.Status)
+	}
+	want := "某张上传的参考图未通过平台内容审核（常见于含可识别真人肖像或敏感内容）；重试无效，请更换涉及的参考图后重试"
+	if result.Reason != want {
+		t.Fatalf("expected reason %q, got %q", want, result.Reason)
+	}
+}
+
+func TestBuildManjuSoraOpenAIErrorResponse(t *testing.T) {
+	body := []byte(`{"id":"sora2-failed001","platform":"sora2","status":"failed","message":"审核失败"}`)
+	out, ok := BuildManjuSoraOpenAIErrorResponse(body)
+	if !ok {
+		t.Fatal("expected error conversion")
+	}
+	if !strings.Contains(string(out), "审核失败") {
+		t.Fatalf("expected message in output, got %s", string(out))
 	}
 }
