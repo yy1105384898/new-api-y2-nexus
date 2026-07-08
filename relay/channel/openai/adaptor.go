@@ -166,6 +166,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return url, nil
 	default:
 		if (info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) &&
+			IsAdobe2APIImageRelay(info) {
+			return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, "/v1/images/generations", info.ChannelType), nil
+		}
+		if (info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) &&
 			imagevendor.IsManjuBananaOriginModel(info.OriginModelName) {
 			if ManjuBananaUsesChatCompletionsUpstreamFromInfo(info) {
 				return chatImageGetRequestURL(info)
@@ -227,6 +231,9 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *
 		if !hasAuthOverride {
 			header.Set("Authorization", "Bearer "+info.ApiKey)
 		}
+	}
+	if IsAdobe2APIImageRelay(info) || IsAdobe2APIVideoChatRelay(info) {
+		header.Set("X-API-Key", info.ApiKey)
 	}
 	if info.ChannelType == constant.ChannelTypeOpenRouter {
 		if header.Get("HTTP-Referer") == "" {
@@ -364,6 +371,9 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if IsManjuSora2OriginModel(info.OriginModelName) {
 		return convertManjuSora2OpenAIChatRequest(request, info)
 	}
+	if IsAdobe2APIVideoChatRelay(info) {
+		return ConvertAdobe2APIOpenAIChatRequest(c, request, info)
+	}
 
 	return request, nil
 }
@@ -443,6 +453,10 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	if IsAdobe2APIImageRelay(info) &&
+		(info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) {
+		return ConvertAdobe2APIImageRequest(c, info, request)
+	}
 	if imagevendor.IsManjuBananaOriginModel(info.OriginModelName) &&
 		(info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) {
 		return ConvertManjuBananaImageRequest(c, info, request)
