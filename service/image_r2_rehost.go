@@ -35,7 +35,8 @@ func RehostDetachedContext(parent context.Context) context.Context {
 	if common.RelayTimeout > 0 {
 		timeout = time.Duration(common.RelayTimeout) * time.Second
 	}
-	return context.WithTimeout(context.WithoutCancel(parent), timeout)
+	ctx, _ := context.WithTimeout(context.WithoutCancel(parent), timeout)
+	return ctx
 }
 
 // IsBillableImageRehostClientCancel 上游已返回图片，但转存阶段因客户端取消/断开失败——仍应向用户计费。
