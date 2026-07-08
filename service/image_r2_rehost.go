@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"time"
 
@@ -180,6 +181,96 @@ func RewriteLoopbackUpstreamImageURL(channelBaseURL, imageURL string) string {
 	return out.String()
 }
 
+// RewriteGeneratedUpstreamURLToChannelBase maps self-hosted /generated/* assets
+// back to the configured channel base. Adobe2API may return a public test
+// hostname while the real reachable upstream is the channel base URL.
+func RewriteGeneratedUpstreamURLToChannelBase(channelBaseURL, imageURL string) (string, bool) {
+	channelBaseURL = strings.TrimSpace(channelBaseURL)
+	imageURL = strings.TrimSpace(imageURL)
+	if channelBaseURL == "" || imageURL == "" {
+		return imageURL, false
+	}
+	img, err := url.Parse(imageURL)
+	if err != nil || img.Scheme == "" || img.Host == "" {
+		return imageURL, false
+	}
+	if img.Scheme != "http" && img.Scheme != "https" {
+		return imageURL, false
+	}
+	if !strings.HasPrefix(img.Path, "/generated/") {
+		return imageURL, false
+	}
+	base, err := url.Parse(channelBaseURL)
+	if err != nil || base.Scheme == "" || base.Host == "" {
+		return imageURL, false
+	}
+	if base.Scheme != "http" && base.Scheme != "https" {
+		return imageURL, false
+	}
+	if !generatedURLRewriteAllowed(base, img) {
+		return imageURL, false
+	}
+	rewritten := *img
+	rewritten.Scheme = base.Scheme
+	rewritten.Host = base.Host
+	out := rewritten.String()
+	return out, true
+}
+
+func generatedURLRewriteAllowed(base, img *url.URL) bool {
+	if base == nil || img == nil {
+		return false
+	}
+	if strings.EqualFold(img.Hostname(), "adobe.jingruankeji.com") {
+		return true
+	}
+	if base.Port() == "6001" {
+		return true
+	}
+	return strings.Contains(strings.ToLower(base.Hostname()), "adobe")
+}
+
+func rewriteGeneratedImageDataURLsToChannelBase(channelBaseURL string, images []dto.ImageData) ([]dto.ImageData, bool) {
+	if len(images) == 0 {
+		return images, false
+	}
+	out := make([]dto.ImageData, len(images))
+	copy(out, images)
+	changed := false
+	for index := range out {
+		rewritten, ok := RewriteGeneratedUpstreamURLToChannelBase(channelBaseURL, out[index].Url)
+		if !ok {
+			continue
+		}
+		if rewritten != out[index].Url {
+			out[index].Url = rewritten
+			changed = true
+		}
+	}
+	return out, changed
+}
+
+func generatedImageDataCanPassthrough(channelBaseURL string, images []dto.ImageData) bool {
+	if strings.TrimSpace(channelBaseURL) == "" || len(images) == 0 {
+		return false
+	}
+	hasGeneratedURL := false
+	for _, item := range images {
+		if strings.TrimSpace(item.B64Json) != "" {
+			return false
+		}
+		u := strings.TrimSpace(item.Url)
+		if u == "" {
+			continue
+		}
+		if _, ok := RewriteGeneratedUpstreamURLToChannelBase(channelBaseURL, u); !ok {
+			return false
+		}
+		hasGeneratedURL = true
+	}
+	return hasGeneratedURL
+}
+
 func imageDataNeedsURLRehost(images []dto.ImageData) bool {
 	for _, item := range images {
 		if strings.TrimSpace(item.Url) != "" && strings.TrimSpace(item.B64Json) == "" {
@@ -223,7 +314,11 @@ func syncImageNeedsRehost(originModel string, images []dto.ImageData, clientWant
 
 // RehostImageDataForClient 将上游 b64 或（4K/FLUX）url 转存 R2；clientWantsURL 时清除 b64_json 仅留公网 url。
 func RehostImageDataForClient(ctx context.Context, userID int, storeID, channelBaseURL, originModel string, images []dto.ImageData, clientWantsURL bool) ([]dto.ImageData, error) {
+	images, _ = rewriteGeneratedImageDataURLsToChannelBase(channelBaseURL, images)
 	if !syncImageNeedsRehost(originModel, images, clientWantsURL) {
+		return images, nil
+	}
+	if generatedImageDataCanPassthrough(channelBaseURL, images) {
 		return images, nil
 	}
 	if getR2Config() == nil {
@@ -284,12 +379,12 @@ func RehostSyncImageResponseBody(ctx context.Context, userID int, originModel, c
 	if err := common.Unmarshal(responseBody, &payload); err != nil || len(payload.Data) == 0 {
 		return responseBody, nil
 	}
-	if !syncImageNeedsRehost(originModel, payload.Data, clientWantsURL) {
-		return responseBody, nil
-	}
 	rehosted, err := RehostImageDataForClient(ctx, userID, model.GenerateTaskID(), channelBaseURL, originModel, payload.Data, clientWantsURL)
 	if err != nil {
 		return nil, err
+	}
+	if reflect.DeepEqual(rehosted, payload.Data) {
+		return responseBody, nil
 	}
 	var raw map[string]json.RawMessage
 	if err := common.Unmarshal(responseBody, &raw); err != nil {
@@ -385,6 +480,10 @@ func RehostTaskImageResultURLs(ctx context.Context, userID int, storeID, channel
 			continue
 		}
 		if mimeOrURL != "" {
+			if rewritten, ok := RewriteGeneratedUpstreamURLToChannelBase(channelBaseURL, mimeOrURL); ok {
+				resultURLs = append(resultURLs, rewritten)
+				continue
+			}
 			if acceptUpstreamURL {
 				if getR2Config() == nil {
 					return nil, fmt.Errorf("R2 not configured")

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -27,6 +28,34 @@ func TestRehostSyncImageResponseBodySkipsInternalPrefixModel(t *testing.T) {
 	}
 	if string(out) != string(body) {
 		t.Fatalf("internal prefixed model should passthrough body unchanged")
+	}
+}
+
+func TestRehostSyncImageResponseBodyRewritesGeneratedURLToChannelBase(t *testing.T) {
+	body := []byte(`{"created":1,"data":[{"url":"https://adobe.jingruankeji.com/generated/a.png"}]}`)
+	out, err := RehostSyncImageResponseBody(context.Background(), 1, "cy-img2-gpt-image-2-4k", "http://45.67.221.45:6001", body, false)
+	if err != nil {
+		t.Fatalf("RehostSyncImageResponseBody: %v", err)
+	}
+	var payload struct {
+		Data []dto.ImageData `json:"data"`
+	}
+	if err := json.Unmarshal(out, &payload); err != nil {
+		t.Fatalf("unmarshal output: %v", err)
+	}
+	if len(payload.Data) != 1 || payload.Data[0].Url != "http://45.67.221.45:6001/generated/a.png" {
+		t.Fatalf("data = %#v", payload.Data)
+	}
+}
+
+func TestRehostImageDataURLsPassthroughGeneratedURLWithoutR2(t *testing.T) {
+	images := []dto.ImageData{{Url: "https://adobe.jingruankeji.com/generated/a.png"}}
+	out, err := RehostImageDataURLs(context.Background(), 1, "task_test", "http://45.67.221.45:6001", "cy-img2-gpt-image-2-4k", images)
+	if err != nil {
+		t.Fatalf("RehostImageDataURLs: %v", err)
+	}
+	if len(out) != 1 || out[0].Url != "http://45.67.221.45:6001/generated/a.png" {
+		t.Fatalf("images = %#v", out)
 	}
 }
 
@@ -90,6 +119,17 @@ func TestRehostTaskImageResultURLsRequiresR2ForAcceptedURL(t *testing.T) {
 	_, err := RehostTaskImageResultURLs(context.Background(), 1, "task_test", "https://api.example.com", "manju-gemini-banana-pro-1/2k", images)
 	if err == nil || !strings.Contains(err.Error(), "R2 not configured") {
 		t.Fatalf("expected R2 not configured error, got %v", err)
+	}
+}
+
+func TestRehostTaskImageResultURLsPassthroughGeneratedURLWithoutR2(t *testing.T) {
+	images := []dto.ImageData{{Url: "https://adobe.jingruankeji.com/generated/a.png"}}
+	out, err := RehostTaskImageResultURLs(context.Background(), 1, "task_test", "http://45.67.221.45:6001", "cy-img2-gpt-image-2-4k", images)
+	if err != nil {
+		t.Fatalf("RehostTaskImageResultURLs: %v", err)
+	}
+	if len(out) != 1 || out[0] != "http://45.67.221.45:6001/generated/a.png" {
+		t.Fatalf("urls = %#v", out)
 	}
 }
 
