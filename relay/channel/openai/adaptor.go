@@ -674,6 +674,14 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	case relayconstant.RelayModeAudioTranscription:
 		err, usage = OpenaiSTTHandler(c, resp, info, a.ResponseFormat)
 	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
+		if IsAdobe2APIImageRelay(info) {
+			if info.IsStream {
+				usage, err = OpenaiImageStreamHandler(c, info, resp)
+			} else {
+				usage, err = OpenaiImageHandler(c, info, resp)
+			}
+			break
+		}
 		if imagevendor.IsManjuBananaOriginModel(info.OriginModelName) &&
 			ManjuBananaUsesChatCompletionsUpstreamFromInfo(info) {
 			if info.IsStream {

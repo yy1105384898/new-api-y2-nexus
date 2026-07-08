@@ -76,6 +76,21 @@ func TestAdobe2APIImageRelayMatchesChannel75MappedModel(t *testing.T) {
 	}
 }
 
+func TestAdobe2APIImageRelayMatchesChannelBaseURLWithoutChannel75(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "nano-banana-pro",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: "http://45.67.221.45:6001",
+		},
+	}
+	if !IsChatImageModel(info.OriginModelName) {
+		t.Fatal("test sanity: banana model should normally be a chat image model")
+	}
+	if !IsAdobe2APIImageRelay(info) {
+		t.Fatal("Adobe2API base URL should make banana use the image JSON relay")
+	}
+}
+
 func TestAdobe2APIImageRelayDoesNotMatchRegularOpenAIModel(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		OriginModelName: "gpt-image-1",
