@@ -211,6 +211,8 @@ When creating a pull request:
 
 When the user invokes `/git-close-loop` or asks for a closed-loop commit, read and follow **`.agents/skills/git-close-loop/SKILL.md`** (same content as `~/.agents/skills/git-close-loop`).
 
+When the user asks to onboard a new channel/model (渠道入库、渠道适配、migrate_*_ssh、seed_*_api_doc), read and follow **`.agents/skills/new-channel-onboarding/SKILL.md`** (project-local only).
+
 For coordinated changes with **`infinite-canvas/`** in this workspace: use the **same branch name** and **same feature commit header** in both repos; mention `配合：infinite-canvas …` in the commit body.
 
 ### 文档影响面
@@ -219,6 +221,7 @@ For coordinated changes with **`infinite-canvas/`** in this workspace: use the *
 |--------|------|
 | Frontend feature / fix | `web/default/AGENTS.md` conventions; commit body lists doc paths or `文档：无` |
 | Backend relay / billing | `pkg/billingexpr/expr.md` and related pkg docs when contracts change |
+| Video task routing / oaivideo | `docs/video-task-routing.md`, `relay/channel/task/README.md` |
 | i18n user strings | `web/default/src/i18n/locales/*.json` |
 
 ### verify（合并 main 前）
