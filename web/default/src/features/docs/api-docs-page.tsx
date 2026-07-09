@@ -165,8 +165,9 @@ export function ApiDocsPage() {
   -d '{
     "model": "gemini-banana-pro-4k",
     "prompt": "一只橘猫趴在窗台上晒太阳，水彩画风格",
-    "size": "1:1",
-    "quality": "high",
+    "aspect_ratio": "1:1",
+    "output_resolution": "4K",
+    "image_size": "4K",
     "stream": false
   }'`}
         />
@@ -178,7 +179,9 @@ export function ApiDocsPage() {
   -d '{
     "model": "gemini-banana-pro-4k",
     "prompt": "将 @图片1 的风格应用到新场景",
-    "size": "3:2",
+    "aspect_ratio": "16:9",
+    "output_resolution": "4K",
+    "image_size": "4K",
     "image": "https://example.com/ref.png",
     "stream": false
   }'`}
@@ -205,6 +208,8 @@ export function ApiDocsPage() {
 
         <ul className='list-disc space-y-2 pl-5'>
           <li>Banana / Nano Banana 等模型推荐同步（勿传 async）；大图或多参考图可选用 async: true</li>
+          <li>Banana / Adobe2API 推荐显式传 aspect_ratio 与 output_resolution；image_size 是兼容别名，若同时传入需保持一致</li>
+          <li>quality 也可作为别名使用：low=1K、medium=2K、high=4K；size 仅用于兼容旧 OpenAI 尺寸推断</li>
           <li>图生图优先 JSON 传 image/images；multipart 走 POST /v1/images/edits</li>
           <li>（已弃用）POST /v1/chat/completions 出图仍兼容，响应带 Deprecation 头</li>
           <li>异步轮询间隔建议 3–5 秒；completed 后从 data[0].url 取图</li>

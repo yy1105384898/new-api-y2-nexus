@@ -142,6 +142,62 @@ func TestAdobe2APIImageRelayMatchesChannel75MappedModel(t *testing.T) {
 	}
 }
 
+func TestAdobe2APIImageRelayReusesManjuBananaModels(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "manju-gemini-banana-2.0-4k",
+		RelayMode:       relayconstant.RelayModeImagesGenerations,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelId:         75,
+			ChannelBaseUrl:    "http://45.67.221.45:6001",
+			UpstreamModelName: "nano-banana2",
+		},
+	}
+	if !IsAdobe2APIImageRelay(info) {
+		t.Fatal("channel 75 mapped manju banana model should use Adobe2API relay")
+	}
+
+	bodyAny, err := (&Adaptor{}).ConvertImageRequest(nil, info, dto.ImageRequest{
+		Model:   "gemini-banana-2.0-4k",
+		Prompt:  "a banana-shaped lamp",
+		Size:    "16:9",
+		Quality: "auto",
+	})
+	if err != nil {
+		t.Fatalf("convert: %v", err)
+	}
+	body := bodyAny.(map[string]any)
+	assertAdobe2APIField(t, body, "model", "nano-banana2")
+	assertAdobe2APIField(t, body, "aspect_ratio", "16:9")
+	assertAdobe2APIField(t, body, "image_size", "4K")
+	assertAdobe2APIField(t, body, "output_resolution", "4K")
+	if _, exists := body["messages"]; exists {
+		t.Fatalf("Adobe2API image relay should not use Manju chat body: %#v", body)
+	}
+}
+
+func TestAdobe2APIImageRelayReusesManjuBananaProModel(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "manju-gemini-banana-pro-4k",
+		RelayMode:       relayconstant.RelayModeImagesGenerations,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelId:         75,
+			UpstreamModelName: "nano-banana-pro",
+		},
+	}
+	bodyAny, err := ConvertAdobe2APIImageRequest(nil, info, dto.ImageRequest{
+		Model:  "gemini-banana-pro-4k",
+		Prompt: "a clean product render",
+		Size:   "1:1",
+	})
+	if err != nil {
+		t.Fatalf("convert: %v", err)
+	}
+	body := bodyAny.(map[string]any)
+	assertAdobe2APIField(t, body, "model", "nano-banana-pro")
+	assertAdobe2APIField(t, body, "image_size", "4K")
+	assertAdobe2APIField(t, body, "output_resolution", "4K")
+}
+
 func TestAdobe2APIImageRelayMatchesChannelBaseURLWithoutChannel75(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		OriginModelName: "nano-banana-pro",
