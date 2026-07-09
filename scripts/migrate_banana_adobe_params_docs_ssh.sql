@@ -1,6 +1,10 @@
--- Banana 画布参数与 hints：画幅改比例值、启用画质、关闭自定义像素、hints 改客户向说明
--- contabo: docker exec -i newapi-postgres psql -U root -d new-api < migrate_banana_profile_params_ssh.sql
--- 或重跑: go run ./scripts/seed_model_ui_params/main.go -force
+-- Banana / Adobe2API image params: align profile hints and safe aspect ratios
+-- with Adobe2API's real OpenAI-compatible input fields.
+--
+-- contabo:
+-- docker exec -i newapi-postgres psql -U root -d new-api < migrate_banana_adobe_params_docs_ssh.sql
+-- Then refresh model api_doc with:
+-- python3 scripts/seed_manju_gemini_banana_api_doc.py
 
 BEGIN;
 
@@ -33,26 +37,8 @@ SET params = '{
     updated_time = EXTRACT(EPOCH FROM NOW())::BIGINT
 WHERE profile_id = 'image-tpl-banana-chat';
 
-UPDATE model_ui_param_profiles
-SET hints = '[
-  {"text": "轻量快速出图，仅支持 1K 画质（约 1024px）。"},
-  {"text": "画幅请选 1:1、16:9 等比例，或选「自动」按参考图推断。"},
-  {"text": "连接参考图后，在提示词中用 @图片1 说明要改动的素材。"}
-]'::jsonb::text,
-    updated_time = EXTRACT(EPOCH FROM NOW())::BIGINT
-WHERE profile_id = 'image-tpl-banana-chat-flash-lite';
-
-UPDATE model_ui_param_profiles
-SET hints = '[
-  {"text": "Flash Lite 图像模型仅支持 1K 出图（约 1024px），不支持 2K/4K。"},
-  {"text": "请使用 1:1、16:9 等比例；画质选 1K 或自动即可。"},
-  {"text": "连接参考图后，在提示词中用 @图片1 说明要改动的素材。"}
-]'::jsonb::text,
-    updated_time = EXTRACT(EPOCH FROM NOW())::BIGINT
-WHERE profile_id = 'image-tpl-aspect-count-flash-lite';
-
 COMMIT;
 
-SELECT profile_id, left(params, 80) AS params_preview, hints
+SELECT profile_id, params, hints
 FROM model_ui_param_profiles
-WHERE profile_id IN ('image-tpl-banana-chat', 'image-tpl-banana-chat-flash-lite', 'image-tpl-aspect-count-flash-lite');
+WHERE profile_id = 'image-tpl-banana-chat';

@@ -600,6 +600,41 @@ function pickImageSize(paramsConfig: ImageUiParamsDoc['params']): string {
   return sizeOption?.size ?? sizeOption?.value ?? '1024x1024'
 }
 
+function pickImageAspectRatio(paramsConfig: ImageUiParamsDoc['params']): string {
+  const options = paramsConfig?.aspectRatio?.options ?? []
+  const option = options.find((item) => item.value && item.value !== 'auto')
+  return option?.size ?? option?.value ?? '1:1'
+}
+
+function imageQualityToOutputResolution(value: string | undefined): string | null {
+  const normalized = (value || '').trim().toLowerCase()
+  if (normalized === 'high' || normalized === 'hd' || normalized === '4k') return '4K'
+  if (normalized === 'medium' || normalized === '2k') return '2K'
+  if (normalized === 'low' || normalized === 'standard' || normalized === '1k') return '1K'
+  return null
+}
+
+function pickImageOutputResolution(
+  paramsConfig: ImageUiParamsDoc['params'],
+  modelName: string
+): string | null {
+  const options = paramsConfig?.quality?.options ?? []
+  const values = new Set(options.map((item) => item.value))
+  if (modelName.toLowerCase().includes('4k') && values.has('high')) return '4K'
+  if (values.has('medium')) return '2K'
+  if (values.has('high')) return '4K'
+  if (values.has('low')) return '1K'
+  const firstMapped = options
+    .map((item) => imageQualityToOutputResolution(item.value))
+    .find(Boolean)
+  return firstMapped ?? null
+}
+
+function usesAdobeImageResolutionParams(ui?: ImageUiParamsDoc): boolean {
+  const id = (ui?.id || '').toLowerCase()
+  return id.includes('banana') || id.includes('adobe2api')
+}
+
 function buildAsyncImageVariant(
   model: PricingModel,
   base: string,
@@ -608,15 +643,53 @@ function buildAsyncImageVariant(
 ): ModelApiDocVariant {
   const hints = extractUiHintTexts(ui?.hints)
   const paramsConfig = ui?.params ?? {}
+  const useAdobeParams = usesAdobeImageResolutionParams(ui)
   const size = pickImageSize(paramsConfig)
+  const aspectRatio = pickImageAspectRatio(paramsConfig)
+  const outputResolution = pickImageOutputResolution(paramsConfig, modelName)
+  const resolutionFields = outputResolution
+    ? { output_resolution: outputResolution, image_size: outputResolution }
+    : {}
+  const requestFields = useAdobeParams
+    ? {
+        aspect_ratio: aspectRatio,
+        ...resolutionFields,
+      }
+    : { size }
 
   const params: ModelDocParam[] = [
     { name: 'model', description: `必填，固定传 ${modelName}。` },
     { name: 'prompt', description: '必填，图像描述提示词。' },
     { name: 'async', description: '必填 true，启用异步任务模式。' },
-    paramNote('size', paramsConfig?.size, '输出尺寸。'),
+    useAdobeParams
+      ? paramNote(
+          'aspect_ratio',
+          paramsConfig?.aspectRatio,
+          '画幅比例；Adobe2API 会转成上游 size / modelSpecificPayload.aspectRatio。'
+        )
+      : paramNote('size', paramsConfig?.size, '输出尺寸。'),
+    useAdobeParams
+      ? {
+          name: 'output_resolution',
+          description:
+            '推荐传 1K / 2K / 4K；Adobe2API 用它决定上游像素 size。image_size 是兼容别名，若同时传入需保持一致。',
+        }
+      : paramNote('quality', paramsConfig?.quality, '画质档位。'),
+    useAdobeParams
+      ? {
+          name: 'quality',
+          description:
+            'OpenAI 风格别名：low=1K、medium=2K、high=4K；推荐直接传 output_resolution。',
+        }
+      : { name: '', description: '' },
+    useAdobeParams
+      ? {
+          name: 'size',
+          description:
+            '兼容旧 OpenAI 尺寸；仅用于推断 aspect_ratio/output_resolution，不推荐与 aspect_ratio 混用。',
+        }
+      : { name: '', description: '' },
     paramNote('n', paramsConfig?.count, '生成张数，默认 1。'),
-    paramNote('quality', paramsConfig?.quality, '画质档位。'),
   ].filter((p) => p.description)
 
   return {
@@ -630,14 +703,14 @@ function buildAsyncImageVariant(
     requestJson: formatJson({
       model: modelName,
       prompt: '一只橘猫坐在窗台上，午后阳光',
-      size,
+      ...requestFields,
       n: 1,
       async: true,
     }),
     basicRequestJson: formatJson({
       model: modelName,
       prompt: '一只橘猫坐在窗台上，午后阳光',
-      size,
+      ...requestFields,
       n: 1,
       async: true,
     }),
@@ -670,15 +743,53 @@ function buildSyncImageVariant(
 ): ModelApiDocVariant {
   const hints = extractUiHintTexts(ui?.hints)
   const paramsConfig = ui?.params ?? {}
+  const useAdobeParams = usesAdobeImageResolutionParams(ui)
   const size = pickImageSize(paramsConfig)
+  const aspectRatio = pickImageAspectRatio(paramsConfig)
+  const outputResolution = pickImageOutputResolution(paramsConfig, modelName)
+  const resolutionFields = outputResolution
+    ? { output_resolution: outputResolution, image_size: outputResolution }
+    : {}
+  const requestFields = useAdobeParams
+    ? {
+        aspect_ratio: aspectRatio,
+        ...resolutionFields,
+      }
+    : { size }
 
   const params: ModelDocParam[] = [
     { name: 'model', description: `必填，固定传 ${modelName}。` },
     { name: 'prompt', description: '必填，图像描述提示词。' },
-    paramNote('size', paramsConfig?.size, '输出尺寸。'),
+    useAdobeParams
+      ? paramNote(
+          'aspect_ratio',
+          paramsConfig?.aspectRatio,
+          '画幅比例；Adobe2API 会转成上游 size / modelSpecificPayload.aspectRatio。'
+        )
+      : paramNote('size', paramsConfig?.size, '输出尺寸。'),
+    useAdobeParams
+      ? {
+          name: 'output_resolution',
+          description:
+            '推荐传 1K / 2K / 4K；Adobe2API 用它决定上游像素 size。image_size 是兼容别名，若同时传入需保持一致。',
+        }
+      : paramNote('quality', paramsConfig?.quality, '画质档位。'),
+    useAdobeParams
+      ? {
+          name: 'quality',
+          description:
+            'OpenAI 风格别名：low=1K、medium=2K、high=4K；推荐直接传 output_resolution。',
+        }
+      : { name: '', description: '' },
+    useAdobeParams
+      ? {
+          name: 'size',
+          description:
+            '兼容旧 OpenAI 尺寸；仅用于推断 aspect_ratio/output_resolution，不推荐与 aspect_ratio 混用。',
+        }
+      : { name: '', description: '' },
     paramNote('n', paramsConfig?.count, '生成张数，默认 1。'),
     { name: 'response_format', description: 'url 返回图片地址；b64_json 返回 base64。' },
-    paramNote('quality', paramsConfig?.quality, '画质档位。'),
   ].filter((p) => p.description)
 
   return {
@@ -692,14 +803,14 @@ function buildSyncImageVariant(
     requestJson: formatJson({
       model: modelName,
       prompt: '一只橘猫坐在窗台上，午后阳光',
-      size,
+      ...requestFields,
       n: 1,
       response_format: 'url',
     }),
     basicRequestJson: formatJson({
       model: modelName,
       prompt: '一只橘猫坐在窗台上，午后阳光',
-      size,
+      ...requestFields,
       n: 1,
       response_format: 'url',
     }),

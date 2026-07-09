@@ -21,8 +21,8 @@ import (
 	"strings"
 	"time"
 
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/dto"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/imagevendor"
 	"github.com/QuantumNous/new-api/service"
@@ -127,7 +127,7 @@ func buildManjuBananaImageBody(c *gin.Context, info *relaycommon.RelayInfo, requ
 	if aspect := resolveManjuBananaAspectRatio(request.Size); aspect != "" {
 		body["aspect_ratio"] = aspect
 	}
-	if resolution := resolveManjuBananaOutputResolution(originModel, request.Quality); resolution != "" {
+	if resolution := resolveManjuBananaOutputResolution(originModel, request); resolution != "" {
 		body["output_resolution"] = resolution
 	}
 	if request.N != nil && *request.N > 0 {
@@ -159,7 +159,7 @@ func buildManjuBananaChatImageBody(c *gin.Context, info *relaycommon.RelayInfo, 
 	if aspect := resolveManjuBananaAspectRatio(request.Size); aspect != "" {
 		body["aspect_ratio"] = aspect
 	}
-	if resolution := resolveManjuBananaOutputResolution(originModel, request.Quality); resolution != "" {
+	if resolution := resolveManjuBananaOutputResolution(originModel, request); resolution != "" {
 		body["output_resolution"] = resolution
 	}
 	return body, nil
@@ -237,7 +237,7 @@ func resolveManjuBananaAspectRatio(size string) string {
 	}
 }
 
-func resolveManjuBananaOutputResolution(originModel, quality string) string {
+func resolveManjuBananaOutputResolution(originModel string, request dto.ImageRequest) string {
 	name := strings.ToLower(strings.TrimSpace(originModel))
 	switch {
 	case strings.HasSuffix(name, "-4k"):
@@ -245,7 +245,12 @@ func resolveManjuBananaOutputResolution(originModel, quality string) string {
 	case strings.Contains(name, "flash-lite"):
 		return "1K"
 	}
-	value := strings.ToLower(strings.TrimSpace(quality))
+	for _, key := range []string{"output_resolution", "image_size", "resolution"} {
+		if value := adobe2APIImageOptionString(request, key, camelizeSnakeKey(key)); value != "" {
+			return normalizeAdobe2APIImageSize(value)
+		}
+	}
+	value := strings.ToLower(strings.TrimSpace(request.Quality))
 	switch value {
 	case "high", "hd", "4k":
 		return "4K"

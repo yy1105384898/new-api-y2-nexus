@@ -158,7 +158,7 @@ func ConvertAdobe2APIImageRequest(c *gin.Context, info *relaycommon.RelayInfo, r
 		body["quality"] = quality
 	}
 	adobe2APICopyImageRawFields(body, request)
-	imageSize := adobe2APIImageSize(request)
+	imageSize := adobe2APIImageSize(info, request)
 	if imageSize != "" {
 		body["image_size"] = imageSize
 		body["output_resolution"] = imageSize
@@ -222,7 +222,7 @@ func adobe2APICopyImageRawFields(body map[string]any, request dto.ImageRequest) 
 	}
 }
 
-func adobe2APIImageSize(request dto.ImageRequest) string {
+func adobe2APIImageSize(info *relaycommon.RelayInfo, request dto.ImageRequest) string {
 	for _, key := range []string{"image_size", "output_resolution", "resolution"} {
 		if value := adobe2APIImageOptionString(request, key, camelizeSnakeKey(key)); value != "" {
 			return normalizeAdobe2APIImageSize(value)
@@ -243,6 +243,9 @@ func adobe2APIImageSize(request dto.ImageRequest) string {
 	case "low", "standard", "1k":
 		return "1K"
 	default:
+		if info != nil && strings.HasSuffix(strings.ToLower(strings.TrimSpace(info.OriginModelName)), "-4k") {
+			return "4K"
+		}
 		return ""
 	}
 }
