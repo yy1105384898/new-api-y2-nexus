@@ -411,6 +411,57 @@ func TestConvertAdobe2APIOpenAIChatRequestPreservesVideoExtensions(t *testing.T)
 	}
 }
 
+func TestAdobe2APIVideoRelayMatchesChannel75MappedModels(t *testing.T) {
+	for _, model := range []string{"adobe-sora2", "adobe-sora2-pro", "adobe-veo31", "adobe-veo31-ref", "adobe-veo31-fast"} {
+		info := &relaycommon.RelayInfo{
+			OriginModelName: model,
+			ChannelMeta: &relaycommon.ChannelMeta{
+				ChannelId:         75,
+				UpstreamModelName: strings.TrimPrefix(model, "adobe-"),
+			},
+		}
+		if !IsAdobe2APIVideoChatRelay(info) {
+			t.Fatalf("channel 75 model %q should use Adobe2API video chat relay", model)
+		}
+	}
+}
+
+func TestConvertAdobe2APIOpenAIChatRequestKeepsVeoParameters(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	rawBody := `{
+		"model":"veo31-fast",
+		"messages":[{"role":"user","content":"a car crossing a rainy city"}],
+		"duration":8,
+		"aspect_ratio":"16:9",
+		"resolution":"720p",
+		"generate_audio":false
+	}`
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(rawBody))
+	c.Request.Header.Set("Content-Type", "application/json")
+	var req dto.GeneralOpenAIRequest
+	if err := common.UnmarshalBodyReusable(c, &req); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	bodyAny, err := ConvertAdobe2APIOpenAIChatRequest(c, &req, &relaycommon.RelayInfo{
+		OriginModelName: "adobe-veo31-fast",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelId:         75,
+			UpstreamModelName: "veo31-fast",
+		},
+	})
+	if err != nil {
+		t.Fatalf("convert: %v", err)
+	}
+	body := bodyAny.(map[string]any)
+	assertAdobe2APIField(t, body, "model", "veo31-fast")
+	assertAdobe2APIField(t, body, "duration", float64(8))
+	assertAdobe2APIField(t, body, "aspect_ratio", "16:9")
+	assertAdobe2APIField(t, body, "resolution", "720p")
+	assertAdobe2APIField(t, body, "generate_audio", false)
+}
+
 func assertAdobe2APIField(t *testing.T, body map[string]any, key string, want any) {
 	t.Helper()
 	if body[key] != want {
