@@ -72,7 +72,7 @@ export function ApiDocsPage() {
         <DocsTable
           headers={['步骤', '方法', '说明']}
           rows={[
-            ['1. 提交任务', 'POST /v1/videos', 'JSON 或 multipart；上游差异由平台内部适配'],
+            ['1. 提交任务', 'POST /v1/videos', 'JSON 或 multipart；不同模型参数由平台内部适配'],
             ['2. 轮询进度', 'GET /v1/videos/{task_id}', 'status: queued / in_progress / completed / failed'],
             ['3. 下载成片', 'GET /v1/videos/{task_id}/content', '或取响应 data[0].url'],
           ]}
@@ -110,6 +110,7 @@ export function ApiDocsPage() {
         <ul className='list-disc space-y-2 pl-5'>
           <li>视频生成通常 30 秒–5 分钟，轮询间隔建议 5–10 秒，客户端超时 ≥300 秒</li>
           <li>仅成功出片才计费；失败不扣费</li>
+          <li>resolution（如 720p、1080p）为视频专用参数；图像 API 请勿使用</li>
           <li>Omni / Veo 等 Gemini 视频模型内容审查较严，避免真人正脸、版权 IP、敏感题材</li>
         </ul>
       </DocsSection>
@@ -140,7 +141,7 @@ export function ApiDocsPage() {
         <DocsTable
           headers={['模式', '适用', '说明']}
           rows={[
-            ['同步 sync', 'Banana 等推荐', 'POST 勿传 async，stream: false，单次返回 data[].url'],
+            ['同步 sync', 'Gemini Banana 等推荐', 'POST 勿传 async，stream: false，单次返回 data[].url'],
             ['异步 async', '大图/批量/画布部分模型', 'POST 带 async: true，再 GET 轮询 task_id'],
           ]}
         />
@@ -158,7 +159,7 @@ export function ApiDocsPage() {
 
         <h3 className='mt-8 text-lg font-semibold'>快速示例</h3>
         <CodeBlock
-          title='同步文生图（Banana 等）'
+          title='同步文生图（Gemini Banana 等）'
           code={`curl -X POST ${base}/images/generations \\
   -H "Authorization: Bearer sk-xxx" \\
   -H "Content-Type: application/json" \\
@@ -187,6 +188,17 @@ export function ApiDocsPage() {
   }'`}
         />
         <CodeBlock
+          title='multipart 图生图（多参考图）'
+          code={`curl -X POST ${base}/images/edits \\
+  -H "Authorization: Bearer sk-xxx" \\
+  -F "model=gemini-banana-pro-4k" \\
+  -F "prompt=将参考图风格应用到新场景" \\
+  -F "aspect_ratio=16:9" \\
+  -F "output_resolution=4K" \\
+  -F "image=@/path/to/ref1.png" \\
+  -F "image=@/path/to/ref2.png"`}
+        />
+        <CodeBlock
           title='异步文生图'
           code={`curl -X POST ${base}/images/generations \\
   -H "Authorization: Bearer sk-xxx" \\
@@ -206,15 +218,41 @@ export function ApiDocsPage() {
   -H "Authorization: Bearer sk-xxx"`}
         />
 
-        <ul className='list-disc space-y-2 pl-5'>
-          <li>Banana / Nano Banana 等模型推荐同步（勿传 async）；大图或多参考图可选用 async: true</li>
-          <li>Banana / Adobe2API 推荐显式传 aspect_ratio 与 output_resolution；image_size 是兼容别名，若同时传入需保持一致</li>
-          <li>quality 也可作为别名使用：low=1K、medium=2K、high=4K；size 仅用于兼容旧 OpenAI 尺寸推断</li>
-          <li>图生图优先 JSON 传 image/images；multipart 走 POST /v1/images/edits</li>
-          <li>（已弃用）POST /v1/chat/completions 出图仍兼容，响应带 Deprecation 头</li>
-          <li>异步轮询间隔建议 3–5 秒；completed 后从 data[0].url 取图</li>
-          <li>仅成功出图才计费</li>
-        </ul>
+        <h3 className='mt-8 text-lg font-semibold'>注意事项</h3>
+        <DocsTable
+          headers={['场景', '说明']}
+          rows={[
+            [
+              '2K 固定档位',
+              '如 gpt-image-2-2k：size 仅传画幅比例（1:1、3:2、2:3、auto），勿传 quality、image_size、output_resolution、resolution 或像素尺寸；传入后平台会忽略。',
+            ],
+            [
+              '画幅与分辨率',
+              'Gemini Banana / GPT Image 4K 等模型请显式传 aspect_ratio（标准比例如 1:1、16:9）与 output_resolution（1K/2K/4K）；image_size 为兼容别名，若同时传入须保持一致。勿把 16:9-4k 等 UI 标签写进 size。',
+            ],
+            [
+              'quality / size 别名',
+              'quality 可作为别名：low=1K、medium=2K、high=4K；size 仅用于兼容旧 OpenAI 像素尺寸推断，勿与 aspect_ratio 混用。',
+            ],
+            [
+              'resolution 字段',
+              'resolution（如 720p）为视频专用；图像请求请勿使用，否则可能无法得到预期的 4K 档位。',
+            ],
+            [
+              'JSON 图生图',
+              'POST /v1/images/generations，在 body 中传 image / images / reference_images（http(s) URL 或 data URI）。',
+            ],
+            [
+              'multipart 图生图',
+              'POST /v1/images/edits；多图参考请重复字段名 image（勿用 image[]）；image 只传文件，不要填 URL。',
+            ],
+            [
+              'sync / async',
+              'Gemini Banana 等推荐同步（勿传 async）；大图或多参考图可选用 async: true。异步轮询间隔建议 3–5 秒。',
+            ],
+            ['计费', '仅成功出图才计费；chat/completions 出图仍兼容但已弃用，响应带 Deprecation 头。'],
+          ]}
+        />
       </DocsSection>
 
       <DocsSection

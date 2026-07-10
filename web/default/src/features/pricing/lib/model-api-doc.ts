@@ -450,20 +450,28 @@ function normalizeSingleVariant(
 
   return {
     mode,
-    intro: rewriteChannelPrefixedModelNames(
-      slice.intro?.trim() ||
-        model.description?.trim() ||
-        (mode === 'async'
-          ? '提交异步任务后轮询获取结果。'
-          : '单次请求直接返回结果。'),
-      modelName
+    intro: sanitizeCustomerFacingText(
+      rewriteChannelPrefixedModelNames(
+        slice.intro?.trim() ||
+          model.description?.trim() ||
+          (mode === 'async'
+            ? '提交异步任务后轮询获取结果。'
+            : '单次请求直接返回结果。'),
+        modelName
+      )
     ),
     generationModes: normalizeGenerationModes(slice.generation_modes),
     endpoints: endpoints.length > 0 ? endpoints : defaultEndpoints,
     requestJson,
     basicRequestJson,
     examples,
-    params: normalizeParams(paramsSource),
+    params: filterGulie2KImageParams(
+      mergeBananaImageParamNotes(
+        normalizeParams(paramsSource),
+        model.image_ui_params as ImageUiParamsDoc | undefined
+      ),
+      model.image_ui_params as ImageUiParamsDoc | undefined
+    ),
     createResponseJson:
       applyPlaceholdersToJson(slice.create_response_json, modelName, base) ||
       (mode === 'async' ? VIDEO_POLL_CREATE : formatJson({
@@ -603,7 +611,14 @@ function pickImageSize(paramsConfig: ImageUiParamsDoc['params']): string {
 function pickImageAspectRatio(paramsConfig: ImageUiParamsDoc['params']): string {
   const options = paramsConfig?.aspectRatio?.options ?? []
   const option = options.find((item) => item.value && item.value !== 'auto')
-  return option?.size ?? option?.value ?? '1:1'
+  if (!option?.value) return '1:1'
+  const raw = option.value.trim()
+  if (raw.includes(':')) {
+    const ratioPart = raw.replace(/-(4k|2k|1k)$/i, '')
+    if (/^\d+:\d+$/.test(ratioPart)) return ratioPart
+    if (!raw.includes('-')) return raw
+  }
+  return '1:1'
 }
 
 function imageQualityToOutputResolution(value: string | undefined): string | null {
@@ -630,9 +645,164 @@ function pickImageOutputResolution(
   return firstMapped ?? null
 }
 
-function usesAdobeImageResolutionParams(ui?: ImageUiParamsDoc): boolean {
+function usesBananaStyleImageParams(ui?: ImageUiParamsDoc): boolean {
   const id = (ui?.id || '').toLowerCase()
   return id.includes('banana') || id.includes('adobe2api')
+}
+
+function usesGulie2KImageParams(ui?: ImageUiParamsDoc): boolean {
+  return (ui?.id || '').toLowerCase() === 'image-tpl-gulie-2k'
+}
+
+const GULIE_2K_FORBIDDEN_IMAGE_PARAMS = new Set([
+  'quality',
+  'image_size',
+  'output_resolution',
+  'resolution',
+  'aspect_ratio',
+])
+
+const GULIE_2K_SIZE_PARAM_NOTE =
+  '画幅比例：1:1、3:2、2:3 或 auto。本模型固定 2K 档位，请勿传 quality、image_size、output_resolution、resolution 或像素尺寸；传入后平台会忽略。'
+
+function buildGulie2KImageParams(
+  paramsConfig: ImageUiParamsDoc['params']
+): ModelDocParam[] {
+  const aspectNote = paramNote('aspectRatio', paramsConfig?.aspectRatio)
+  const sizeDescription = [
+    aspectNote.description,
+    GULIE_2K_SIZE_PARAM_NOTE,
+  ]
+    .filter(Boolean)
+    .join(' ')
+  return [
+    { name: 'size', description: sizeDescription },
+    paramNote('n', paramsConfig?.count, '生成张数，默认 1。'),
+    { name: 'stream', description: '建议 false（非 SSE JSON 响应）。' },
+  ].filter((p) => p.description)
+}
+
+function filterGulie2KImageParams(
+  params: ModelDocParam[],
+  ui?: ImageUiParamsDoc
+): ModelDocParam[] {
+  if (!usesGulie2KImageParams(ui)) {
+    return params
+  }
+  const filtered = params
+    .filter((p) => !GULIE_2K_FORBIDDEN_IMAGE_PARAMS.has(p.name))
+    .map((p) => {
+      if (p.name !== 'size') {
+        return {
+          ...p,
+          description: sanitizeCustomerFacingText(p.description),
+        }
+      }
+      const cleaned = sanitizeCustomerFacingText(p.description)
+        .replace(/兼容传像素[^；。]*/g, '')
+        .replace(/1:1\s*@\s*1K[^；。]*/gi, '')
+        .replace(/Gulie\s*线路/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+      return {
+        name: 'size',
+        description: [cleaned, GULIE_2K_SIZE_PARAM_NOTE].filter(Boolean).join(' '),
+      }
+    })
+  if (!filtered.some((p) => p.name === 'size')) {
+    filtered.unshift({
+      name: 'size',
+      description: GULIE_2K_SIZE_PARAM_NOTE,
+    })
+  }
+  return filtered
+}
+
+const BANANA_IMAGE_PARAM_NOTES = {
+  aspectRatio:
+    '画幅比例，仅支持标准值（如 1:1、16:9、9:16）。请显式传 aspect_ratio；勿把 16:9-4k 等 UI 标签写进 size。',
+  outputResolution:
+    '推荐 1K / 2K / 4K。image_size 为兼容别名；若同时传入，须与 output_resolution 保持一致。',
+  quality:
+    'OpenAI 风格别名：low=1K、medium=2K、high=4K；推荐直接传 output_resolution。',
+  size:
+    '兼容旧 OpenAI 像素尺寸（如 1024x1024）；仅用于推断 aspect_ratio / output_resolution，勿与 aspect_ratio 混用。',
+  resolution:
+    '视频专用（如 720p、1080p）。图像请求请勿使用，否则可能无法得到预期的 4K 档位。',
+  jsonReference:
+    'JSON 图生图：在 POST /v1/images/generations 中传 image / images / reference_images（URL 或 data URI）。',
+  multipartReference:
+    'multipart 图生图：POST /v1/images/edits；多图参考请重复字段名 image（勿用 image[]）；image 只传文件，不要填 URL。',
+} as const
+
+function sanitizeCustomerFacingText(text: string): string {
+  return text
+    .replace(/Adobe2API\s*\/?\s*Manju\s*均会读取该字段/g, '平台会读取该字段')
+    .replace(/Adobe2API/g, '平台')
+    .replace(/上游[^，。；\n]*/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
+function mergeBananaImageParamNotes(
+  params: ModelDocParam[],
+  ui?: ImageUiParamsDoc
+): ModelDocParam[] {
+  if (!usesBananaStyleImageParams(ui)) {
+    return params.map((p) => ({
+      ...p,
+      description: sanitizeCustomerFacingText(p.description),
+    }))
+  }
+  const merged = params.map((p) => ({
+    ...p,
+    description: sanitizeCustomerFacingText(p.description),
+  }))
+  for (const row of buildBananaStyleImageParams(ui?.params ?? {})) {
+    const idx = merged.findIndex((p) => p.name === row.name)
+    if (idx === -1) {
+      merged.push(row)
+    } else {
+      merged[idx] = { ...merged[idx], description: row.description }
+    }
+  }
+  return merged
+}
+
+function buildBananaStyleImageParams(
+  paramsConfig: ImageUiParamsDoc['params']
+): ModelDocParam[] {
+  return [
+    paramNote('aspect_ratio', paramsConfig?.aspectRatio, BANANA_IMAGE_PARAM_NOTES.aspectRatio),
+    {
+      name: 'output_resolution',
+      description: BANANA_IMAGE_PARAM_NOTES.outputResolution,
+    },
+    {
+      name: 'image_size',
+      description: 'output_resolution 的兼容别名；若同时传入，须保持一致。',
+    },
+    {
+      name: 'quality',
+      description: BANANA_IMAGE_PARAM_NOTES.quality,
+    },
+    {
+      name: 'size',
+      description: BANANA_IMAGE_PARAM_NOTES.size,
+    },
+    {
+      name: 'resolution',
+      description: BANANA_IMAGE_PARAM_NOTES.resolution,
+    },
+    {
+      name: 'image / images',
+      description: BANANA_IMAGE_PARAM_NOTES.jsonReference,
+    },
+    {
+      name: 'multipart image',
+      description: BANANA_IMAGE_PARAM_NOTES.multipartReference,
+    },
+  ]
 }
 
 function buildAsyncImageVariant(
@@ -643,52 +813,34 @@ function buildAsyncImageVariant(
 ): ModelApiDocVariant {
   const hints = extractUiHintTexts(ui?.hints)
   const paramsConfig = ui?.params ?? {}
-  const useAdobeParams = usesAdobeImageResolutionParams(ui)
-  const size = pickImageSize(paramsConfig)
+  const useBananaParams = usesBananaStyleImageParams(ui)
+  const useGulie2KParams = usesGulie2KImageParams(ui)
   const aspectRatio = pickImageAspectRatio(paramsConfig)
   const outputResolution = pickImageOutputResolution(paramsConfig, modelName)
   const resolutionFields = outputResolution
     ? { output_resolution: outputResolution, image_size: outputResolution }
     : {}
-  const requestFields = useAdobeParams
+  const requestFields = useBananaParams
     ? {
         aspect_ratio: aspectRatio,
         ...resolutionFields,
       }
-    : { size }
+    : useGulie2KParams
+      ? { size: aspectRatio }
+      : { size }
 
   const params: ModelDocParam[] = [
     { name: 'model', description: `必填，固定传 ${modelName}。` },
     { name: 'prompt', description: '必填，图像描述提示词。' },
     { name: 'async', description: '必填 true，启用异步任务模式。' },
-    useAdobeParams
-      ? paramNote(
-          'aspect_ratio',
-          paramsConfig?.aspectRatio,
-          '画幅比例；Adobe2API 会转成上游 size / modelSpecificPayload.aspectRatio。'
-        )
-      : paramNote('size', paramsConfig?.size, '输出尺寸。'),
-    useAdobeParams
-      ? {
-          name: 'output_resolution',
-          description:
-            '推荐传 1K / 2K / 4K；Adobe2API 用它决定上游像素 size。image_size 是兼容别名，若同时传入需保持一致。',
-        }
-      : paramNote('quality', paramsConfig?.quality, '画质档位。'),
-    useAdobeParams
-      ? {
-          name: 'quality',
-          description:
-            'OpenAI 风格别名：low=1K、medium=2K、high=4K；推荐直接传 output_resolution。',
-        }
-      : { name: '', description: '' },
-    useAdobeParams
-      ? {
-          name: 'size',
-          description:
-            '兼容旧 OpenAI 尺寸；仅用于推断 aspect_ratio/output_resolution，不推荐与 aspect_ratio 混用。',
-        }
-      : { name: '', description: '' },
+    ...(useBananaParams
+      ? buildBananaStyleImageParams(paramsConfig)
+      : useGulie2KParams
+        ? buildGulie2KImageParams(paramsConfig)
+        : [
+            paramNote('size', paramsConfig?.size, '输出尺寸。'),
+            paramNote('quality', paramsConfig?.quality, '画质档位。'),
+          ]),
     paramNote('n', paramsConfig?.count, '生成张数，默认 1。'),
   ].filter((p) => p.description)
 
@@ -743,51 +895,33 @@ function buildSyncImageVariant(
 ): ModelApiDocVariant {
   const hints = extractUiHintTexts(ui?.hints)
   const paramsConfig = ui?.params ?? {}
-  const useAdobeParams = usesAdobeImageResolutionParams(ui)
-  const size = pickImageSize(paramsConfig)
+  const useBananaParams = usesBananaStyleImageParams(ui)
+  const useGulie2KParams = usesGulie2KImageParams(ui)
   const aspectRatio = pickImageAspectRatio(paramsConfig)
   const outputResolution = pickImageOutputResolution(paramsConfig, modelName)
   const resolutionFields = outputResolution
     ? { output_resolution: outputResolution, image_size: outputResolution }
     : {}
-  const requestFields = useAdobeParams
+  const requestFields = useBananaParams
     ? {
         aspect_ratio: aspectRatio,
         ...resolutionFields,
       }
-    : { size }
+    : useGulie2KParams
+      ? { size: aspectRatio }
+      : { size }
 
   const params: ModelDocParam[] = [
     { name: 'model', description: `必填，固定传 ${modelName}。` },
     { name: 'prompt', description: '必填，图像描述提示词。' },
-    useAdobeParams
-      ? paramNote(
-          'aspect_ratio',
-          paramsConfig?.aspectRatio,
-          '画幅比例；Adobe2API 会转成上游 size / modelSpecificPayload.aspectRatio。'
-        )
-      : paramNote('size', paramsConfig?.size, '输出尺寸。'),
-    useAdobeParams
-      ? {
-          name: 'output_resolution',
-          description:
-            '推荐传 1K / 2K / 4K；Adobe2API 用它决定上游像素 size。image_size 是兼容别名，若同时传入需保持一致。',
-        }
-      : paramNote('quality', paramsConfig?.quality, '画质档位。'),
-    useAdobeParams
-      ? {
-          name: 'quality',
-          description:
-            'OpenAI 风格别名：low=1K、medium=2K、high=4K；推荐直接传 output_resolution。',
-        }
-      : { name: '', description: '' },
-    useAdobeParams
-      ? {
-          name: 'size',
-          description:
-            '兼容旧 OpenAI 尺寸；仅用于推断 aspect_ratio/output_resolution，不推荐与 aspect_ratio 混用。',
-        }
-      : { name: '', description: '' },
+    ...(useBananaParams
+      ? buildBananaStyleImageParams(paramsConfig)
+      : useGulie2KParams
+        ? buildGulie2KImageParams(paramsConfig)
+        : [
+            paramNote('size', paramsConfig?.size, '输出尺寸。'),
+            paramNote('quality', paramsConfig?.quality, '画质档位。'),
+          ]),
     paramNote('n', paramsConfig?.count, '生成张数，默认 1。'),
     { name: 'response_format', description: 'url 返回图片地址；b64_json 返回 base64。' },
   ].filter((p) => p.description)
