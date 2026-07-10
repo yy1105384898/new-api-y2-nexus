@@ -44,8 +44,8 @@ func Helper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.New
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
-	if ApplyChannelImageSizeDowngrade(info.ChannelId, request) {
-		syncImageSizeToForm(c, request.Size)
+	if imagevendor.IsGulie2KImageModel(info.OriginModelName) {
+		syncGulie2KImageForm(c, request)
 	}
 	applySyncImageUpstreamB64Override(c, info, request)
 	syncImageRequestStreamToForm(c, request)
@@ -242,4 +242,26 @@ func syncImageSizeToForm(c *gin.Context, size string) {
 		c.Request.PostForm = url.Values{}
 	}
 	c.Request.PostForm.Set("size", size)
+}
+
+func syncGulie2KImageForm(c *gin.Context, request *dto.ImageRequest) {
+	if request == nil {
+		return
+	}
+	syncImageSizeToForm(c, request.Size)
+	for _, key := range imagevendor.Gulie2KUpstreamFormStripKeys() {
+		deleteImageFormField(c, key)
+	}
+}
+
+func deleteImageFormField(c *gin.Context, key string) {
+	if c == nil || c.Request == nil {
+		return
+	}
+	if c.Request.MultipartForm != nil && c.Request.MultipartForm.Value != nil {
+		delete(c.Request.MultipartForm.Value, key)
+	}
+	if c.Request.PostForm != nil {
+		c.Request.PostForm.Del(key)
+	}
 }

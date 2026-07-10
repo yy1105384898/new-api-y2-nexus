@@ -3,7 +3,7 @@
 
 UPDATE models
 SET image_profile_id = 'image-tpl-gulie-2k',
-    description = 'GPT-Image-2 2K 经济档（Gulie 线路），size 传画幅比例；参考图 multipart /images/edits。',
+    description = 'GPT-Image-2 2K 经济档，size 仅传画幅比例（1:1、3:2、2:3、auto）；勿传分辨率相关参数。参考图 multipart /images/edits。',
     updated_time = extract(epoch from now())::bigint
 WHERE model_name = 'cy-img2-gpt-image-2-2k'
   AND deleted_at IS NULL;
