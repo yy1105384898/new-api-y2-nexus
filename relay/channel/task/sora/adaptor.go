@@ -60,11 +60,14 @@ type responseTask struct {
 		URL      string `json:"url,omitempty"`
 		VideoURL string `json:"video_url,omitempty"`
 	} `json:"data,omitempty"`
-	Usage              *struct {
+	Metadata *struct {
+		URL string `json:"url,omitempty"`
+	} `json:"metadata,omitempty"`
+	Usage *struct {
 		Seconds    float64 `json:"seconds"`
 		VideoCount int     `json:"video_count"`
 	} `json:"usage,omitempty"`
-	Error              json.RawMessage `json:"error,omitempty"`
+	Error json.RawMessage `json:"error,omitempty"`
 }
 
 // ============================
@@ -492,6 +495,11 @@ func parseErrorField(raw json.RawMessage) (message, code string) {
 func extractVideoURL(res responseTask) string {
 	for _, item := range res.Data {
 		if u := pickAbsoluteVideoURL(item.URL, item.VideoURL); u != "" {
+			return u
+		}
+	}
+	if res.Metadata != nil {
+		if u := pickAbsoluteVideoURL(res.Metadata.URL); u != "" {
 			return u
 		}
 	}

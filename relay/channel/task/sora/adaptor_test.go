@@ -81,6 +81,20 @@ func TestParseTaskResult_GZFormat(t *testing.T) {
 		}
 	})
 
+	t.Run("seedance accepts metadata url", func(t *testing.T) {
+		body := []byte(`{"id":"task_upstream","status":"completed","metadata":{"url":"https://tmp.example.com/video.mp4"}}`)
+		result, err := adaptor.ParseTaskResult(body)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Status != model.TaskStatusSuccess {
+			t.Fatalf("expected SUCCESS, got %s", result.Status)
+		}
+		if result.Url != "https://tmp.example.com/video.mp4" {
+			t.Fatalf("expected metadata url, got %q", result.Url)
+		}
+	})
+
 	t.Run("unknown without error keeps polling", func(t *testing.T) {
 		body := []byte(`{"created_at":1783042146,"id":"task_upstream","model":"cy-sd1-seedance-2.0-fast-480p","object":"video","progress":0,"status":"unknown","task_id":"task_upstream"}`)
 		result, err := adaptor.ParseTaskResult(body)
