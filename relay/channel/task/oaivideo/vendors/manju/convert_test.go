@@ -22,9 +22,9 @@ func TestIsRelay(t *testing.T) {
 
 func TestConvertChatBody(t *testing.T) {
 	out, err := ConvertChatBody(map[string]interface{}{
-		"prompt":  "cat on beach",
-		"seconds": "8",
-		"size":    "1280x720",
+		"prompt":   "cat on beach",
+		"duration": 8,
+		"size":     "1280x720",
 	}, "sora2")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -53,7 +53,7 @@ func TestConvertChatBody(t *testing.T) {
 func TestConvertChatBody_InputReference(t *testing.T) {
 	out, err := ConvertChatBody(map[string]interface{}{
 		"prompt":          "cat",
-		"seconds":         "8",
+		"duration":        8,
 		"input_reference": "https://example.com/ref.png",
 	}, "sora2")
 	if err != nil {

@@ -62,13 +62,7 @@ export const IMAGE_PARAM_KEYS = [
   'moderation',
 ] as const
 
-export const VIDEO_API_MODES = [
-  'videos-json-gz',
-  'videos-form',
-  'videos-json-async',
-  'chat-completions',
-  'video-generations',
-] as const
+export const VIDEO_API_MODES = ['videos-json-async'] as const
 
 export const DEFAULT_VIDEO_PROFILE_ID = 'default-video'
 export const DEFAULT_IMAGE_PROFILE_ID = 'default-image'

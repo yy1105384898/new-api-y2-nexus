@@ -16,27 +16,15 @@ import (
 func TestGetModelRequestVideoFetchDoesNotSelectChannel(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	tests := []struct {
-		name string
-		path string
-	}{
-		{name: "video generations", path: "/v1/video/generations/task_abc123"},
-		{name: "openai videos", path: "/v1/videos/task_abc123"},
-	}
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/videos/task_abc123", nil)
+	c.Params = gin.Params{{Key: "task_id", Value: "task_abc123"}}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rec := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(rec)
-			c.Request = httptest.NewRequest(http.MethodGet, tt.path, nil)
-			c.Params = gin.Params{{Key: "task_id", Value: "task_abc123"}}
-
-			_, shouldSelectChannel, err := getModelRequest(c)
-			require.NoError(t, err)
-			require.False(t, shouldSelectChannel)
-			require.Equal(t, relayconstant.RelayModeVideoFetchByID, c.GetInt("relay_mode"))
-		})
-	}
+	_, shouldSelectChannel, err := getModelRequest(c)
+	require.NoError(t, err)
+	require.False(t, shouldSelectChannel)
+	require.Equal(t, relayconstant.RelayModeVideoFetchByID, c.GetInt("relay_mode"))
 }
 
 func TestGetModelRequestVideoSubmitSelectsChannel(t *testing.T) {
@@ -45,7 +33,7 @@ func TestGetModelRequestVideoSubmitSelectsChannel(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	body := strings.NewReader(`{"model":"grok-video","prompt":"test"}`)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/video/generations", body)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", body)
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	_, shouldSelectChannel, err := getModelRequest(c)
@@ -58,10 +46,12 @@ func TestDistributeVideoTaskFetchSkipsModelLimitAndNilChannel(t *testing.T) {
 
 	router := gin.New()
 	reached := false
-	router.GET("/v1/video/generations/:task_id",
+	router.GET("/v1/videos/:task_id",
 		func(c *gin.Context) {
 			common.SetContextKey(c, constant.ContextKeyTokenModelLimitEnabled, true)
 			common.SetContextKey(c, constant.ContextKeyTokenModelLimit, map[string]bool{"grok-video": true})
+			// This test exercises distribution only; avoid the task DB lookup.
+			c.Params = nil
 		},
 		Distribute(),
 		func(c *gin.Context) {
@@ -71,7 +61,7 @@ func TestDistributeVideoTaskFetchSkipsModelLimitAndNilChannel(t *testing.T) {
 	)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/v1/video/generations/task_test123", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/videos/task_test123", nil)
 	router.ServeHTTP(rec, req)
 
 	require.True(t, reached, "task fetch should reach handler without channel selection")

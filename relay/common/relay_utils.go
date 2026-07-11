@@ -120,6 +120,8 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 		Mode:               formData.Get("mode"),
 		Image:              formData.Get("image"),
 		Size:               formData.Get("size"),
+		AspectRatio:        formData.Get("aspect_ratio"),
+		Resolution:         formData.Get("resolution"),
 		Seconds:            formData.Get("seconds"),
 		ImageUrls:          append([]string(nil), formData["image_urls"]...),
 		ReferenceImageUrls: append([]string(nil), formData["reference_image_urls"]...),
@@ -134,6 +136,11 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 	if durationStr != "" {
 		if duration, err := strconv.Atoi(durationStr); err == nil {
 			req.Duration = duration
+		}
+	}
+	if generateAudio := formData.Get("generate_audio"); generateAudio != "" {
+		if value, err := strconv.ParseBool(generateAudio); err == nil {
+			req.GenerateAudio = &value
 		}
 	}
 
@@ -177,14 +184,14 @@ func ValidateMultipartDirect(c *gin.Context, info *RelayInfo) *dto.TaskError {
 	if err != nil {
 		return createTaskError(err, "invalid_json", http.StatusBadRequest, true)
 	}
+	if err := normalizeTaskSubmitDuration(&req); err != nil {
+		return createTaskError(err, "invalid_duration", http.StatusBadRequest, true)
+	}
 
 	prompt = req.Prompt
 	model = req.Model
 	size = req.Size
-	seconds, _ = strconv.Atoi(req.Seconds)
-	if seconds == 0 {
-		seconds = req.Duration
-	}
+	seconds = req.RequestedDurationSeconds()
 	normalizeTaskSubmitImages(&req)
 
 	if strings.TrimSpace(req.Model) == "" {
@@ -237,8 +244,11 @@ func isKnownTaskField(field string) bool {
 		"image_urls":           true,
 		"reference_image_urls": true,
 		"size":                 true,
+		"aspect_ratio":         true,
+		"resolution":           true,
 		"duration":             true,
 		"seconds":              true,
+		"generate_audio":       true,
 		"metadata":             true,
 		"input_reference":      true, // Sora 特有字段
 	}
@@ -249,6 +259,9 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 	req, err := parseTaskSubmitRequest(c)
 	if err != nil {
 		return createTaskError(err, "invalid_request", http.StatusBadRequest, true)
+	}
+	if err := normalizeTaskSubmitDuration(&req); err != nil {
+		return createTaskError(err, "invalid_duration", http.StatusBadRequest, true)
 	}
 
 	if taskErr := validatePrompt(req.Prompt); taskErr != nil {
@@ -261,11 +274,33 @@ func ValidateBasicTaskRequest(c *gin.Context, info *RelayInfo, action string) *d
 	return nil
 }
 
+// normalizeTaskSubmitDuration defines the public video duration contract:
+// duration and seconds are aliases for the same integer-second value. Keeping
+// both normalized in the internal request lets each vendor adaptor emit only
+// the field its upstream protocol expects.
+func normalizeTaskSubmitDuration(req *TaskSubmitReq) error {
+	if req == nil {
+		return nil
+	}
+	seconds, _ := strconv.Atoi(strings.TrimSpace(req.Seconds))
+	if seconds != 0 && req.Duration != 0 && seconds != req.Duration {
+		return fmt.Errorf("duration and seconds must have the same value")
+	}
+	if seconds != 0 {
+		req.Duration = seconds
+		return nil
+	}
+	if req.Duration != 0 {
+		req.Seconds = strconv.Itoa(req.Duration)
+	}
+	return nil
+}
+
 func multipartTaskHasReferenceFile(c *gin.Context) bool {
 	if c == nil || c.Request == nil || c.Request.MultipartForm == nil {
 		return false
 	}
-	for _, field := range []string{"input_reference", "images", "image"} {
+	for _, field := range []string{"input_reference", "input_reference[]", "images", "images[]", "image"} {
 		if len(c.Request.MultipartForm.File[field]) > 0 {
 			return true
 		}

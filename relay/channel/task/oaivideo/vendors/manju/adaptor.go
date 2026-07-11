@@ -7,15 +7,14 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
-	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	oaivideo "github.com/QuantumNous/new-api/relay/channel/task/oaivideo/shared"
+	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 
@@ -53,10 +52,7 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if err != nil {
 		return nil
 	}
-	seconds, _ := strconv.Atoi(req.Seconds)
-	if seconds == 0 {
-		seconds = req.Duration
-	}
+	seconds := req.RequestedDurationSeconds()
 	if seconds <= 0 {
 		seconds = 4
 	}
@@ -85,6 +81,12 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	bodyMap, err := readRequestBodyMap(c)
 	if err != nil {
 		return nil, err
+	}
+	if req, err := relaycommon.GetTaskRequest(c); err == nil {
+		delete(bodyMap, "seconds")
+		if duration := req.RequestedDurationSeconds(); duration > 0 {
+			bodyMap["duration"] = duration
+		}
 	}
 	converted, convErr := ConvertChatBody(bodyMap, info.UpstreamModelName)
 	if convErr != nil {

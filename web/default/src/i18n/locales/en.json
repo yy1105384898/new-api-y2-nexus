@@ -4938,6 +4938,7 @@
     "Start now — it's free to sign up": "Start Now — It's Free to Sign Up",
     "Creative showcase": "Creative Showcase",
     "Visual works from the canvas asset library": "Visual Works from the Canvas Asset Library",
-    "Curated CDN assets from the canvas prompt library — posters, portraits, product visuals and more.": "Curated CDN assets from the canvas prompt library — posters, portraits, product visuals and more."
+    "Curated CDN assets from the canvas prompt library — posters, portraits, product visuals and more.": "Curated CDN assets from the canvas prompt library — posters, portraits, product visuals and more.",
+    "POST /v1/videos using the unified video-task contract, then poll GET /v1/videos/{id}.": "POST /v1/videos using the unified video-task contract, then poll GET /v1/videos/{id}."
   }
 }

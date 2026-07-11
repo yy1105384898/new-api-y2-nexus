@@ -99,7 +99,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		"model":  modelName,
 		"prompt": prompt,
 	}
-	if duration := firstPositiveInt(raw["duration"], req.Duration, raw["seconds"], req.Seconds); duration > 0 {
+	if duration := req.RequestedDurationSeconds(); duration > 0 {
 		out["duration"] = duration
 	}
 	if ratio := normalizeAspectRatio(asString(raw["aspect_ratio"])); ratio != "" {

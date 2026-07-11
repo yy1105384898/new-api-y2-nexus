@@ -45,8 +45,8 @@ func ParseVeoResolution(metadata map[string]any) string {
 }
 
 // ResolveVeoDuration returns the effective duration in seconds.
-// Priority: metadata["durationSeconds"] > stdDuration > stdSeconds > default (8).
-func ResolveVeoDuration(metadata map[string]any, stdDuration int, stdSeconds string) int {
+// Priority: metadata["durationSeconds"] > normalizedDuration > default (8).
+func ResolveVeoDuration(metadata map[string]any, normalizedDuration int) int {
 	if metadata != nil {
 		if _, exists := metadata["durationSeconds"]; exists {
 			if d := ParseVeoDurationSeconds(metadata); d > 0 {
@@ -54,11 +54,8 @@ func ResolveVeoDuration(metadata map[string]any, stdDuration int, stdSeconds str
 			}
 		}
 	}
-	if stdDuration > 0 {
-		return stdDuration
-	}
-	if s, err := strconv.Atoi(stdSeconds); err == nil && s > 0 {
-		return s
+	if normalizedDuration > 0 {
+		return normalizedDuration
 	}
 	return 8
 }

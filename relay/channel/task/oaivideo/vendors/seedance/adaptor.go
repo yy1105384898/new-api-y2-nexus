@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -45,10 +44,7 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	if err != nil {
 		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
 	}
-	seconds, _ := strconv.Atoi(req.Seconds)
-	if seconds == 0 {
-		seconds = req.Duration
-	}
+	seconds := req.RequestedDurationSeconds()
 	if seconds == 0 {
 		return service.TaskErrorWrapperLocal(
 			fmt.Errorf("duration is required for per-second Seedance models"),
@@ -75,10 +71,7 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if err != nil {
 		return nil
 	}
-	seconds, _ := strconv.Atoi(req.Seconds)
-	if seconds == 0 {
-		seconds = req.Duration
-	}
+	seconds := req.RequestedDurationSeconds()
 	if seconds <= 0 {
 		seconds = 4
 	}
@@ -109,6 +102,12 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if err != nil {
 			return nil, err
 		}
+		if req, err := relaycommon.GetTaskRequest(c); err == nil {
+			delete(bodyMap, "seconds")
+			if duration := req.RequestedDurationSeconds(); duration > 0 {
+				bodyMap["duration"] = duration
+			}
+		}
 		converted, convErr := maybeConvertTengdaBody(bodyMap, info.UpstreamModelName)
 		if convErr != nil {
 			return nil, convErr
@@ -120,7 +119,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		c.Request.Header.Set("Content-Type", "application/json")
 		return bytes.NewReader(newBody), nil
 	}
-	return oaivideo.BuildPassthroughRequestBody(c, info.UpstreamModelName)
+	return oaivideo.BuildNormalizedRequestBody(c, info.UpstreamModelName, oaivideo.DurationFieldDuration)
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {

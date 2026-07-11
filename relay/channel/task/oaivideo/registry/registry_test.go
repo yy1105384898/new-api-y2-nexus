@@ -13,6 +13,8 @@ func TestResolve(t *testing.T) {
 		{"cy-sd4-seedance-2.0", "seedance-2.0", VendorSeedance},
 		{"cy-sd2-seedance-2.0", "manxue-2.0", VendorSeedance},
 		{"tengd-seedance-2.0", "manxue-2.0", VendorSeedance},
+		{"cy-vid2-sora-2", "cy-vid2-sora-2", VendorChat},
+		{"cy-sd1-grok-video", "grok-imagine-video", VendorChat},
 		{"sora-2", "sora-2", VendorSora},
 		{"grok-video", "grok-video", VendorSora},
 	}

@@ -19,7 +19,7 @@ import (
 // @Failure 401 {object} dto.OpenAIError "未授权"
 // @Failure 403 {object} dto.OpenAIError "无权限"
 // @Failure 500 {object} dto.OpenAIError "服务器内部错误"
-// @Router /v1/video/generations [post]
+// @Router /v1/videos [post]
 func VideoGenerations(c *gin.Context) {
 }
 
@@ -36,7 +36,7 @@ func VideoGenerations(c *gin.Context) {
 // @Failure 401 {object} dto.OpenAIError "未授权"
 // @Failure 403 {object} dto.OpenAIError "无权限"
 // @Failure 500 {object} dto.OpenAIError "服务器内部错误"
-// @Router /v1/video/generations/{task_id} [get]
+// @Router /v1/videos/{task_id} [get]
 func VideoGenerationsTaskId(c *gin.Context) {
 }
 

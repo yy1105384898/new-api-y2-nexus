@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/registry"
+	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/chatvideo"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/defaultvideo"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/manju"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/seedance"
@@ -22,6 +23,7 @@ func TestRouterAdaptor_DelegateFor(t *testing.T) {
 		{"manju-openai-sora2", "sora2", "manju"},
 		{"cy-sd4-seedance-2.0", "seedance-2.0", "seedance"},
 		{"cy-sd2-seedance-2.0", "manxue-2.0", "seedance"},
+		{"cy-vid2-sora-2", "cy-vid2-sora-2", "chat"},
 		{"sora-2", "sora-2", "default"},
 		{"cy-sd1-seedance-2.0-mini-480p", "Seedance-2.0-480p", "seedance"},
 	}
@@ -41,6 +43,10 @@ func TestRouterAdaptor_DelegateFor(t *testing.T) {
 		case "seedance":
 			if _, ok := d.(*seedance.TaskAdaptor); !ok {
 				t.Fatalf("%s: expected seedance adaptor", tc.origin)
+			}
+		case "chat":
+			if _, ok := d.(*chatvideo.TaskAdaptor); !ok {
+				t.Fatalf("%s: expected chat video adaptor", tc.origin)
 			}
 		default:
 			if _, ok := d.(*defaultvideo.TaskAdaptor); !ok {

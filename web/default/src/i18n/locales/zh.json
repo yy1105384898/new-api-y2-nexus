@@ -4938,6 +4938,7 @@
     "Start now — it's free to sign up": "立即开始 — 注册免费",
     "Creative showcase": "创作展示",
     "Visual works from the canvas asset library": "画布素材库精选视觉作品",
-    "Curated CDN assets from the canvas prompt library — posters, portraits, product visuals and more.": "来自画布提示词库 CDN 的精选素材 — 海报、人像、产品视觉等。"
+    "Curated CDN assets from the canvas prompt library — posters, portraits, product visuals and more.": "来自画布提示词库 CDN 的精选素材 — 海报、人像、产品视觉等。",
+    "POST /v1/videos using the unified video-task contract, then poll GET /v1/videos/{id}.": "使用统一视频任务协议 POST /v1/videos 提交，再通过 GET /v1/videos/{id} 轮询。"
   }
 }

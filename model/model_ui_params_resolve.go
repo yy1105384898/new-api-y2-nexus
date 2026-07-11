@@ -173,7 +173,7 @@ func applyVideoPollDefaults(doc map[string]interface{}, registry *ModelUiParamRe
 	}
 	apiMode, _ := doc["apiMode"].(string)
 	if apiMode == "" {
-		apiMode = "videos-form"
+		apiMode = "videos-json-async"
 	}
 	var pollDefaults map[string]map[string]interface{}
 	if err := json.Unmarshal([]byte(registry.PollDefaults), &pollDefaults); err != nil {
