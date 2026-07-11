@@ -163,6 +163,10 @@ type RelayInfo struct {
 	// http.Request.ContentLength manually (net/http only auto-detects it for
 	// *bytes.Reader/Buffer/strings.Reader). 0 means "let net/http decide".
 	UpstreamRequestBodySize int64
+	// UpstreamRequestContentType overrides the client content type when a
+	// converted body is staged in BodyStorage. Empty defaults to JSON for the
+	// existing marshaled-body path.
+	UpstreamRequestContentType string
 
 	PriceData types.PriceData
 
@@ -692,18 +696,18 @@ type TaskRelayInfo struct {
 }
 
 type TaskSubmitReq struct {
-	Prompt              string                 `json:"prompt"`
-	Model               string                 `json:"model,omitempty"`
-	Mode                string                 `json:"mode,omitempty"`
-	Image               string                 `json:"image,omitempty"`
-	Images              []string               `json:"images,omitempty"`
-	ImageUrls           []string               `json:"image_urls,omitempty"`
-	ReferenceImageUrls  []string               `json:"reference_image_urls,omitempty"`
-	Size                string                 `json:"size,omitempty"`
-	Duration            int                    `json:"duration,omitempty"`
-	Seconds             string                 `json:"seconds,omitempty"`
-	InputReference      string                 `json:"input_reference,omitempty"`
-	Metadata            map[string]interface{} `json:"metadata,omitempty"`
+	Prompt             string                 `json:"prompt"`
+	Model              string                 `json:"model,omitempty"`
+	Mode               string                 `json:"mode,omitempty"`
+	Image              string                 `json:"image,omitempty"`
+	Images             []string               `json:"images,omitempty"`
+	ImageUrls          []string               `json:"image_urls,omitempty"`
+	ReferenceImageUrls []string               `json:"reference_image_urls,omitempty"`
+	Size               string                 `json:"size,omitempty"`
+	Duration           int                    `json:"duration,omitempty"`
+	Seconds            string                 `json:"seconds,omitempty"`
+	InputReference     string                 `json:"input_reference,omitempty"`
+	Metadata           map[string]interface{} `json:"metadata,omitempty"`
 }
 
 func (t *TaskSubmitReq) GetPrompt() string {

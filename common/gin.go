@@ -1,7 +1,6 @@
 package common
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"mime"
@@ -129,22 +128,29 @@ func UnmarshalBodyReusable(c *gin.Context, v any) error {
 		return nil
 	}
 
-	requestBody, err := storage.Bytes()
-	if err != nil {
-		return err
-	}
-	if strings.HasPrefix(contentType, "application/json") {
-		err = Unmarshal(requestBody, v)
-	} else if strings.Contains(contentType, gin.MIMEPOSTForm) {
-		err = parseFormData(requestBody, v)
-	} else if strings.Contains(contentType, gin.MIMEMultipartPOSTForm) {
-		err = parseMultipartFormData(c, requestBody, v)
+	var parseErr error
+	if strings.Contains(contentType, gin.MIMEMultipartPOSTForm) {
+		if c.Request.MultipartForm != nil {
+			parseErr = processMultipartFormValues(c.Request.MultipartForm.Value, v)
+		} else {
+			if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
+				return seekErr
+			}
+			parseErr = parseMultipartFormReader(c, storage, v)
+		}
 	} else {
-		// skip for now
-		// TODO: someday non json request have variant model, we will need to implementation this
+		requestBody, bytesErr := storage.Bytes()
+		if bytesErr != nil {
+			return bytesErr
+		}
+		if strings.HasPrefix(contentType, "application/json") {
+			parseErr = Unmarshal(requestBody, v)
+		} else if strings.Contains(contentType, gin.MIMEPOSTForm) {
+			parseErr = parseFormData(requestBody, v)
+		}
 	}
-	if err != nil {
-		return err
+	if parseErr != nil {
+		return parseErr
 	}
 	// Reset request body
 	if _, seekErr := storage.Seek(0, io.SeekStart); seekErr != nil {
@@ -253,12 +259,14 @@ func init() {
 }
 
 func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
+	if c.Request != nil && c.Request.MultipartForm != nil {
+		return c.Request.MultipartForm, nil
+	}
 	storage, err := GetBodyStorage(c)
 	if err != nil {
 		return nil, err
 	}
-	requestBody, err := storage.Bytes()
-	if err != nil {
+	if _, err := storage.Seek(0, io.SeekStart); err != nil {
 		return nil, err
 	}
 
@@ -276,7 +284,7 @@ func ParseMultipartFormReusable(c *gin.Context) (*multipart.Form, error) {
 		return nil, err
 	}
 
-	reader := multipart.NewReader(bytes.NewReader(requestBody), boundary)
+	reader := multipart.NewReader(storage, boundary)
 	form, err := reader.ReadForm(multipartMemoryLimit())
 	if err != nil {
 		return nil, err
@@ -321,7 +329,7 @@ func parseFormData(data []byte, v any) error {
 	return processFormMap(formMap, v)
 }
 
-func parseMultipartFormData(c *gin.Context, data []byte, v any) error {
+func parseMultipartFormReader(c *gin.Context, data io.Reader, v any) error {
 	var contentType string
 	if saved, ok := c.Get("_original_multipart_ct"); ok {
 		contentType = saved.(string)
@@ -332,19 +340,27 @@ func parseMultipartFormData(c *gin.Context, data []byte, v any) error {
 	boundary, err := parseBoundary(contentType)
 	if err != nil {
 		if errors.Is(err, errBoundaryNotFound) {
-			return Unmarshal(data, v) // Fallback to JSON
+			body, readErr := io.ReadAll(data)
+			if readErr != nil {
+				return readErr
+			}
+			return Unmarshal(body, v) // Preserve the legacy JSON fallback.
 		}
 		return err
 	}
 
-	reader := multipart.NewReader(bytes.NewReader(data), boundary)
+	reader := multipart.NewReader(data, boundary)
 	form, err := reader.ReadForm(multipartMemoryLimit())
 	if err != nil {
 		return err
 	}
 	defer form.RemoveAll()
+	return processMultipartFormValues(form.Value, v)
+}
+
+func processMultipartFormValues(values map[string][]string, v any) error {
 	formMap := make(map[string]any)
-	for key, vals := range form.Value {
+	for key, vals := range values {
 		if len(vals) == 1 {
 			formMap[key] = vals[0]
 		} else {
@@ -381,9 +397,9 @@ func MultipartMemoryLimit() int64 {
 
 // multipartMemoryLimit returns the configured multipart memory limit in bytes
 func multipartMemoryLimit() int64 {
-	limitMB := constant.MaxFileDownloadMB
+	limitMB := constant.MultipartMemoryMB
 	if limitMB <= 0 {
-		limitMB = 32
+		limitMB = 1
 	}
 	return int64(limitMB) << 20
 }

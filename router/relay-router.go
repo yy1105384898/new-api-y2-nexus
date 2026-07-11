@@ -71,6 +71,7 @@ func SetRelayRouter(router *gin.Engine) {
 	relayV1Router.Use(middleware.RouteTag("relay"))
 	relayV1Router.Use(middleware.SystemPerformanceCheck())
 	relayV1Router.Use(middleware.TokenAuth())
+	relayV1Router.Use(middleware.ImageInFlightLimit())
 	relayV1Router.Use(middleware.PublicModelName())
 	relayV1Router.Use(middleware.ModelRequestRateLimit())
 	{

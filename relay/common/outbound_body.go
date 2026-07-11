@@ -6,7 +6,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 )
 
-// NewOutboundJSONBody wraps the already-marshaled upstream request body into a
+// NewOutboundBody wraps an already-built upstream request body into a
 // BodyStorage. When disk cache is enabled and the payload exceeds the configured
 // threshold, the data is written to a temp file and the original []byte can be
 // GC'd, significantly reducing the heap residency while waiting for the
@@ -22,10 +22,14 @@ import (
 // transport from prematurely closing the underlying BodyStorage. The returned
 // size is meant to be propagated to http.Request.ContentLength because the
 // type-erased io.Reader prevents net/http from auto-detecting it.
-func NewOutboundJSONBody(data []byte) (body io.Reader, size int64, closer io.Closer, err error) {
+func NewOutboundBody(data []byte) (body io.Reader, size int64, closer io.Closer, err error) {
 	storage, err := common.CreateBodyStorage(data)
 	if err != nil {
 		return nil, 0, nil, err
 	}
 	return common.ReaderOnly(storage), storage.Size(), storage, nil
+}
+
+func NewOutboundJSONBody(data []byte) (body io.Reader, size int64, closer io.Closer, err error) {
+	return NewOutboundBody(data)
 }

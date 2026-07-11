@@ -1,12 +1,9 @@
 package service
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
-	"mime"
-	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
@@ -15,8 +12,8 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/tidwall/sjson"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 
 	"github.com/gin-gonic/gin"
 )
@@ -37,8 +34,8 @@ type modelPublicRegistry struct {
 }
 
 var (
-	modelPublicRegistryMu sync.RWMutex
-	modelPublicRegistryData modelPublicRegistry
+	modelPublicRegistryMu    sync.RWMutex
+	modelPublicRegistryData  modelPublicRegistry
 	modelPublicRegistryReady bool
 )
 
@@ -342,28 +339,12 @@ func extractInboundModelName(c *gin.Context) (modelName string, source string, e
 	}
 
 	if strings.Contains(contentType, "multipart/form-data") {
-		storage, err := common.GetBodyStorage(c)
+		form, err := common.ParseMultipartFormReusable(c)
 		if err != nil {
 			return "", "", err
 		}
-		body, err := storage.Bytes()
-		if err != nil {
-			return "", "", err
-		}
-		_, params, parseErr := mime.ParseMediaType(contentType)
-		if parseErr != nil {
-			return "", "", parseErr
-		}
-		boundary := params["boundary"]
-		if boundary == "" {
-			return "", "", nil
-		}
-		reader := multipart.NewReader(bytes.NewReader(body), boundary)
-		form, err := reader.ReadForm(common.MultipartMemoryLimit())
-		if err != nil {
-			return "", "", err
-		}
-		defer form.RemoveAll()
+		c.Request.MultipartForm = form
+		c.Request.PostForm = url.Values(form.Value)
 		if vals, ok := form.Value["model"]; ok && len(vals) > 0 {
 			return strings.TrimSpace(vals[0]), "multipart", nil
 		}
@@ -374,6 +355,20 @@ func extractInboundModelName(c *gin.Context) (modelName string, source string, e
 }
 
 func rewriteInboundModel(c *gin.Context, internalName string, source string) error {
+	if source == "multipart" {
+		form, err := common.ParseMultipartFormReusable(c)
+		if err != nil {
+			return err
+		}
+		if form.Value == nil {
+			form.Value = make(map[string][]string)
+		}
+		form.Value["model"] = []string{internalName}
+		c.Request.MultipartForm = form
+		c.Request.PostForm = url.Values(form.Value)
+		return nil
+	}
+
 	storage, err := common.GetBodyStorage(c)
 	if err != nil {
 		return err
@@ -397,8 +392,6 @@ func rewriteInboundModel(c *gin.Context, internalName string, source string) err
 		}
 		values.Set("model", internalName)
 		newBody = []byte(values.Encode())
-	case "multipart":
-		newBody, err = replaceMultipartModelField(body, c.Request.Header.Get("Content-Type"), internalName)
 	default:
 		return nil
 	}
@@ -406,59 +399,6 @@ func rewriteInboundModel(c *gin.Context, internalName string, source string) err
 		return err
 	}
 	return replaceRequestBodyStorage(c, newBody)
-}
-
-func replaceMultipartModelField(body []byte, contentType, internalName string) ([]byte, error) {
-	_, params, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		return nil, err
-	}
-	boundary := params["boundary"]
-	if boundary == "" {
-		return body, nil
-	}
-	reader := multipart.NewReader(bytes.NewReader(body), boundary)
-	form, err := reader.ReadForm(common.MultipartMemoryLimit())
-	if err != nil {
-		return nil, err
-	}
-	defer form.RemoveAll()
-	form.Value["model"] = []string{internalName}
-
-	var buffer bytes.Buffer
-	writer := multipart.NewWriter(&buffer)
-	if err := writer.SetBoundary(boundary); err != nil {
-		return nil, err
-	}
-	for key, vals := range form.Value {
-		for _, val := range vals {
-			if err := writer.WriteField(key, val); err != nil {
-				return nil, err
-			}
-		}
-		_ = key
-	}
-	for key, files := range form.File {
-		for _, fileHeader := range files {
-			part, err := writer.CreateFormFile(key, fileHeader.Filename)
-			if err != nil {
-				return nil, err
-			}
-			file, err := fileHeader.Open()
-			if err != nil {
-				return nil, err
-			}
-			_, copyErr := io.Copy(part, file)
-			file.Close()
-			if copyErr != nil {
-				return nil, copyErr
-			}
-		}
-	}
-	if err := writer.Close(); err != nil {
-		return nil, err
-	}
-	return buffer.Bytes(), nil
 }
 
 func replaceRequestBodyStorage(c *gin.Context, newBody []byte) error {
