@@ -10,7 +10,7 @@ SHARED_PARAMS = [
     {"name": "model", "description": "必填，固定传当前模型别名。"},
     {"name": "prompt", "description": "必填。多素材时在 prompt 用 @Image1/@Video1/@Audio1 引用。"},
     {"name": "aspect_ratio", "description": "画幅：16:9（默认）、9:16、1:1、21:9、3:4、4:3。"},
-    {"name": "duration", "description": "时长秒数，4–15 任意整数。"},
+    {"name": "duration", "description": "必填。时长秒数，4–15 任意整数；按实际成片时长结算。"},
     {"name": "image_url", "description": "主参考图（公网 URL 或 data:image Base64）。"},
     {"name": "extra_images", "description": "额外参考图数组，与 image_url 合计 ≤9。"},
     {"name": "extra_videos", "description": "参考视频 ≤3（mp4/mov，单条 2–15s，24–60fps，≤50MB）。"},

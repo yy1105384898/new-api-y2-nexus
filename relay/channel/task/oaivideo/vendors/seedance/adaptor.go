@@ -12,8 +12,8 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel"
-	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	oaivideo "github.com/QuantumNous/new-api/relay/channel/task/oaivideo/shared"
+	taskcommon "github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 
@@ -35,7 +35,35 @@ func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	return relaycommon.ValidateMultipartDirect(c, info)
+	if taskErr := relaycommon.ValidateMultipartDirect(c, info); taskErr != nil {
+		return taskErr
+	}
+	if !IsOairegboxRelay(info.OriginModelName) || service.IsPerRequestTaskBilling(info.OriginModelName) {
+		return nil
+	}
+	req, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+	}
+	seconds, _ := strconv.Atoi(req.Seconds)
+	if seconds == 0 {
+		seconds = req.Duration
+	}
+	if seconds == 0 {
+		return service.TaskErrorWrapperLocal(
+			fmt.Errorf("duration is required for per-second Seedance models"),
+			"missing_duration",
+			http.StatusBadRequest,
+		)
+	}
+	if seconds < 4 || seconds > 15 {
+		return service.TaskErrorWrapperLocal(
+			fmt.Errorf("duration must be an integer between 4 and 15 seconds"),
+			"invalid_duration",
+			http.StatusBadRequest,
+		)
+	}
+	return nil
 }
 
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {

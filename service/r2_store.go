@@ -25,10 +25,11 @@ type R2Config struct {
 }
 
 type R2UploadResult struct {
-	PublicURL string
-	ObjectKey string
-	Bytes     int64
-	MimeType  string
+	PublicURL       string
+	ObjectKey       string
+	Bytes           int64
+	MimeType        string
+	DurationSeconds int
 }
 
 func resolveS3Endpoint(accountID string) string {
@@ -134,7 +135,7 @@ func UploadGeneratedImageBytes(ctx context.Context, userID int, taskID string, i
 
 func UploadGeneratedImageFromURL(ctx context.Context, userID int, taskID string, index int, imageURL string) (*R2UploadResult, error) {
 	client := &http.Client{
-		Timeout: 300 * time.Second,
+		Timeout:   300 * time.Second,
 		Transport: GetHttpClient().Transport,
 	}
 	if client.Transport == nil {
