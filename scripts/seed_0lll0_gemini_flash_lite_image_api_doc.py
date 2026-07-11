@@ -25,11 +25,6 @@ ENDPOINTS = [
     },
     {
         "method": "POST",
-        "path": "{{base}}/chat/completions",
-        "description": "（已弃用）兼容旧 OpenAI chat 出图客户端。",
-    },
-    {
-        "method": "POST",
         "path": "{{base}}beta/models/{{model}}:generateContent",
         "description": "Gemini 原生 generateContent（Authorization: Bearer 或 x-goog-api-key）。",
     },
@@ -71,7 +66,7 @@ GEMINI_PARAMS = [
     },
 ]
 
-CHAT_CREATE_RESP = {
+IMAGE_CREATE_RESP = {
     "created": 1715923200,
     "data": [{"b64_json": "..."}],
 }
@@ -96,7 +91,6 @@ DOC = {
         "推荐 POST /v1/images/generations（prompt + size + quality；async 可选），"
         "响应为标准 OpenAI Image API。"
         "亦支持 Gemini 原生 POST /v1beta/models/{model}:generateContent。"
-        "（已弃用）POST /v1/chat/completions 仍可用，响应带 Deprecation 头。"
     ),
     "endpoints": ENDPOINTS,
     "params": OPENAI_PARAMS + GEMINI_PARAMS,
@@ -121,49 +115,6 @@ DOC = {
     },
     "examples": [
         {
-            "title": "OpenAI chat：文生图",
-            "request_json": {
-                "model": "{{model}}",
-                "stream": False,
-                "messages": [{"role": "user", "content": "一只橘猫，水彩风格"}],
-                "extra_body": {
-                    "google": {
-                        "image_config": {
-                            "aspect_ratio": "1:1",
-                            "image_size": "1K",
-                        }
-                    }
-                },
-            },
-        },
-        {
-            "title": "OpenAI chat：参考图",
-            "request_json": {
-                "model": "{{model}}",
-                "stream": False,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": "将 @图1 的风格应用到新场景"},
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": "https://example.com/ref.png"},
-                            },
-                        ],
-                    }
-                ],
-                "extra_body": {
-                    "google": {
-                        "image_config": {
-                            "aspect_ratio": "3:2",
-                            "image_size": "1K",
-                        }
-                    }
-                },
-            },
-        },
-        {
             "title": "Gemini v1beta：参考图",
             "request_json": {
                 "contents": [
@@ -187,7 +138,7 @@ DOC = {
             },
         },
     ],
-    "create_response_json": CHAT_CREATE_RESP,
+    "create_response_json": IMAGE_CREATE_RESP,
     "query_response_json": None,
 }
 

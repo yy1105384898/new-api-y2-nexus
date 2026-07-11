@@ -15,11 +15,13 @@
 | 能力 | 对外入口 | 提交执行 | 结果推进 | 当前状态 |
 | --- | --- | --- | --- | --- |
 | 同步生图 | `POST /v1/images/generations`、`/v1/images/edits` | `relay/image.Helper` → channel adaptor | 当前请求内完成 | 主路径 |
-| 异步生图 | 同上，body `async=true`；另有 legacy `/v1/chat/completions` | image task worker 重放快照，再进入 image Helper | 本地 worker CAS | 已统一任务表，仍保留 legacy chat 分支 |
+| 异步生图 | 同上，body `async=true` | image task worker 重放快照，再进入 image Helper | 本地 worker CAS | 已统一任务表；legacy chat 仅为内部兼容读取器，不进入客户文档 |
 | 标准异步视频 | `POST /v1/videos` | task adaptor → `DoTaskApiRequest` | `service.TaskPollingLoop` → `FetchTask` | 通用轮询路径 |
 | Adobe2API 视频 | `POST /v1/videos` | `oaivideo/vendors/adobe` → `/v1/videos/generations` | 通用视频轮询 CAS | 已纳入标准视频任务族 |
 
 因此，图像同步/异步仍然由图像能力决定，视频统一为标准异步 Task；Adobe 仅是上游 vendor 差异，不再拥有独立任务生命周期。
+
+客户可见的图像 API 文档只展示 `POST /v1/images/generations`、`POST /v1/images/edits` 与异步任务轮询。仓库中的 legacy chat image 转换仅用于读取和迁移历史客户端请求，不是模型广场或新客户端的公开调用方式。
 
 ## 已发现问题
 
