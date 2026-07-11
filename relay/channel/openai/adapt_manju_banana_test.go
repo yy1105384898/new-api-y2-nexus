@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/gin-gonic/gin"
 )
 
@@ -147,10 +147,17 @@ func TestResolveManjuBananaOutputResolutionDefault1K(t *testing.T) {
 	}
 }
 
-func TestManjuBananaUsesChatCompletionsUpstreamForEdits(t *testing.T) {
+func TestManjuBananaUsesImageAPIForEdits(t *testing.T) {
 	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesEdits}
-	if !ManjuBananaUsesChatCompletionsUpstream(nil, info, dto.ImageRequest{Prompt: "x"}) {
-		t.Fatal("edits should use chat/completions")
+	if ManjuBananaUsesChatCompletionsUpstream(nil, info, dto.ImageRequest{Prompt: "x"}) {
+		t.Fatal("edits should use the Image API")
+	}
+}
+
+func TestManjuBananaUsesImageAPIForReferenceImages(t *testing.T) {
+	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesGenerations}
+	if ManjuBananaUsesChatCompletionsUpstream(nil, info, dto.ImageRequest{Prompt: "x", Image: json.RawMessage(`"https://example.com/ref.png"`)}) {
+		t.Fatal("reference images should use the Image API")
 	}
 }
 

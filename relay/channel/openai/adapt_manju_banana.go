@@ -3,8 +3,7 @@ package openai
 // Manju Gemini Banana 适配层（对齐 Manju OpenAI 兼容 API 文档）。
 //
 // 文生图：buildManjuBananaImageBody → 上游 POST /v1/images/generations（model=UpstreamModelName）
-// 图生图（edits / 带参考图）：buildManjuBananaChatImageBody → POST /v1/chat/completions
-//   （顶层 aspect_ratio / output_resolution + messages[].content[].image_url，见 Manju Apifox）
+// 图生图（edits / 带参考图）同样通过 Image API 发送；当前沧元文档不再使用 chat/completions。
 //
 // Legacy chat 响应（含 async poll）：
 //   manjuBananaAdaptIfNeeded → AdaptManjuBananaChatCompletionResponse
@@ -21,9 +20,8 @@ import (
 	"strings"
 	"time"
 
-	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/relay/constant"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/imagevendor"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
@@ -51,35 +49,19 @@ func BuildManjuBananaImageGenerationBody(originModel string, request dto.ImageRe
 	return body
 }
 
-// ManjuBananaUsesChatCompletionsUpstream 判断 Manju 图生图是否应走 chat/completions + image_url。
+// ManjuBananaUsesChatCompletionsUpstream 保留旧接口以兼容调用方。
+// 沧元当前 Banana 文档规定文生图和图生图都走 Image API；参考图也不能再改走 chat/completions。
 func ManjuBananaUsesChatCompletionsUpstream(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) bool {
-	if info != nil && info.RelayMode == constant.RelayModeImagesEdits {
-		return true
-	}
-	if hasManjuBananaReferenceInputFromRequest(request) {
-		return true
-	}
-	if c != nil && c.Request != nil && !isJSONRequest(c) {
-		if err := ensureMultipartFormParsed(c); err == nil && hasManjuBananaMultipartReference(c) {
-			return true
-		}
-	}
+	_ = c
+	_ = info
+	_ = request
 	return false
 }
 
-// ManjuBananaUsesChatCompletionsUpstreamFromInfo 供 GetRequestURL / DoResponse 等无完整 request 副本时使用。
+// ManjuBananaUsesChatCompletionsUpstreamFromInfo 与请求路由保持一致。
 func ManjuBananaUsesChatCompletionsUpstreamFromInfo(info *relaycommon.RelayInfo) bool {
-	if info == nil {
-		return false
-	}
-	if info.RelayMode == constant.RelayModeImagesEdits {
-		return true
-	}
-	req, ok := info.Request.(*dto.ImageRequest)
-	if !ok || req == nil {
-		return false
-	}
-	return hasManjuBananaReferenceInputFromRequest(*req)
+	_ = info
+	return false
 }
 
 func hasManjuBananaReferenceInputFromRequest(request dto.ImageRequest) bool {
@@ -123,6 +105,9 @@ func buildManjuBananaImageBody(c *gin.Context, info *relaycommon.RelayInfo, requ
 	body := map[string]any{
 		"model":  resolveManjuBananaUpstreamModel(info, request),
 		"prompt": request.Prompt,
+	}
+	if err := applyManjuBananaReferenceFields(body, c, request); err != nil {
+		return nil, err
 	}
 	if aspect := resolveManjuBananaAspectRatio(request.Size); aspect != "" {
 		body["aspect_ratio"] = aspect
