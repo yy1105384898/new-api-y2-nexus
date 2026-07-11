@@ -211,9 +211,6 @@ func collectImageURLs(body map[string]interface{}) []string {
 }
 
 func pickSeconds(body map[string]interface{}) string {
-	if s := strings.TrimSpace(oaivideo.AsString(body["seconds"])); s != "" {
-		return s
-	}
 	if d := body["duration"]; d != nil {
 		switch v := d.(type) {
 		case float64:

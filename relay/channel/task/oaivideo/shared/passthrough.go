@@ -10,12 +10,25 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 )
 
-// BuildPassthroughRequestBody 标准 OpenAI /v1/videos 透传：仅替换 model，保留 multipart 文件。
-func BuildPassthroughRequestBody(c *gin.Context, upstreamModel string) (io.Reader, error) {
+// DurationField identifies the duration key required by an upstream video
+// protocol. NewAPI accepts duration and seconds as public aliases, while each
+// vendor boundary emits one canonical upstream field.
+type DurationField string
+
+const (
+	DurationFieldSeconds  DurationField = "seconds"
+	DurationFieldDuration DurationField = "duration"
+)
+
+// BuildNormalizedRequestBody preserves standard OpenAI video request fields
+// and multipart files, replaces model, and translates the public duration
+// aliases into the field required by the selected upstream vendor.
+func BuildNormalizedRequestBody(c *gin.Context, upstreamModel string, durationField DurationField) (io.Reader, error) {
 	storage, err := common.GetBodyStorage(c)
 	if err != nil {
 		return nil, errors.Wrap(err, "get_request_body_failed")
@@ -25,33 +38,51 @@ func BuildPassthroughRequestBody(c *gin.Context, upstreamModel string) (io.Reade
 		return nil, errors.Wrap(err, "read_body_bytes_failed")
 	}
 	contentType := c.GetHeader("Content-Type")
+	taskReq, err := relaycommon.GetTaskRequest(c)
+	if err != nil {
+		return nil, errors.Wrap(err, "get_normalized_task_request_failed")
+	}
+	duration := taskReq.RequestedDurationSeconds()
+	if durationField != DurationFieldSeconds && durationField != DurationFieldDuration {
+		return nil, fmt.Errorf("unsupported upstream duration field %q", durationField)
+	}
 
 	if strings.HasPrefix(contentType, "application/json") {
 		var bodyMap map[string]interface{}
-		if err := common.Unmarshal(cachedBody, &bodyMap); err == nil {
-			bodyMap["model"] = upstreamModel
-			if newBody, err := common.Marshal(bodyMap); err == nil {
-				return bytes.NewReader(newBody), nil
-			}
+		if err := common.Unmarshal(cachedBody, &bodyMap); err != nil {
+			return nil, errors.Wrap(err, "unmarshal_video_request_failed")
 		}
-		return bytes.NewReader(cachedBody), nil
+		bodyMap["model"] = upstreamModel
+		delete(bodyMap, string(DurationFieldSeconds))
+		delete(bodyMap, string(DurationFieldDuration))
+		if duration != 0 {
+			bodyMap[string(durationField)] = duration
+		}
+		newBody, err := common.Marshal(bodyMap)
+		if err != nil {
+			return nil, errors.Wrap(err, "marshal_video_request_failed")
+		}
+		return bytes.NewReader(newBody), nil
 	}
 
 	if strings.Contains(contentType, "multipart/form-data") {
 		formData, err := common.ParseMultipartFormReusable(c)
 		if err != nil {
-			return bytes.NewReader(cachedBody), nil
+			return nil, errors.Wrap(err, "parse_multipart_video_request_failed")
 		}
 		var buf bytes.Buffer
 		writer := multipart.NewWriter(&buf)
 		writer.WriteField("model", upstreamModel)
 		for key, values := range formData.Value {
-			if key == "model" {
+			if key == "model" || key == string(DurationFieldSeconds) || key == string(DurationFieldDuration) {
 				continue
 			}
 			for _, v := range values {
 				writer.WriteField(key, v)
 			}
+		}
+		if duration != 0 {
+			writer.WriteField(string(durationField), fmt.Sprintf("%d", duration))
 		}
 		for fieldName, fileHeaders := range formData.File {
 			for _, fh := range fileHeaders {

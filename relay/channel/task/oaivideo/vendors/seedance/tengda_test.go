@@ -62,8 +62,8 @@ func TestMaybeConvertTengdaBody_NativePassthrough(t *testing.T) {
 
 func TestMaybeConvertTengdaBody_AudioRequiresImage(t *testing.T) {
 	in := map[string]interface{}{
-		"prompt":            "test",
-		"reference_audios":  []interface{}{"https://example.com/a.mp3"},
+		"prompt":           "test",
+		"reference_audios": []interface{}{"https://example.com/a.mp3"},
 	}
 	_, err := maybeConvertTengdaBody(in, "manxue-2.0")
 	if err == nil {
@@ -73,11 +73,11 @@ func TestMaybeConvertTengdaBody_AudioRequiresImage(t *testing.T) {
 
 func TestMaybeConvertTengdaBody_FlatConversion(t *testing.T) {
 	in := map[string]interface{}{
-		"prompt":      "ocean waves",
-		"duration":    8,
+		"prompt":       "ocean waves",
+		"duration":     8,
 		"aspect_ratio": "16:9",
-		"resolution":  "720p",
-		"image_url":   "https://example.com/a.jpg",
+		"resolution":   "720p",
+		"image_url":    "https://example.com/a.jpg",
 	}
 	out, err := maybeConvertTengdaBody(in, "manxue-2.0")
 	if err != nil {

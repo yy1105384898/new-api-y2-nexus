@@ -169,6 +169,14 @@ Each [`Descriptor`](relay/imagevendor/descriptor.go) defines:
 
 Do not duplicate model-prefix checks, `ResolveInternalModelName`, or upload logic in relay handlers; extend `imagevendor`, `service/client_facing_model.go`, and `service/image_r2_rehost` instead.
 
+### Rule 4d: Unified video-task boundary
+
+- Public video clients use only `POST /v1/videos`, `GET /v1/videos/{id}`, and `GET /v1/videos/{id}/content`.
+- `relay/common.TaskSubmitReq` owns public alias normalization. Business adaptors consume normalized values and must not re-parse `duration` / `seconds` independently.
+- Upstream paths, request fields, multipart conversion, SSE/JSON parsing, and result URL extraction belong in `relay/channel/task/oaivideo/vendors/`.
+- Frontends and model UI profiles must not select upstream protocols such as `chat/completions` or `video/generations`; `api_mode` for video is the unified async task mode.
+- Add a vendor or extend an existing vendor through `oaivideo/registry`; do not add model-specific branching in controllers or frontend handlers.
+
 ### Rule 5: Protected Project Information — DO NOT Modify or Delete
 
 The following project-related information is **strictly protected** and MUST NOT be modified, deleted, replaced, or removed under any circumstances:

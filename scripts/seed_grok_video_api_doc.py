@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""写入 Grok 视频两模型的 models.api_doc（源站执行，对齐 video-generations 实测参数）。"""
+"""写入 Grok 视频两模型的 models.api_doc（源站执行，对齐统一 /v1/videos 协议）。"""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ DOCS: dict[str, dict] = {
     "cy-gv1-grok-video": {
         "dispatch_mode": "async",
         "intro": (
-            "Grok 异步视频：POST /v1/video/generations 提交，GET 轮询至 SUCCESS。"
+            "Grok 异步视频：POST /v1/videos 提交，GET /v1/videos/{task_id} 轮询至 SUCCESS。"
             "支持文生、单图/多参考图生视频，以及 video_url 视频编辑（可不传 image_urls）。"
             "文生/单图最长 15 秒；多参考图最多 7 张且 seconds>10 时自动按 10 秒处理。"
         ),
@@ -99,7 +99,7 @@ DOCS: dict[str, dict] = {
     "cy-gv1-grok-video-1.5": {
         "dispatch_mode": "async",
         "intro": (
-            "Grok 1.5 单图生视频：POST /v1/video/generations 提交，GET 轮询至 SUCCESS。"
+            "Grok 1.5 单图生视频：POST /v1/videos 提交，GET /v1/videos/{task_id} 轮询至 SUCCESS。"
             "必须且只能 1 张图片参考（image_urls / image），不支持纯文生、不支持视频参考；"
             "画幅仅 16:9 / 9:16；清晰度 480p/720p。"
         ),

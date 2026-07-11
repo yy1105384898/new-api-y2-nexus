@@ -704,14 +704,27 @@ type TaskSubmitReq struct {
 	ImageUrls          []string               `json:"image_urls,omitempty"`
 	ReferenceImageUrls []string               `json:"reference_image_urls,omitempty"`
 	Size               string                 `json:"size,omitempty"`
+	AspectRatio        string                 `json:"aspect_ratio,omitempty"`
+	Resolution         string                 `json:"resolution,omitempty"`
 	Duration           int                    `json:"duration,omitempty"`
 	Seconds            string                 `json:"seconds,omitempty"`
+	GenerateAudio      *bool                  `json:"generate_audio,omitempty"`
 	InputReference     string                 `json:"input_reference,omitempty"`
 	Metadata           map[string]interface{} `json:"metadata,omitempty"`
 }
 
 func (t *TaskSubmitReq) GetPrompt() string {
 	return t.Prompt
+}
+
+// RequestedDurationSeconds returns the normalized public video duration.
+// External callers may use either duration or seconds; request validation
+// keeps both aliases synchronized before vendor adaptors consume the value.
+func (t TaskSubmitReq) RequestedDurationSeconds() int {
+	if seconds, err := strconv.Atoi(strings.TrimSpace(t.Seconds)); err == nil && seconds != 0 {
+		return seconds
+	}
+	return t.Duration
 }
 
 func normalizeTaskSubmitImages(req *TaskSubmitReq) {

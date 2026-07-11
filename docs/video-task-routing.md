@@ -11,6 +11,7 @@ relay/channel/task/oaivideo/
 ├── shared/           # FetchVideoTask、响应解析、multipart 透传
 └── vendors/
     ├── manju/
+    ├── chatvideo/    # 聚合线路 chat 上游，对外仍是统一任务
     ├── seedance/
     ├── adobe/        # Adobe typed video endpoint + strict JSON normalization
     └── defaultvideo/ # sora-2、grok 等兜底
@@ -33,6 +34,22 @@ Leonardo `cy-sd4-*` 渠道在插件主轮询窗口结束后仍返回 `in_progres
 
 路由恢复必须兼容历史任务缺少 `ChannelMeta`、`UpstreamModelName` 或计费快照的情况：缺失字段按空值处理并回退到 `OriginModelName` / 默认视频解析器，禁止通过嵌入的空指针字段直接取值。共享请求转换同样将 `nil` 视为空值，不能把它序列化为 `"<nil>"` 后误判为客户显式参数。
 
+## 统一时长参数契约
+
+对外只提供 `POST /v1/videos` + `GET /v1/videos/{id}` 统一视频任务协议。`duration` / `seconds` 都表示整数秒：
+
+- 只传其中一个时，`relay/common` 在入口归一化为同一内部时长值。
+- 同时传入两个且值不一致时，提交阶段返回 `invalid_duration`，禁止计费与生成使用不同时长。
+- 内部不通过原始 body 透传别名；由 vendor 边界输出上游契约要求的单一字段。
+
+| Vendor | 上游时长字段 | 说明 |
+|--------|------------------|------|
+| default（Grok / Sora 等标准 OpenAI Video） | `seconds` | 上游 `/v1/videos` 契约 |
+| Seedance | `duration` | OAIREGBox 按秒视频契约 |
+| Adobe | `duration` | Adobe typed `/v1/videos/generations` 严格 schema |
+
+JSON 的其他字段和 multipart 文件必须保留；仅模型名与时长别名在 vendor 边界发生转换。
+
 Adobe2API 视频现在属于标准视频任务族：对外使用 `POST /v1/videos` + `GET /v1/videos/{id}`，Adobe vendor 内部将创建请求映射为上游 `POST /v1/videos/generations`，并使用上游 `GET /v1/videos/{id}` 轮询。Adobe 任务直接进入通用任务表和通用轮询，不再创建独立 worker，也不再包装成 chat。
 
 模型广场与 API 文档中的 Adobe 视频元数据必须同步使用 `openai-video` endpoint、`videos-json-async` UI profile 和 `dispatch_mode=async`；旧 `*-chat` profile 与 `/v1/chat/completions` 示例属于迁移前遗留数据，不能继续对客户展示。仅修正文档/profile 而不调整售价时，运行 `python3 scripts/seed_adobe2api_video_api_doc.py --docs-only`。
@@ -44,6 +61,7 @@ Adobe2API 视频现在属于标准视频任务族：对外使用 `POST /v1/video
 | internal 模型前缀 | Vendor | 提交差异 | 轮询解析 |
 |-------------------|--------|----------|----------|
 | `manju-openai-sora*` | Manju | chat/completions 转换 | Manju 响应形（`platform:sora2` 等） |
+| `cy-vid2-*` / `cy-sd1-grok-video*` | Chat Video | 内部转 chat/completions，读 SSE/JSON 视频 URL | 提交时即归一化为已完成任务 |
 | `cy-sd1-seedance*` | Seedance | multipart 透传 `/v1/videos` | OpenAI Video 形 |
 | `cy-sd4-seedance*` | Seedance | Leonardo 渠道 | OpenAI Video 形 |
 | `cy-sd2-seedance*` / `tengd-seedance*` | Seedance | Tengda body 转换 | OpenAI Video 形 |

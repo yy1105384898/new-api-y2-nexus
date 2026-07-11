@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -311,15 +310,8 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 	}
 
 	// 处理时长
-	if req.Duration > 0 {
-		aliReq.Parameters.Duration = req.Duration
-	} else if req.Seconds != "" {
-		seconds, err := strconv.Atoi(req.Seconds)
-		if err != nil {
-			return nil, errors.Wrap(err, "convert seconds to int failed")
-		} else {
-			aliReq.Parameters.Duration = seconds
-		}
+	if duration := req.RequestedDurationSeconds(); duration > 0 {
+		aliReq.Parameters.Duration = duration
 	} else {
 		aliReq.Parameters.Duration = 5 // 默认5秒
 	}

@@ -6,6 +6,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/adobe"
+	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/chatvideo"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/manju"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/seedance"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -17,6 +18,7 @@ type Vendor string
 const (
 	VendorSora     Vendor = "sora"
 	VendorAdobe    Vendor = "adobe"
+	VendorChat     Vendor = "chat-video"
 	VendorManju    Vendor = "manju"
 	VendorSeedance Vendor = "seedance"
 )
@@ -33,6 +35,9 @@ func Resolve(originModel, upstreamModel string) Vendor {
 func ResolveWithChannel(originModel, upstreamModel string, channelID int, baseURL string) Vendor {
 	if adobe.IsRelay(originModel, upstreamModel, channelID, baseURL) {
 		return VendorAdobe
+	}
+	if chatvideo.IsRelay(originModel) {
+		return VendorChat
 	}
 	if manju.IsRelay(originModel, upstreamModel) {
 		return VendorManju
@@ -63,7 +68,7 @@ func RelayInfoFromTask(task *model.Task) *relaycommon.RelayInfo {
 	}
 	if task.ChannelId != 0 || upstream != "" {
 		info.ChannelMeta = &relaycommon.ChannelMeta{
-			ChannelId:          task.ChannelId,
+			ChannelId:         task.ChannelId,
 			UpstreamModelName: upstream,
 		}
 	}

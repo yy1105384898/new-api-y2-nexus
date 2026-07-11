@@ -25,12 +25,17 @@ oaivideo/
 ├── shared/          # 协议共享：FetchVideoTask、解析、multipart 透传
 └── vendors/
     ├── manju/       # manju-openai-sora*（chat/completions 提交）
+    ├── chatvideo/   # 聚合视频线路：统一任务请求 → chat/completions
     ├── seedance/    # cy-sd1 / cy-sd2 / cy-sd4 / tengd-seedance*
     ├── adobe/       # Adobe2API typed video：/v1/videos/generations
     └── defaultvideo/ # 兜底：sora-2、grok-video 等标准 OpenAI Video
+```
 
 Adobe2API 视频属于 `oaivideo` 的标准任务族：对外使用 `/v1/videos`，vendor 内部提交到 `/v1/videos/generations`，轮询复用 `/v1/videos/{id}`，不再使用独立 worker 或 chat 包装。
-```
+
+对外时长参数 `duration` / `seconds` 是同义字段，在 `relay/common` 归一化；上游字段由 vendor 选择：default 输出 `seconds`，Seedance / Adobe 输出 `duration`。禁止绕过 vendor 边界直接透传两个别名。
+
+画布和外部客户只使用 `POST /v1/videos` + `GET /v1/videos/{id}`。`chatvideo` / `manju` 可以在 vendor 内部调用上游 `chat/completions`，但该路径、SSE 解析和视频 URL 提取不得再下放到前端。
 
 路由表与轮询行为详见 [`docs/video-task-routing.md`](../../../docs/video-task-routing.md)。
 

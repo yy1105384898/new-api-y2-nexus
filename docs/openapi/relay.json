@@ -1163,7 +1163,7 @@
         ]
       }
     },
-    "/v1/video/generations": {
+    "/v1/videos": {
       "post": {
         "summary": "创建视频生成任务",
         "deprecated": false,
@@ -1221,7 +1221,7 @@
         ]
       }
     },
-    "/v1/video/generations/{task_id}": {
+    "/v1/videos/{task_id}": {
       "get": {
         "summary": "获取视频生成任务状态",
         "deprecated": false,

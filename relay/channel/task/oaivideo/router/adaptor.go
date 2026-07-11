@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/registry"
 	oaivideo "github.com/QuantumNous/new-api/relay/channel/task/oaivideo/shared"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/adobe"
+	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/chatvideo"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/defaultvideo"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/manju"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/seedance"
@@ -45,6 +46,7 @@ type openAIVideoDelegate interface {
 type RouterAdaptor struct {
 	native   delegate
 	adobe    delegate
+	chat     delegate
 	manju    delegate
 	seedance delegate
 }
@@ -53,6 +55,7 @@ func NewRouterAdaptor() channel.TaskAdaptor {
 	return &RouterAdaptor{
 		native:   &defaultvideo.TaskAdaptor{},
 		adobe:    &adobe.TaskAdaptor{},
+		chat:     &chatvideo.TaskAdaptor{},
 		manju:    &manju.TaskAdaptor{},
 		seedance: &seedance.TaskAdaptor{},
 	}
@@ -65,6 +68,8 @@ func (r *RouterAdaptor) delegateFor(info *relaycommon.RelayInfo) delegate {
 	switch registry.ResolveWithChannel(info.OriginModelName, info.UpstreamModelName, info.ChannelId, info.ChannelBaseUrl) {
 	case registry.VendorAdobe:
 		return r.adobe
+	case registry.VendorChat:
+		return r.chat
 	case registry.VendorManju:
 		return r.manju
 	case registry.VendorSeedance:
@@ -165,6 +170,7 @@ func (r *RouterAdaptor) GetModelList() []string {
 	}
 	models := append([]string{}, r.native.GetModelList()...)
 	models = append(models, r.adobe.GetModelList()...)
+	models = append(models, r.chat.GetModelList()...)
 	return append(append(models, r.manju.GetModelList()...), r.seedance.GetModelList()...)
 }
 
@@ -201,6 +207,8 @@ func (r *RouterAdaptor) parseTaskResultBody(respBody []byte, task *model.Task) (
 		switch registry.ResolveWithChannel(info.OriginModelName, upstreamModel, task.ChannelId, "") {
 		case registry.VendorAdobe:
 			return r.adobe.ParseTaskResult(respBody)
+		case registry.VendorChat:
+			return r.chat.ParseTaskResult(respBody)
 		case registry.VendorManju:
 			return r.manju.ParseTaskResult(respBody)
 		case registry.VendorSeedance:

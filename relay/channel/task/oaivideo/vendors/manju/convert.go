@@ -75,9 +75,6 @@ func durationFromBody(body map[string]interface{}) string {
 	if s := strings.TrimSpace(oaivideo.AsString(body["sora2_duration"])); s != "" {
 		return s
 	}
-	if s := strings.TrimSpace(oaivideo.AsString(body["seconds"])); s != "" {
-		return s
-	}
 	if d := body["duration"]; d != nil {
 		return strings.TrimSpace(oaivideo.AsString(d))
 	}

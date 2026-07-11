@@ -146,7 +146,7 @@ $$;
 -- ---------------------------------------------------------------------------
 UPDATE model_channel_prefixes SET
   prefix = 'cy-gv1-',
-  note = 'Grok 视频 · video-generations',
+  note = 'Grok 视频 · 统一视频任务',
   updated_time = EXTRACT(EPOCH FROM NOW())::BIGINT
 WHERE prefix = '119337-' AND deleted_at IS NULL;
 

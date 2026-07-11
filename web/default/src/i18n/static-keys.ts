@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 // Static translation keys that don't get picked up by the t('...') regex.
 // These cover dynamic labels (e.g. constants, configs) that are passed into t at runtime.
 export const STATIC_I18N_KEYS = [
+  'API mode: videos-json-async',
+  'POST /v1/videos using the unified video-task contract, then poll GET /v1/videos/{id}.',
   // Header navigation
   'Home',
   'Console',

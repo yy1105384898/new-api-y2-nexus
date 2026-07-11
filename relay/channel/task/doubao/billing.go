@@ -83,11 +83,8 @@ func parseDurationSeconds(req *relaycommon.TaskSubmitReq) int {
 	if req == nil {
 		return 5
 	}
-	if sec, err := strconv.Atoi(req.Seconds); err == nil && sec > 0 {
-		return sec
-	}
-	if req.Duration > 0 {
-		return req.Duration
+	if seconds := req.RequestedDurationSeconds(); seconds > 0 {
+		return seconds
 	}
 	if req.Metadata != nil {
 		if v, ok := req.Metadata["duration"]; ok {

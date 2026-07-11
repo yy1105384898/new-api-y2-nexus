@@ -16,17 +16,9 @@
         "cy-sd4-seedance"
     ],
     "poll": {
-        "videos-form": {
-            "delayMs": 2500,
-            "maxAttempts": 120
-        },
         "videos-json-async": {
             "delayMs": 5000,
             "maxAttempts": 120
-        },
-        "video-generations": {
-            "delayMs": 5000,
-            "maxAttempts": 60
         }
     },
     "profiles": [
@@ -36,7 +28,8 @@
                 "video-grok",
                 "video-omni-flash"
             ],
-            "apiMode": "videos-form",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "openai-form",
             "referenceLimits": {
                 "images": 7,
                 "videos": 0,
@@ -132,7 +125,8 @@
             "match": [
                 "video-veo"
             ],
-            "apiMode": "videos-form",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "openai-form",
             "referenceLimits": {
                 "images": 3,
                 "videos": 0,
@@ -207,7 +201,8 @@
             "match": [
                 "video-seedance"
             ],
-            "apiMode": "videos-form",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "openai-form",
             "referenceLimits": {
                 "images": 9,
                 "videos": 3,
@@ -311,7 +306,8 @@
             "match": [
                 "video-sora"
             ],
-            "apiMode": "videos-form",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "openai-form",
             "referenceLimits": {
                 "images": 1,
                 "videos": 0,
@@ -401,7 +397,8 @@
             "match": [
                 "video-kling"
             ],
-            "apiMode": "videos-form",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "openai-form",
             "referenceLimits": {
                 "images": 4,
                 "videos": 0,
@@ -474,7 +471,8 @@
             "match": [
                 "video-wan"
             ],
-            "apiMode": "videos-form",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "openai-form",
             "requiresReferenceMedia": true,
             "referenceLimits": {
                 "images": 1,
@@ -541,7 +539,8 @@
         },
         {
             "id": "video-tpl-chat-i2v-ref1",
-            "apiMode": "chat-completions",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "chat-video",
             "match": [
                 "wan-i2v-2.6",
                 "wan-i2v-2.5"
@@ -756,7 +755,8 @@
         },
         {
             "id": "video-tpl-chat-no-params",
-            "apiMode": "chat-completions",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "chat-video",
             "match": [
                 "sora-2-pro",
                 "sora-2",
@@ -805,7 +805,8 @@
         },
         {
             "id": "video-tpl-chat-fixed-4s",
-            "apiMode": "chat-completions",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "chat-video",
             "match": [
                 "gemini-omni-flash-portrait-4s",
                 "gemini-omni-flash-landscape-4s"
@@ -849,7 +850,8 @@
         },
         {
             "id": "video-tpl-chat-fixed-6s",
-            "apiMode": "chat-completions",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "chat-video",
             "match": [
                 "gemini-omni-flash-portrait-6s"
             ],
@@ -892,7 +894,8 @@
         },
         {
             "id": "video-tpl-chat-fixed-10s",
-            "apiMode": "chat-completions",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "chat-video",
             "match": [
                 "gemini-omni-flash-landscape-10s"
             ],
@@ -935,7 +938,8 @@
         },
         {
             "id": "video-tpl-gen-ratio-ref7",
-            "apiMode": "video-generations",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "grok-generations",
             "validationKey": "grok-generations-ref7",
             "match": [
                 "grok-video",
@@ -1030,7 +1034,8 @@
         },
         {
             "id": "video-tpl-gen-ratio-ref1",
-            "apiMode": "video-generations",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "grok-generations",
             "validationKey": "grok-generations-ref1",
             "match": [
                 "grok-video-1.5"
@@ -1362,7 +1367,8 @@
         },
         {
             "id": "video-tpl-chat-ref7",
-            "apiMode": "chat-completions",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "chat-video",
             "validationKey": "grok-generations-chat-ref7",
             "match": [
                 "grok-imagine-video"
@@ -2220,6 +2226,8 @@
         },
         {
             "id": "default-video",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "openai-form",
             "match": [],
             "referenceLimits": {
                 "images": 7,
