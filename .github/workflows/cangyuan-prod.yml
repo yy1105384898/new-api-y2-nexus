@@ -99,6 +99,7 @@ jobs:
           done <<< "$versions"
 
       - name: Rolling deploy on origin
+        id: deploy
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.CANGYUAN_ORIGIN_HOST }}
@@ -110,7 +111,7 @@ jobs:
             ./stack.sh ci-deploy ${{ env.STACK_PROFILE }} --tag "${{ github.sha }}"
 
       - name: Rollback on deploy failure
-        if: failure()
+        if: steps.deploy.outcome == 'failure'
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.CANGYUAN_ORIGIN_HOST }}

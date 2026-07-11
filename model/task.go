@@ -583,17 +583,17 @@ func (t *Task) Snapshot() taskSnapshot {
 	}
 }
 
-func (Task *Task) Update() error {
+func (t *Task) Update() error {
 	var err error
-	err = DB.Save(Task).Error
+	err = DB.Save(t).Error
 	return err
 }
 
 // UpdateQuota persists a terminal task's final quota without rewriting its
 // other fields. Billing settlement updates user/token balances separately, so
 // keeping this write narrow avoids overwriting a concurrent task snapshot.
-func (Task *Task) UpdateQuota(quota int) error {
-	return DB.Model(&Task{}).Where("id = ?", Task.ID).Update("quota", quota).Error
+func (t *Task) UpdateQuota(quota int) error {
+	return DB.Model(&Task{}).Where("id = ?", t.ID).Update("quota", quota).Error
 }
 
 // UpdateWithStatus performs a conditional UPDATE guarded by fromStatus (CAS).
