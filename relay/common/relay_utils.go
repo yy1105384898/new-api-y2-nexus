@@ -127,7 +127,11 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 		Metadata:           make(map[string]interface{}),
 	}
 
-	if durationStr := formData.Get("seconds"); durationStr != "" {
+	durationStr := formData.Get("duration")
+	if durationStr == "" {
+		durationStr = formData.Get("seconds")
+	}
+	if durationStr != "" {
 		if duration, err := strconv.Atoi(durationStr); err == nil {
 			req.Duration = duration
 		}

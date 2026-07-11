@@ -5,11 +5,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -174,7 +176,15 @@ func UploadGeneratedVideoFromURL(ctx context.Context, userID int, taskID, videoU
 	if mimeType == "" || mimeType == "application/octet-stream" {
 		mimeType = "video/mp4"
 	}
-	return UploadGeneratedVideoBytes(ctx, userID, taskID, data, mimeType, videoURL)
+	uploaded, err := UploadGeneratedVideoBytes(ctx, userID, taskID, data, mimeType, videoURL)
+	if err != nil {
+		return nil, err
+	}
+	ext := extensionForVideoMime(mimeType, videoURL)
+	if duration, probeErr := common.GetAudioDuration(ctx, bytes.NewReader(data), ext); probeErr == nil && duration > 0 {
+		uploaded.DurationSeconds = int(math.Round(duration))
+	}
+	return uploaded, nil
 }
 
 func patchVideoURLInTaskData(data []byte, publicURL string) ([]byte, error) {
@@ -192,6 +202,13 @@ func patchVideoURLInTaskData(data []byte, publicURL string) ([]byte, error) {
 	return out, nil
 }
 
+func patchVideoUsageSecondsInTaskData(data []byte, seconds int) ([]byte, error) {
+	if len(data) == 0 || seconds <= 0 {
+		return data, nil
+	}
+	return sjson.SetBytes(data, "usage.seconds", seconds)
+}
+
 // RehostVideoTaskResult copies upstream video to R2 and returns CDN URL plus patched task data.
 func RehostVideoTaskResult(ctx context.Context, userID int, taskID, upstreamURL string, taskData []byte) (string, []byte, error) {
 	if !VideoURLNeedsRehost(upstreamURL) {
@@ -202,6 +219,10 @@ func RehostVideoTaskResult(ctx context.Context, userID int, taskID, upstreamURL 
 		return upstreamURL, taskData, err
 	}
 	patched, err := patchVideoURLInTaskData(taskData, uploaded.PublicURL)
+	if err != nil {
+		return uploaded.PublicURL, taskData, err
+	}
+	patched, err = patchVideoUsageSecondsInTaskData(patched, uploaded.DurationSeconds)
 	if err != nil {
 		return uploaded.PublicURL, taskData, err
 	}

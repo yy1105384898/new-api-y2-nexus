@@ -19,7 +19,7 @@ PARAMS = [
     {"name": "model", "description": "必填，固定传 {{model}}（与模型广场展示名一致）。"},
     {"name": "prompt", "description": "必填。视频描述，≤5000 字符。多素材时用 @image1…@image9 / @video1…@video3 / @audio1…@audio3 引用。"},
     {"name": "aspect_ratio", "description": "画幅，默认 16:9。支持 16:9、9:16、1:1、21:9、3:4、4:3。"},
-    {"name": "duration", "description": "时长秒数，4–15 任意整数。"},
+    {"name": "duration", "description": "必填。时长秒数，4–15 任意整数；按实际成片时长结算。"},
     {"name": "image_url", "description": "单张主参考图（公网 URL 或 data:image/...;base64,...）。与 reference_image_urls 传 1 张效果相同。"},
     {"name": "reference_image_urls", "description": "参考图 URL 数组，与 image_url 合计 ≤9。元素可为字符串，或 {\"url\",\"name\"} 对象。"},
     {"name": "reference_images", "description": "推荐写法：[{\"url\":\"…\",\"name\":\"志强\"},…]，用于 @人物 绑定。"},

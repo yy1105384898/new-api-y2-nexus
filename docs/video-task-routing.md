@@ -25,6 +25,8 @@ relay/channel/task/oaivideo/
 3. 写 DB（CAS `UpdateWithStatus`）
 4. `AdjustBillingOnComplete` — 按 Vendor 结算差额
 
+按秒 OAIREGBox Seedance 模型必须显式传 `duration`（JSON 或 multipart），范围为 4–15 秒整数。multipart 归一化必须读取 `duration` 本身，不能只读取兼容字段 `seconds`。任务成功且视频已转存时，系统从 MP4 元数据提取实际秒数写入 `usage.seconds`，终态结算优先使用实际成片时长；缺失或越界时长在提交前拒绝，禁止静默按 4 秒兜底。
+
 轮询循环与单任务处理均带 `recover`，避免一次 panic 永久停摆。
 
 Leonardo `cy-sd4-*` 渠道在插件主轮询窗口结束后仍返回 `in_progress`：插件内部转为 `delayed` 并低频追踪原 `generation_id`，NewAPI 不得将其提前改为失败或重新提交。NewAPI 全局任务清理由 `TASK_TIMEOUT_MINUTES` 控制（默认 1440 分钟），应显著长于插件主轮询窗口。

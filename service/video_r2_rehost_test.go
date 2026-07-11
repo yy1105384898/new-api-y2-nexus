@@ -51,6 +51,17 @@ func TestPatchVideoURLInTaskData(t *testing.T) {
 	}
 }
 
+func TestPatchVideoUsageSecondsInTaskData(t *testing.T) {
+	in := []byte(`{"id":"video_1","status":"completed","video_url":"https://example.com/a.mp4"}`)
+	out, err := patchVideoUsageSecondsInTaskData(in, 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), `"usage":{"seconds":15}`) {
+		t.Fatalf("usage seconds not patched: %s", out)
+	}
+}
+
 func TestBuildGeneratedVideoObjectKey(t *testing.T) {
 	if got := buildGeneratedVideoObjectKey(1, "task_abc", ".mp4"); got != "gen-videos/1/task_abc.mp4" {
 		t.Fatalf("got=%q", got)
