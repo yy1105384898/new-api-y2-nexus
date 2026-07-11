@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import time
@@ -59,11 +60,6 @@ ASYNC_ENDPOINTS = [
         "path": "{{base}}/images/{task_id}/content",
         "description": "下载任务图片（R2 代理地址）。",
     },
-    {
-        "method": "POST",
-        "path": "{{base}}/chat/completions",
-        "description": "（已弃用）兼容旧客户端 chat 出图。",
-    },
 ]
 
 SYNC_ENDPOINTS = [
@@ -76,11 +72,6 @@ SYNC_ENDPOINTS = [
         "method": "POST",
         "path": "{{base}}/images/edits",
         "description": "图生图 multipart（参考图/蒙版）；与 JSON 传 image/images 等价。",
-    },
-    {
-        "method": "POST",
-        "path": "{{base}}/chat/completions",
-        "description": "（已弃用）兼容旧客户端。",
     },
 ]
 
@@ -313,6 +304,14 @@ def merge_model_price(updates: dict[str, float]) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="更新 Manju Gemini Banana 模型文档与价格")
+    parser.add_argument(
+        "--docs-only",
+        action="store_true",
+        help="只更新 api_doc/profile，不修改 ModelPrice",
+    )
+    args = parser.parse_args()
+
     now = int(time.time())
     price_updates: dict[str, float] = {}
 
@@ -330,10 +329,13 @@ def main() -> None:
         price_updates[spec["internal"]] = spec["price"]
         print(f"api_doc updated: {spec['internal']} -> public {spec['public']}")
 
-    merge_model_price(price_updates)
-    print("ModelPrice updated:")
-    for k, v in price_updates.items():
-        print(f"  {k}: {v}")
+    if args.docs_only:
+        print("ModelPrice unchanged (--docs-only)")
+    else:
+        merge_model_price(price_updates)
+        print("ModelPrice updated:")
+        for k, v in price_updates.items():
+            print(f"  {k}: {v}")
 
     psql_exec(
         "SELECT model_name, image_profile_id, length(api_doc) AS doc_len "
