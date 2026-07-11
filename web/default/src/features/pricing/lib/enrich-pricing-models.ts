@@ -15,13 +15,18 @@ function isBoundImageProfile(model: PricingModel): boolean {
   const profileId = (model.image_ui_params as { id?: string } | undefined)?.id
   return Boolean(
     profileId &&
-      !profileId.startsWith(DEFAULT_UI_PROFILE_PREFIX) &&
-      profileId.startsWith('image-tpl')
+    !profileId.startsWith(DEFAULT_UI_PROFILE_PREFIX) &&
+    profileId.startsWith('image-tpl')
   )
 }
 
-/** 视频 API 文档模型：绑定 openai-video 端点，排除 Chat 默认 UI 参数误匹配。 */
+/**
+ * 视频 API 文档模型：绑定 openai-video 端点，且不能是显式绑定 image profile
+ * 的图像模型。混合渠道可能同时承载图像和视频，不能仅凭渠道端点把同一图像
+ * 模型重复渲染到视频与图像两个分组。
+ */
 export function isVideoDocModel(model: PricingModel): boolean {
+  if (isBoundImageProfile(model)) return false
   return (
     model.supported_endpoint_types?.includes(ENDPOINT_TYPES.OPENAI_VIDEO) ??
     false

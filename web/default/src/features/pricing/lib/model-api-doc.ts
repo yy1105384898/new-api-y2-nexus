@@ -7,11 +7,11 @@ published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
 import { DEFAULT_API_BASE_URL } from '@/features/canvas/lib/canvas-config'
+import type { PricingModel } from '../types'
 import {
   getModelDisplayName,
   stripModelVendorPrefix,
 } from './model-display-name'
-import type { PricingModel } from '../types'
 
 type UiParamFieldConfig = {
   enabled?: boolean
@@ -64,7 +64,9 @@ function pickDefaultDuration(config?: UiParamFieldConfig): number | undefined {
   return 8
 }
 
-function pickDefaultResolution(config?: UiParamFieldConfig): string | undefined {
+function pickDefaultResolution(
+  config?: UiParamFieldConfig
+): string | undefined {
   if (!config?.enabled) return undefined
   const fromOptions = config.options?.[0]?.value
   if (fromOptions) return fromOptions
@@ -439,14 +441,13 @@ function normalizeSingleVariant(
     model.supported_endpoint_types?.includes('image-generation') ||
     Boolean(model.image_ui_params)
 
-  const defaultEndpoints =
-    isVideo
-      ? UNIFIED_VIDEO_ENDPOINTS(base)
-      : isImage
-        ? mode === 'async'
-          ? UNIFIED_IMAGE_ASYNC_ENDPOINTS(base)
-          : UNIFIED_IMAGE_SYNC_ENDPOINTS(base)
-        : []
+  const defaultEndpoints = isVideo
+    ? UNIFIED_VIDEO_ENDPOINTS(base)
+    : isImage
+      ? mode === 'async'
+        ? UNIFIED_IMAGE_ASYNC_ENDPOINTS(base)
+        : UNIFIED_IMAGE_SYNC_ENDPOINTS(base)
+      : []
 
   return {
     mode,
@@ -474,9 +475,11 @@ function normalizeSingleVariant(
     ),
     createResponseJson:
       applyPlaceholdersToJson(slice.create_response_json, modelName, base) ||
-      (mode === 'async' ? VIDEO_POLL_CREATE : formatJson({
-          data: [{ url: 'https://example.com/image.png' }],
-        })),
+      (mode === 'async'
+        ? VIDEO_POLL_CREATE
+        : formatJson({
+            data: [{ url: 'https://example.com/image.png' }],
+          })),
     queryResponseJson,
     queryFailedResponseJson,
   }
@@ -496,18 +499,31 @@ export function normalizeModelApiDoc(
   if (doc.modes && typeof doc.modes === 'object') {
     const variants: ModelApiDocVariant[] = []
     if (doc.modes.async) {
-      const v = normalizeSingleVariant(doc.modes.async, model, siteOrigin, 'async')
+      const v = normalizeSingleVariant(
+        doc.modes.async,
+        model,
+        siteOrigin,
+        'async'
+      )
       if (v) variants.push(v)
     }
     if (doc.modes.sync) {
-      const v = normalizeSingleVariant(doc.modes.sync, model, siteOrigin, 'sync')
+      const v = normalizeSingleVariant(
+        doc.modes.sync,
+        model,
+        siteOrigin,
+        'sync'
+      )
       if (v) variants.push(v)
     }
     if (variants.length === 0) return null
     return { displayName, modelName, variants }
   }
 
-  const mode = inferImageDispatchMode(doc, model.image_ui_params as ImageUiParamsDoc)
+  const mode = inferImageDispatchMode(
+    doc,
+    model.image_ui_params as ImageUiParamsDoc
+  )
   const single = normalizeSingleVariant(doc, model, siteOrigin, mode)
   if (!single) return null
   return { displayName, modelName, variants: [single] }
@@ -547,10 +563,19 @@ function buildUnifiedVideoDoc(
     paramNote('metadata.aspect_ratio', paramsConfig.ratio, '画幅比例。'),
     paramNote('metadata.resolution', paramsConfig.resolution, '清晰度档位。'),
     { name: 'size', description: '画幅像素，如 1280x720。' },
-    { name: 'reference_image_urls', description: '参考图 URL 数组（图生视频，Seedance 等）。' },
+    {
+      name: 'reference_image_urls',
+      description: '参考图 URL 数组（图生视频，Seedance 等）。',
+    },
     { name: 'images', description: '参考图 URL 数组。' },
-    { name: 'image_url', description: '单张参考图 URL 或 Base64（JSON 图生视频，Omni 等）。' },
-    { name: 'input_reference', description: 'multipart 参考图文件（可多张）；JSON 亦兼容单张 string。' },
+    {
+      name: 'image_url',
+      description: '单张参考图 URL 或 Base64（JSON 图生视频，Omni 等）。',
+    },
+    {
+      name: 'input_reference',
+      description: 'multipart 参考图文件（可多张）；JSON 亦兼容单张 string。',
+    },
     { name: 'first_image_url', description: '首帧参考图 URL（JSON）。' },
     { name: 'last_image_url', description: '末帧参考图 URL（JSON）。' },
   ].filter((p) => p.description)
@@ -608,7 +633,9 @@ function pickImageSize(paramsConfig: ImageUiParamsDoc['params']): string {
   return sizeOption?.size ?? sizeOption?.value ?? '1024x1024'
 }
 
-function pickImageAspectRatio(paramsConfig: ImageUiParamsDoc['params']): string {
+function pickImageAspectRatio(
+  paramsConfig: ImageUiParamsDoc['params']
+): string {
   const options = paramsConfig?.aspectRatio?.options ?? []
   const option = options.find((item) => item.value && item.value !== 'auto')
   if (!option?.value) return '1:1'
@@ -621,11 +648,15 @@ function pickImageAspectRatio(paramsConfig: ImageUiParamsDoc['params']): string 
   return '1:1'
 }
 
-function imageQualityToOutputResolution(value: string | undefined): string | null {
+function imageQualityToOutputResolution(
+  value: string | undefined
+): string | null {
   const normalized = (value || '').trim().toLowerCase()
-  if (normalized === 'high' || normalized === 'hd' || normalized === '4k') return '4K'
+  if (normalized === 'high' || normalized === 'hd' || normalized === '4k')
+    return '4K'
   if (normalized === 'medium' || normalized === '2k') return '2K'
-  if (normalized === 'low' || normalized === 'standard' || normalized === '1k') return '1K'
+  if (normalized === 'low' || normalized === 'standard' || normalized === '1k')
+    return '1K'
   return null
 }
 
@@ -669,10 +700,7 @@ function buildGulie2KImageParams(
   paramsConfig: ImageUiParamsDoc['params']
 ): ModelDocParam[] {
   const aspectNote = paramNote('aspectRatio', paramsConfig?.aspectRatio)
-  const sizeDescription = [
-    aspectNote.description,
-    GULIE_2K_SIZE_PARAM_NOTE,
-  ]
+  const sizeDescription = [aspectNote.description, GULIE_2K_SIZE_PARAM_NOTE]
     .filter(Boolean)
     .join(' ')
   return [
@@ -706,7 +734,9 @@ function filterGulie2KImageParams(
         .trim()
       return {
         name: 'size',
-        description: [cleaned, GULIE_2K_SIZE_PARAM_NOTE].filter(Boolean).join(' '),
+        description: [cleaned, GULIE_2K_SIZE_PARAM_NOTE]
+          .filter(Boolean)
+          .join(' '),
       }
     })
   if (!filtered.some((p) => p.name === 'size')) {
@@ -725,8 +755,7 @@ const BANANA_IMAGE_PARAM_NOTES = {
     '推荐 1K / 2K / 4K。image_size 为兼容别名；若同时传入，须与 output_resolution 保持一致。',
   quality:
     'OpenAI 风格别名：low=1K、medium=2K、high=4K；推荐直接传 output_resolution。',
-  size:
-    '兼容旧 OpenAI 像素尺寸（如 1024x1024）；仅用于推断 aspect_ratio / output_resolution，勿与 aspect_ratio 混用。',
+  size: '兼容旧 OpenAI 像素尺寸（如 1024x1024）；仅用于推断 aspect_ratio / output_resolution，勿与 aspect_ratio 混用。',
   resolution:
     '视频专用（如 720p、1080p）。图像请求请勿使用，否则可能无法得到预期的 4K 档位。',
   jsonReference:
@@ -773,7 +802,11 @@ function buildBananaStyleImageParams(
   paramsConfig: ImageUiParamsDoc['params']
 ): ModelDocParam[] {
   return [
-    paramNote('aspect_ratio', paramsConfig?.aspectRatio, BANANA_IMAGE_PARAM_NOTES.aspectRatio),
+    paramNote(
+      'aspect_ratio',
+      paramsConfig?.aspectRatio,
+      BANANA_IMAGE_PARAM_NOTES.aspectRatio
+    ),
     {
       name: 'output_resolution',
       description: BANANA_IMAGE_PARAM_NOTES.outputResolution,
@@ -815,6 +848,7 @@ function buildAsyncImageVariant(
   const paramsConfig = ui?.params ?? {}
   const useBananaParams = usesBananaStyleImageParams(ui)
   const useGulie2KParams = usesGulie2KImageParams(ui)
+  const size = pickImageSize(paramsConfig)
   const aspectRatio = pickImageAspectRatio(paramsConfig)
   const outputResolution = pickImageOutputResolution(paramsConfig, modelName)
   const resolutionFields = outputResolution
@@ -897,6 +931,7 @@ function buildSyncImageVariant(
   const paramsConfig = ui?.params ?? {}
   const useBananaParams = usesBananaStyleImageParams(ui)
   const useGulie2KParams = usesGulie2KImageParams(ui)
+  const size = pickImageSize(paramsConfig)
   const aspectRatio = pickImageAspectRatio(paramsConfig)
   const outputResolution = pickImageOutputResolution(paramsConfig, modelName)
   const resolutionFields = outputResolution
@@ -923,7 +958,10 @@ function buildSyncImageVariant(
             paramNote('quality', paramsConfig?.quality, '画质档位。'),
           ]),
     paramNote('n', paramsConfig?.count, '生成张数，默认 1。'),
-    { name: 'response_format', description: 'url 返回图片地址；b64_json 返回 base64。' },
+    {
+      name: 'response_format',
+      description: 'url 返回图片地址；b64_json 返回 base64。',
+    },
   ].filter((p) => p.description)
 
   return {
@@ -1022,9 +1060,7 @@ function buildMinimalFallback(
     variants: [
       {
         mode: 'sync',
-        intro:
-          model.description?.trim() ||
-          'OpenAI 兼容 Chat 接口。',
+        intro: model.description?.trim() || 'OpenAI 兼容 Chat 接口。',
         generationModes: [],
         endpoints: [
           {
