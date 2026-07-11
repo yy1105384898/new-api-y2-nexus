@@ -75,7 +75,18 @@ func Helper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.New
 
 		switch convertedRequest.(type) {
 		case *bytes.Buffer:
-			requestBody = convertedRequest.(io.Reader)
+			buffer := convertedRequest.(*bytes.Buffer)
+			body, size, closer, err := relaycommon.NewOutboundBody(buffer.Bytes())
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			defer closer.Close()
+			info.UpstreamRequestBodySize = size
+			info.UpstreamRequestContentType = c.Request.Header.Get("Content-Type")
+			requestBody = body
+			// Drop the rebuilt multipart heap buffer before waiting for upstream.
+			buffer = nil
+			convertedRequest = nil
 		default:
 			jsonData, err := common.Marshal(convertedRequest)
 			if err != nil {

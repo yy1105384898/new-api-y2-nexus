@@ -44,6 +44,12 @@ func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 	model.LOG_DB = db
 
 	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Channel{}, &model.Ability{}, &model.Model{}, &model.Vendor{}))
+	require.NoError(t, db.Create(&model.Channel{
+		Id:     1,
+		Name:   "enabled-model-list-channel",
+		Type:   constant.ChannelTypeOpenAI,
+		Status: common.ChannelStatusEnabled,
+	}).Error)
 
 	t.Cleanup(func() {
 		sqlDB, err := db.DB()
@@ -208,6 +214,28 @@ func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 	require.True(t, ok)
 	require.Empty(t, missingExprPricing.BillingMode)
 	require.Empty(t, missingExprPricing.BillingExpr)
+}
+
+func TestPricingAndModelListIgnoreEnabledAbilitiesFromDisabledChannels(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	require.NoError(t, db.Create(&model.Channel{
+		Id:     2,
+		Name:   "disabled-stale-ability-channel",
+		Type:   constant.ChannelTypeOpenAI,
+		Status: common.ChannelStatusDisabled,
+	}).Error)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "claude-opus-4-7", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "claude-opus-4.7", ChannelId: 2, Enabled: true},
+	}).Error)
+	model.InvalidatePricingCache()
+
+	require.ElementsMatch(t, []string{"claude-opus-4-7"}, model.GetEnabledModels())
+	require.ElementsMatch(t, []string{"claude-opus-4-7"}, model.GetGroupEnabledModels("default"))
+
+	pricing := pricingByModelName(model.GetPricing())
+	require.Contains(t, pricing, "claude-opus-4-7")
+	require.NotContains(t, pricing, "claude-opus-4.7")
 }
 
 func TestListModelsAnthropicEmptyListDoesNotPanic(t *testing.T) {

@@ -28,33 +28,40 @@ type AbilityWithChannel struct {
 	ChannelType int `json:"channel_type"`
 }
 
+func enabledAbilityQuery() *gorm.DB {
+	return DB.Table("abilities").
+		Joins("JOIN channels ON abilities.channel_id = channels.id").
+		Where("abilities.enabled = ? AND channels.status = ?", true, common.ChannelStatusEnabled)
+}
+
 func GetAllEnableAbilityWithChannels() ([]AbilityWithChannel, error) {
 	var abilities []AbilityWithChannel
-	err := DB.Table("abilities").
+	err := enabledAbilityQuery().
 		Select("abilities.*, channels.type as channel_type").
-		Joins("left join channels on abilities.channel_id = channels.id").
-		Where("abilities.enabled = ?", true).
 		Scan(&abilities).Error
 	return abilities, err
 }
 
 func GetGroupEnabledModels(group string) []string {
 	var models []string
-	// Find distinct models
-	DB.Table("abilities").Where(commonGroupCol+" = ? and enabled = ?", group, true).Distinct("model").Pluck("model", &models)
+	enabledAbilityQuery().
+		Where("abilities."+commonGroupCol+" = ?", group).
+		Distinct("abilities.model").
+		Pluck("abilities.model", &models)
 	return models
 }
 
 func GetEnabledModels() []string {
 	var models []string
-	// Find distinct models
-	DB.Table("abilities").Where("enabled = ?", true).Distinct("model").Pluck("model", &models)
+	enabledAbilityQuery().
+		Distinct("abilities.model").
+		Pluck("abilities.model", &models)
 	return models
 }
 
 func GetAllEnableAbilities() []Ability {
 	var abilities []Ability
-	DB.Find(&abilities, "enabled = ?", true)
+	enabledAbilityQuery().Select("abilities.*").Scan(&abilities)
 	return abilities
 }
 
