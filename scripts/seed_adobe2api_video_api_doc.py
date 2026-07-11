@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import time
@@ -155,6 +156,13 @@ def save_json_option(key: str, data: dict) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--docs-only",
+        action="store_true",
+        help="只同步 api_doc、endpoint 和 UI profile，不修改 ModelPrice。",
+    )
+    args = parser.parse_args()
     now = int(time.time())
     endpoints = '{"openai-video":{"path":"/v1/videos","method":"POST"}}'
     for model, conf in MODELS.items():
@@ -167,11 +175,14 @@ def main() -> None:
             f"status = 1, updated_time = {now} "
             f"WHERE model_name = '{model}' AND deleted_at IS NULL;"
         )
-    model_price = load_json_option("ModelPrice")
-    for model, price in PRICE_USD.items():
-        model_price[model] = price
-    save_json_option("ModelPrice", model_price)
-    print(f"api_doc + ModelPrice updated: {len(MODELS)} Adobe2API video models")
+    if not args.docs_only:
+        model_price = load_json_option("ModelPrice")
+        for model, price in PRICE_USD.items():
+            model_price[model] = price
+        save_json_option("ModelPrice", model_price)
+        print(f"api_doc + ModelPrice updated: {len(MODELS)} Adobe2API video models")
+    else:
+        print(f"api_doc updated without pricing changes: {len(MODELS)} Adobe2API video models")
 
 
 if __name__ == "__main__":
