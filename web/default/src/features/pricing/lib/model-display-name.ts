@@ -124,6 +124,11 @@ export function formatModelDisplayName(modelName: string) {
 export function getModelDisplayName(
   model: Pick<PricingModel, 'model_name' | 'display_name'>
 ) {
+  // Older API data may persist `plus` as display_name for qwen3.7-plus.
+  // Prefer the canonical model name for versioned Qwen families.
+  if (/^qwen\d+(?:\.\d+)?-/i.test(model.model_name.trim())) {
+    return formatModelDisplayName(model.model_name)
+  }
   return model.display_name || formatModelDisplayName(model.model_name)
 }
 
