@@ -1,8 +1,11 @@
 package image
 
 import (
+	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,10 +13,68 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	openai "github.com/QuantumNous/new-api/relay/channel/openai"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
+
+func TestQueuedEditHTTPSReferencesPassThroughWithoutR2Upload(t *testing.T) {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	for _, pair := range [][2]string{
+		{"model", "gpt-image-2"},
+		{"prompt", "edit"},
+		{"image", "https://cdn.example.com/a.png"},
+		{"image", "https://cdn.example.com/b.png"},
+		{"mask", "https://cdn.example.com/mask.png"},
+	} {
+		if err := writer.WriteField(pair[0], pair[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
+	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+
+	snapshot, err := SnapshotEditRequest(c, "task_url_refs")
+	if err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := DecodeRequestSnapshot(snapshot, "/v1/images/edits")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(decoded.Multipart.Files) != 3 {
+		t.Fatalf("URL references = %d, want 3", len(decoded.Multipart.Files))
+	}
+	for _, file := range decoded.Multipart.Files {
+		if file.URL == "" || file.ObjectKey != "" || len(file.Data) != 0 {
+			t.Fatalf("unexpected URL snapshot file: %#v", file)
+		}
+	}
+
+	task := &model.Task{PrivateData: model.TaskPrivateData{RequestSnapshot: snapshot, RequestPath: "/v1/images/edits"}}
+	replayed, _, err := buildHTTPRequestForImageTask(context.Background(), task)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := replayed.ParseMultipartForm(1 << 20); err != nil {
+		t.Fatal(err)
+	}
+	if got := replayed.MultipartForm.Value["image"]; len(got) != 2 || got[0] != "https://cdn.example.com/a.png" || got[1] != "https://cdn.example.com/b.png" {
+		t.Fatalf("replayed images = %#v", got)
+	}
+	if got := replayed.MultipartForm.Value["mask"]; len(got) != 1 || got[0] != "https://cdn.example.com/mask.png" {
+		t.Fatalf("replayed mask = %#v", got)
+	}
+	if len(replayed.MultipartForm.File) != 0 {
+		t.Fatalf("URL references should not become files: %#v", replayed.MultipartForm.File)
+	}
+}
 
 func TestNormalizeAsyncGenerationBodyUsesURLResponseFormatFor4K(t *testing.T) {
 	out, err := normalizeAsyncGenerationBody([]byte(`{"model":"geek2-gpt-image-2-4k","prompt":"test","async":true,"response_format":"b64_json"}`), true)

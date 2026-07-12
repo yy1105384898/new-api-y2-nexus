@@ -33,6 +33,10 @@ IMAGE_B64_DELIVERY_MAX_CONCURRENT=8
 
 API 节点负责鉴权、计费预占、R2 输入快照、写任务和同步兼容等待，不执行上游生成和输出转存。同步 `url`、`b64_json` 和未声明格式全部进入任务链；Worker 将结果统一归档为 R2 URL。API 对 URL 与未声明格式直返 R2 地址，仅对显式 `b64_json` 从 R2 临时落盘并流式编码返回。
 
+同步等待以 Redis `new-api:image:task-done:*` 完成通知为实时通道，每个 API 进程只使用一条共享订阅；PostgreSQL 状态查询默认每 2 秒兜底一次，等待期间只读取 `status` / `fail_reason`，终态才加载完整结果。Redis 新任务通知由每个空闲 Worker 槽直接领取，因此多节点按实际空闲并发分流，不会由单个节点调度器提前囤积任务。
+
+`/v1/images/edits` 的 HTTPS 参考图 URL 直接写入任务快照，不在 API 节点重复上传 R2。支持 URL 的上游直接收到 URL；仅接受 multipart 文件的上游由执行 Worker 下载后流式写入上游请求，不产生第二份 R2 对象。本地 blob / data URL 仍必须作为文件上传，供远端 Worker 读取。
+
 旧的 `IMAGE_MAX_IN_FLIGHT_*` 生成在途限制已从公网路由移除。`IMAGE_B64_DELIVERY_MAX_CONCURRENT` 只约束单个 API 节点的 R2 下载与 base64 编码资源，不限制 Worker 生成并发；同步连接和任务接纳仍由 `IMAGE_SYNC_MAX_BACKLOG` 与网关连接上限保护。
 
 ## Worker 节点

@@ -69,3 +69,27 @@ func TestGetAndValidOpenAIImageRequestMultipartStream(t *testing.T) {
 		require.Contains(t, err.Error(), "invalid stream value")
 	})
 }
+
+func TestGetAndValidOpenAIImageRequestPreservesRepeatedURLReferences(t *testing.T) {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("model", "gpt-image-2"))
+	require.NoError(t, writer.WriteField("prompt", "edit these images"))
+	require.NoError(t, writer.WriteField("image", "https://cdn.example.com/a.png"))
+	require.NoError(t, writer.WriteField("image", "https://cdn.example.com/b.png"))
+	require.NoError(t, writer.WriteField("mask", "https://cdn.example.com/mask.png"))
+	require.NoError(t, writer.Close())
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
+	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+
+	req, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesEdits)
+	require.NoError(t, err)
+	var images []string
+	require.NoError(t, common.Unmarshal(req.Image, &images))
+	require.Equal(t, []string{"https://cdn.example.com/a.png", "https://cdn.example.com/b.png"}, images)
+	var mask string
+	require.NoError(t, common.Unmarshal(req.Mask, &mask))
+	require.Equal(t, "https://cdn.example.com/mask.png", mask)
+}

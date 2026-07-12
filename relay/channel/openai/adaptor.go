@@ -497,6 +497,9 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 					continue
 				}
 				for _, value := range values {
+					if isImageEditHTTPSReference(key, value) {
+						continue
+					}
 					writer.WriteField(key, value)
 				}
 			}
@@ -520,8 +523,9 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 						}
 					}
 
-					// If no image fields found at all
-					if !foundArrayImages && (len(imageFiles) == 0) {
+					// URL-only edits are downloaded by this Worker and streamed
+					// straight into the upstream multipart request without R2.
+					if !foundArrayImages && len(imageFiles) == 0 && len(imageEditHTTPSReferences(mf, "image")) == 0 {
 						return nil, errors.New("image is required")
 					}
 				}
@@ -560,6 +564,16 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 				// 复制完立即关闭，避免在循环内使用 defer 占用资源
 				_ = file.Close()
 			}
+			imageURLs := imageEditHTTPSReferences(mf, "image")
+			for i, imageURL := range imageURLs {
+				fieldName := "image"
+				if len(imageFiles)+len(imageURLs) > 1 {
+					fieldName = "image[]"
+				}
+				if err := writeImageEditURLPart(writer, fieldName, imageURL, i); err != nil {
+					return nil, err
+				}
+			}
 
 			// Handle mask file if present
 			if maskFiles, exists := mf.File["mask"]; exists && len(maskFiles) > 0 {
@@ -586,6 +600,10 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 					return nil, errors.New("copy mask file failed")
 				}
 				_ = maskFile.Close()
+			} else if maskURLs := imageEditHTTPSReferences(mf, "mask"); len(maskURLs) > 0 {
+				if err := writeImageEditURLPart(writer, "mask", maskURLs[0], 0); err != nil {
+					return nil, err
+				}
 			}
 		} else {
 			return nil, errors.New("no multipart form data found")
@@ -598,6 +616,74 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 
 	default:
 		return request, nil
+	}
+}
+
+func isImageEditHTTPSReference(field, value string) bool {
+	field = strings.TrimSuffix(strings.TrimSpace(field), "[]")
+	return (field == "image" || field == "mask") && strings.HasPrefix(strings.ToLower(strings.TrimSpace(value)), "https://")
+}
+
+func imageEditHTTPSReferences(form *multipart.Form, field string) []string {
+	if form == nil {
+		return nil
+	}
+	values := append([]string(nil), form.Value[field]...)
+	values = append(values, form.Value[field+"[]"]...)
+	urls := values[:0]
+	for _, value := range values {
+		if isImageEditHTTPSReference(field, value) {
+			urls = append(urls, strings.TrimSpace(value))
+		}
+	}
+	return urls
+}
+
+func writeImageEditURLPart(writer *multipart.Writer, field, rawURL string, index int) error {
+	response, err := service.DoDownloadRequest(rawURL, "stream image edit reference to upstream")
+	if err != nil {
+		return fmt.Errorf("download image edit reference %d: %w", index, err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("download image edit reference %d: HTTP %d", index, response.StatusCode)
+	}
+	contentType := strings.TrimSpace(response.Header.Get("Content-Type"))
+	if !strings.HasPrefix(strings.ToLower(contentType), "image/") {
+		return fmt.Errorf("image edit reference %d has invalid content type %q", index, contentType)
+	}
+	const maxImageEditReferenceBytes = int64(20 << 20)
+	if response.ContentLength > maxImageEditReferenceBytes {
+		return fmt.Errorf("image edit reference %d exceeds 20 MiB", index)
+	}
+	filename := fmt.Sprintf("reference-%d%s", index+1, imageExtensionForContentType(contentType))
+	header := make(textproto.MIMEHeader)
+	header.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, field, filename))
+	header.Set("Content-Type", contentType)
+	part, err := writer.CreatePart(header)
+	if err != nil {
+		return err
+	}
+	written, err := io.Copy(part, io.LimitReader(response.Body, maxImageEditReferenceBytes+1))
+	if err != nil {
+		return err
+	}
+	if written > maxImageEditReferenceBytes {
+		return fmt.Errorf("image edit reference %d exceeds 20 MiB", index)
+	}
+	return nil
+}
+
+func imageExtensionForContentType(contentType string) string {
+	switch strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0])) {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/webp":
+		return ".webp"
+	case "image/gif":
+		return ".gif"
+	default:
+		return ".png"
 	}
 }
 

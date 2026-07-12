@@ -123,6 +123,25 @@ func TestCountActiveImageTasks(t *testing.T) {
 	require.Equal(t, int64(1), perUser)
 }
 
+func TestGetImageTaskStatusLoadsOnlyStatusFields(t *testing.T) {
+	truncateTables(t)
+	task := newQueuedImageTask("task_image_status")
+	task.UserId = 7
+	task.Status = TaskStatusFailure
+	task.FailReason = "upstream failed"
+	insertTask(t, task)
+
+	status, exists, err := GetImageTaskStatus(7, task.TaskID)
+	require.NoError(t, err)
+	require.True(t, exists)
+	require.Equal(t, TaskStatusFailure, status.Status)
+	require.Equal(t, "upstream failed", status.FailReason)
+
+	_, exists, err = GetImageTaskStatus(8, task.TaskID)
+	require.NoError(t, err)
+	require.False(t, exists)
+}
+
 func TestFairImageTaskIDsRoundRobinsUsersWithinPriority(t *testing.T) {
 	tasks := []*Task{
 		{TaskID: "u1-a", UserId: 1, Priority: 0, Properties: Properties{TaskKind: constant.TaskKindImage}},
