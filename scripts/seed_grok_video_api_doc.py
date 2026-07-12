@@ -7,8 +7,9 @@ import json
 import subprocess
 
 ENDPOINTS = [
-    {"method": "POST", "path": "{{base}}/video/generations", "description": "创建视频任务（application/json）。"},
-    {"method": "GET", "path": "{{base}}/video/generations/{task_id}", "description": "查询任务状态；成功时 data.result_url 为成片地址。"},
+    {"method": "POST", "path": "{{base}}/videos", "description": "通过统一视频任务接口创建任务（application/json 或 multipart/form-data）。"},
+    {"method": "GET", "path": "{{base}}/videos/{task_id}", "description": "通过统一视频任务接口查询状态和结果。"},
+    {"method": "GET", "path": "{{base}}/videos/{task_id}/content", "description": "下载已完成任务的成片。"},
 ]
 
 PROMPT_PARAM = {
@@ -27,14 +28,14 @@ CREATE_RESP = {
 }
 
 QUERY_RESP = {
-    "code": "success",
-    "data": {
-        "status": "SUCCESS",
-        "task_id": "task_xxx",
-        "progress": "100%",
-        "result_url": "https://example.com/generated-video.mp4",
-        "fail_reason": "",
-    },
+    "id": "task_xxx",
+    "object": "video",
+    "model": "{{model}}",
+    "status": "completed",
+    "progress": 100,
+    "created_at": 1780000000,
+    "seconds": "6",
+    "metadata": {"video_url": "{{base}}/videos/task_xxx/content"},
 }
 
 DOCS: dict[str, dict] = {

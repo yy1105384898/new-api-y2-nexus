@@ -34,9 +34,50 @@ Leonardo `cy-sd4-*` 渠道在插件主轮询窗口结束后仍返回 `in_progres
 
 路由恢复必须兼容历史任务缺少 `ChannelMeta`、`UpstreamModelName` 或计费快照的情况：缺失字段按空值处理并回退到 `OriginModelName` / 默认视频解析器，禁止通过嵌入的空指针字段直接取值。共享请求转换同样将 `nil` 视为空值，不能把它序列化为 `"<nil>"` 后误判为客户显式参数。
 
+## 客户端统一 API 契约
+
+公开视频客户端只使用以下三个端点：
+
+| 方法 | 路径 | 用途 |
+|------|------|------|
+| `POST` | `/v1/videos` | 创建视频任务，支持 `application/json` 与 `multipart/form-data` |
+| `GET` | `/v1/videos/{task_id}` | 查询任务状态与结果 |
+| `GET` | `/v1/videos/{task_id}/content` | 下载已完成任务的成片 |
+
+创建请求的公共字段如下；模型不支持的可选字段由对应 profile 隐藏，并由服务端 vendor 校验：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `model` | string | 必填，模型广场展示的 public 模型名 |
+| `prompt` | string | 必填，视频提示词 |
+| `duration` / `seconds` | integer 或整数字符串 | 可任选其一；同时传入时必须一致 |
+| `aspect_ratio` | string | 如 `16:9`、`9:16`、`1:1` |
+| `resolution` | string | 如 `480p`、`720p`、`1080p` |
+| `generate_audio` | boolean | 是否生成音频，取决于模型能力 |
+| `image` / `images` / `image_urls` / `reference_image_urls` | string 或 string[] | JSON 参考图；支持 HTTPS URL，具体数量由模型 profile 决定 |
+| `input_reference` | file 或 file[] | multipart 参考素材 |
+| `metadata` | object | 已登记 vendor 的扩展参数；不得用于选择上游协议或路径 |
+
+JSON 示例：
+
+```json
+{
+  "model": "grok-video",
+  "prompt": "一辆跑车穿过雨夜城市",
+  "duration": 6,
+  "aspect_ratio": "9:16",
+  "resolution": "720p",
+  "image_urls": ["https://example.com/reference.png"]
+}
+```
+
+提交与轮询响应都使用统一视频对象：`id`、`object: "video"`、`model`、`status`、`progress`、`created_at`；成功时可通过响应结果 URL 或 `/content` 取片，失败时读取 `error.message`。`status` 只向客户暴露 `queued`、`in_progress`、`completed`、`failed`。
+
+`/v1/chat/completions`、`/v1/video/generations`、`/v1/videos/generations` 等均是部分供应商的内部上游协议，不属于公开视频 API，也不得出现在客户调用示例中。
+
 ## 统一时长参数契约
 
-对外只提供 `POST /v1/videos` + `GET /v1/videos/{id}` 统一视频任务协议。`duration` / `seconds` 都表示整数秒：
+对外只提供上述统一视频任务协议。`duration` / `seconds` 都表示整数秒：
 
 - 只传其中一个时，`relay/common` 在入口归一化为同一内部时长值。
 - 同时传入两个且值不一致时，提交阶段返回 `invalid_duration`，禁止计费与生成使用不同时长。
