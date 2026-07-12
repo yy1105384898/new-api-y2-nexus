@@ -169,6 +169,12 @@ func TestNormalizeClientErrorMessageUnified(t *testing.T) {
 			want:          PoolUnavailableMessageZH,
 		},
 		{
+			name:          "leonardo_public_pool_unavailable_zh",
+			raw:           "Video service is temporarily unavailable, please retry later.",
+			preferChinese: true,
+			want:          UpstreamUnavailableMessageZH,
+		},
+		{
 			name: "leonardo_generic_failure_en",
 			raw:  "All cookies failed.",
 			want: GenerationFailedMessageEN,
@@ -177,25 +183,25 @@ func TestNormalizeClientErrorMessageUnified(t *testing.T) {
 			name:          "leonardo_upstream_no_detail_zh",
 			raw:           "leonardo: video generation failed (FAILED, upstream returned no detail; try fewer references or a simpler prompt)",
 			preferChinese: true,
-			want:          "Leonardo 上游生成失败且未提供具体原因；参考素材已成功提交，这不代表素材数量超限，请调整提示词或素材后重试。",
+			want:          GenerationFailedMessageZH,
 		},
 		{
 			name:          "leonardo_upstream_empty_output_zh",
 			raw:           "leonardo: video generation failed (FAILED): upstream rejected the job with no output; try a shorter prompt or fewer references",
 			preferChinese: true,
-			want:          "Leonardo 上游生成失败且未提供具体原因；参考素材已成功提交，这不代表素材数量超限，请调整提示词或素材后重试。",
+			want:          GenerationFailedMessageZH,
 		},
 		{
 			name:          "leonardo_upstream_new_empty_output_zh",
 			raw:           "leonardo: video generation failed (FAILED): upstream returned FAILED with no output and no failure detail",
 			preferChinese: true,
-			want:          "Leonardo 上游生成失败且未提供具体原因；参考素材已成功提交，这不代表素材数量超限，请调整提示词或素材后重试。",
+			want:          GenerationFailedMessageZH,
 		},
 		{
 			name:          "leonardo_upstream_detail_passthrough_zh",
 			raw:           "leonardo: video generation failed (FAILED): Unsafe content detected",
 			preferChinese: true,
-			want:          "Unsafe content detected",
+			want:          ContentPolicyMessageZH,
 		},
 		{
 			name:          "leonardo_upstream_detail_moderation_zh",

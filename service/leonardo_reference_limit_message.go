@@ -89,15 +89,3 @@ func HumanizeLeonardoReferenceLimitError(preferChinese bool, raw string) (string
 
 	return "", false
 }
-
-func humanizeLeonardoGenerationFailureDetail(preferChinese bool, detail string) (string, bool) {
-	lower := strings.ToLower(strings.TrimSpace(detail))
-	if strings.Contains(lower, "upstream rejected the job with no output") ||
-		strings.Contains(lower, "upstream returned failed with no output and no failure detail") {
-		if preferChinese {
-			return "Leonardo 上游生成失败且未提供具体原因；参考素材已成功提交，这不代表素材数量超限，请调整提示词或素材后重试。", true
-		}
-		return "Leonardo returned FAILED with no output or failure detail. The references were accepted; adjust the prompt or source material and retry.", true
-	}
-	return "", false
-}
