@@ -57,6 +57,21 @@ func TestResolveRehostPolicyManjuBanana4KUsesLargeURLRule(t *testing.T) {
 	}
 }
 
+func TestResolveRehostPolicyAdobeFirefly(t *testing.T) {
+	for _, model := range []string{
+		"adobe-firefly-gpt-image-2-2k",
+		"Adobe-Firefly-Nano-Banana-Pro-1K",
+	} {
+		policy := ResolveRehostPolicy(model)
+		if !policy.AcceptUpstreamURL || !policy.AsyncPreferURLResponse {
+			t.Fatalf("%s: expected URL rehost policy, got %+v", model, policy)
+		}
+		if policy.PreferUpstreamB64JSON {
+			t.Fatalf("%s: should not prefer upstream b64", model)
+		}
+	}
+}
+
 func TestResolveRehostPolicyDefault(t *testing.T) {
 	policy := ResolveRehostPolicy("go2api-gpt-image-2-1k")
 	if policy.AcceptUpstreamURL || policy.PreferUpstreamB64JSON || policy.AsyncPreferURLResponse {
@@ -88,6 +103,9 @@ func TestImageAsyncAcceptsUpstreamURL(t *testing.T) {
 	}
 	if !ImageAsyncAcceptsUpstreamURL("manju-gemini-banana-pro-1/2k") {
 		t.Fatal("expected manju banana async to accept upstream url")
+	}
+	if !ImageAsyncAcceptsUpstreamURL("adobe-firefly-gpt-image-2-2k") {
+		t.Fatal("expected adobe firefly async to accept upstream url")
 	}
 	if ImageAsyncAcceptsUpstreamURL("go2api-gpt-image-2-1k") {
 		t.Fatal("internal prefixed model should still require b64_json in async worker")

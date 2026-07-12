@@ -62,6 +62,7 @@ IMAGE_GULIE_UPSTREAM_URL_ENABLED=true
 
 - 输入参考图：`image-task-inputs/{user_id}/{task_id}/...`
 - 生成结果：`gen-images/{user_id}/{task_id}/...`
+- `adobe-firefly-*` 上游只返回 URL；Worker 必须先下载并转存 R2，不能要求其返回 `b64_json`。
 - 成功任务结果只允许出现 `R2_USER_PUBLIC_BASE_URL` 下的 URL。
 - `image-task-inputs/` 建议设置 24 小时生命周期，兜底清理异常退出产生的孤儿对象。
 - 不允许在转存失败时返回上游 URL；失败进入任务终态并按现有计费策略退款。
