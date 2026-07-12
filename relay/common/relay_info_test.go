@@ -65,3 +65,25 @@ func TestTaskSubmitReqUnmarshalInputReferenceArray(t *testing.T) {
 	}, req.Images)
 	require.True(t, req.HasImage())
 }
+
+func TestTaskSubmitReqUnmarshalReferenceObject(t *testing.T) {
+	var req TaskSubmitReq
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"prompt": "test",
+		"model": "grok-video-1.5",
+		"image": {"url": "https://example.com/a.jpg"}
+	}`), &req))
+	require.Equal(t, "https://example.com/a.jpg", req.Image)
+	require.Equal(t, []string{"https://example.com/a.jpg"}, req.Images)
+}
+
+func TestTaskSubmitReqUnmarshalInputReferenceObject(t *testing.T) {
+	var req TaskSubmitReq
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"prompt": "test",
+		"model": "grok-video-1.5",
+		"input_reference": {"url": "https://example.com/a.jpg"}
+	}`), &req))
+	require.Equal(t, "https://example.com/a.jpg", req.InputReference)
+	require.Equal(t, []string{"https://example.com/a.jpg"}, req.Images)
+}

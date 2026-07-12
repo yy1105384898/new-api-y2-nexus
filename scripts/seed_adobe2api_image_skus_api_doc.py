@@ -25,20 +25,31 @@ FAMILIES = (
     ("gpt-image-2", "GPT Image 2"),
 )
 TIERS = ("1k", "2k", "4k")
-RATIOS = ("1:1", "4:3", "3:4", "16:9", "9:16")
+BASIC_RATIOS = ("1:1", "4:3", "3:4", "16:9", "9:16")
+BANANA2_RATIOS = BASIC_RATIOS + ("1:8", "1:4", "4:1", "8:1")
+GPT_IMAGE_RATIOS = ("1:1", "5:4", "9:16", "21:9", "16:9", "3:2", "4:3", "4:5", "3:4", "2:3")
 
 
 def specs() -> list[dict]:
     result = []
     for family, label in FAMILIES:
+        ratios = BASIC_RATIOS
+        profile_family = ""
+        if family == "nano-banana2":
+            ratios = BANANA2_RATIOS
+            profile_family = "nano-banana2-"
+        elif family == "gpt-image-2":
+            ratios = GPT_IMAGE_RATIOS
+            profile_family = "gpt-image-2-"
         for tier in TIERS:
             result.append(
                 {
                     "internal": f"adobe-firefly-{family}-{tier}",
-                    "public": f"firefly-{family}-{tier}",
+                    "public": f"{family}-{tier}",
                     "label": label,
                     "tier": tier.upper(),
-                    "profile": f"image-tpl-adobe2api-{tier}",
+                    "profile": f"image-tpl-adobe2api-{profile_family}{tier}",
+                    "ratios": ratios,
                 }
             )
     return result
@@ -50,11 +61,12 @@ def build_doc(spec: dict) -> dict:
     common_params = [
         {"name": "model", "description": f"必填，固定传 {public}。"},
         {"name": "prompt", "description": "必填，生图或编辑指令。prompt 中的 1K/2K/4K 文字不会改变计费档位。"},
-        {"name": "aspect_ratio", "description": "可选：" + "、".join(RATIOS) + "。"},
+        {"name": "aspect_ratio", "description": "可选：" + "、".join(spec["ratios"]) + "；默认 16:9。"},
         {"name": "image_size", "description": f"可省略；如传必须为 {tier}，服务端始终按 SKU 固定为 {tier}。"},
         {"name": "size", "description": f"OpenAI 兼容字段；只能表达画幅或与 {tier} 一致的尺寸，错档返回 400。"},
         {"name": "quality", "description": f"OpenAI 兼容字段；如传必须对应 {tier}，错档返回 400。"},
-        {"name": "images", "description": "JSON 图生图参考图 URL/data URI 数组，最多 9 张。"},
+        {"name": "images", "description": "JSON 参考图数组，最多 9 张；支持 JPEG/PNG/WebP 公网 URL 或 data URI，单张不超过 10MB。"},
+        {"name": "image", "description": "multipart 图生图文件字段；最多 6 张，重复提交同名 image 字段。"},
         {"name": "n", "description": "仅支持 1；大于 1 返回 400。"},
         {"name": "async", "description": "true 返回异步任务；省略或 false 同步返回图片。"},
     ]
@@ -64,7 +76,7 @@ def build_doc(spec: dict) -> dict:
         "modes": {
             "sync": {
                 "dispatch_mode": "sync",
-                "intro": f"Adobe Firefly {spec['label']} {tier} 固定档位。POST /v1/images/generations 同步出图。",
+                "intro": f"Adobe Firefly {spec['label']} {tier} 固定档位。POST /v1/images/generations 同步出图。输出固定为 PNG URL；不支持 seed、response_format、背景、格式或压缩参数。",
                 "endpoints": [
                     {"method": "POST", "path": "{{base}}/images/generations", "description": "同步文生图（JSON）。"},
                     {"method": "POST", "path": "{{base}}/images/edits", "description": "同步图生图（multipart，重复 image 字段）。"},
@@ -76,11 +88,12 @@ def build_doc(spec: dict) -> dict:
             },
             "async": {
                 "dispatch_mode": "async",
-                "intro": f"Adobe Firefly {spec['label']} {tier} 异步模式。提交后通过任务 ID 轮询。",
+                "intro": f"Adobe Firefly {spec['label']} {tier} 异步模式。提交后按创建入口通过任务 ID 轮询。输出固定为 PNG URL；不支持 seed、response_format、背景、格式或压缩参数。",
                 "endpoints": [
                     {"method": "POST", "path": "{{base}}/images/generations", "description": "异步提交，async=true。"},
                     {"method": "POST", "path": "{{base}}/images/edits", "description": "异步图生图（multipart）。"},
                     {"method": "GET", "path": "{{base}}/images/generations/{task_id}", "description": "轮询任务状态与结果。"},
+                    {"method": "GET", "path": "{{base}}/images/edits/{task_id}", "description": "轮询 multipart 图生图任务。"},
                 ],
                 "basic_request_json": async_request,
                 "request_json": dict(async_request, images=["https://example.com/reference.png"]),
@@ -95,6 +108,7 @@ def build_doc(spec: dict) -> dict:
                 "query_response_json": {
                     "id": "task_img_01HZX8A2...",
                     "object": "image.generation",
+                    "model": public,
                     "status": "completed",
                     "progress": "100%",
                     "data": [{"url": "https://example.com/image.png"}],

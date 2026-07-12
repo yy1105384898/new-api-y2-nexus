@@ -19,6 +19,16 @@ func TestClientFacingModelFromTaskPrefersClientModelName(t *testing.T) {
 }
 
 func TestClientFacingModelFromTaskLegacyFallbackStripsPrefix(t *testing.T) {
+	modelPublicRegistryMu.Lock()
+	previousRegistry := modelPublicRegistryData
+	modelPublicRegistryData.channelPrefixes = []string{"manju-"}
+	modelPublicRegistryMu.Unlock()
+	t.Cleanup(func() {
+		modelPublicRegistryMu.Lock()
+		modelPublicRegistryData = previousRegistry
+		modelPublicRegistryMu.Unlock()
+	})
+
 	task := &model.Task{
 		Properties: model.Properties{
 			OriginModelName: "manju-gemini-banana-pro-4k",

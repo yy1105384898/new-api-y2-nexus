@@ -1,6 +1,6 @@
 -- Adobe2API image SKUs, expand phase (safe to run before code rollout).
 -- Creates 12 dedicated Adobe internal models and disabled abilities.
--- Public names are firefly-*, so existing gpt-image-2-{1k,2k,4k} products do not collide.
+-- Public names are explicit aliases without vendor prefixes (nano-banana* / gpt-image-2-*).
 --
 -- Prerequisite:
 --   go run ./scripts/seed_model_ui_params/main.go -force
@@ -180,7 +180,7 @@ FROM (VALUES
     ('adobe-firefly-nano-banana2-1k'), ('adobe-firefly-nano-banana2-2k'), ('adobe-firefly-nano-banana2-4k'),
     ('adobe-firefly-gpt-image-2-1k'), ('adobe-firefly-gpt-image-2-2k'), ('adobe-firefly-gpt-image-2-4k')
 ) AS m(model)
-CROSS JOIN (VALUES ('IMAGE'), ('全模型-无claude/gpt'), ('对接专用')) AS g(grp);
+CROSS JOIN (VALUES ('IMAGE'), ('VIDEO'), ('全模型-无claude/gpt'), ('对接专用')) AS g(grp);
 
 COMMIT;
 

@@ -591,7 +591,7 @@
                 "sora2-pro"
             ],
             "referenceLimits": {
-                "images": 0,
+                "images": 1,
                 "videos": 0,
                 "audios": 0
             },
@@ -636,7 +636,7 @@
             },
             "hints": [
                 {
-                    "text": "Adobe Firefly Sora2：POST /v1/videos 提交，GET /v1/videos/{id} 轮询；支持 4/8/12 秒与 16:9、9:16 画幅。"
+                    "text": "Adobe Firefly Sora2/Sora2 Pro：支持 4/8/12 秒、16:9/9:16、单张帧参考图、negative_prompt 与声音开关。"
                 }
             ]
         },
@@ -645,8 +645,73 @@
             "apiMode": "videos-json-async",
             "match": [
                 "veo31",
-                "veo31-ref",
                 "veo31-fast"
+            ],
+            "referenceLimits": {
+                "images": 2,
+                "videos": 0,
+                "audios": 0
+            },
+            "params": {
+                "resolution": {
+                    "enabled": true,
+                    "options": [
+                        {
+                            "value": "720p",
+                            "label": "720p"
+                        },
+                        {
+                            "value": "1080p",
+                            "label": "1080p"
+                        }
+                    ]
+                },
+                "ratio": {
+                    "enabled": true,
+                    "options": [
+                        {
+                            "value": "16:9",
+                            "label": "横屏"
+                        },
+                        {
+                            "value": "9:16",
+                            "label": "竖屏"
+                        }
+                    ]
+                },
+                "duration": {
+                    "enabled": true,
+                    "min": 4,
+                    "max": 8,
+                    "numericOptions": [4, 6, 8]
+                },
+                "generateAudio": {
+                    "enabled": true
+                },
+                "watermark": {
+                    "enabled": false
+                },
+                "seed": {
+                    "enabled": false
+                },
+                "widthHeight": {
+                    "enabled": false
+                },
+                "frameInputs": {
+                    "enabled": false
+                }
+            },
+            "hints": [
+                {
+                    "text": "Adobe Firefly Veo 3.1 标准版/Fast：reference_mode=frame，最多 2 张首尾帧参考图；支持 4/6/8 秒、16:9/9:16、720p/1080p。"
+                }
+            ]
+        },
+        {
+            "id": "video-tpl-adobe-veo31-ref-json-async",
+            "apiMode": "videos-json-async",
+            "match": [
+                "veo31-ref"
             ],
             "referenceLimits": {
                 "images": 3,
@@ -704,7 +769,7 @@
             },
             "hints": [
                 {
-                    "text": "Adobe Firefly Veo 3.1：POST /v1/videos 提交，GET /v1/videos/{id} 轮询；支持 4/6/8 秒、16:9/9:16、720p/1080p；最多 3 张参考图。"
+                    "text": "Adobe Firefly Veo 3.1 Ref：reference_mode=image，最多 3 张主体或素材参考图，不表示首尾帧；支持 4/6/8 秒、16:9/9:16、720p/1080p。"
                 }
             ]
         },

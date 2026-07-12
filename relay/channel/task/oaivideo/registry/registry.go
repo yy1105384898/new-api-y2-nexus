@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/adobe"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/chatvideo"
+	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/grok"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/manju"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/seedance"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -19,11 +20,12 @@ const (
 	VendorSora     Vendor = "sora"
 	VendorAdobe    Vendor = "adobe"
 	VendorChat     Vendor = "chat-video"
+	VendorGrok     Vendor = "grok-generations"
 	VendorManju    Vendor = "manju"
 	VendorSeedance Vendor = "seedance"
 )
 
-// Resolve 按 internal/upstream 模型名解析 Vendor（注册顺序：Adobe → Manju → Seedance → Sora）。
+// Resolve 按 internal/upstream 模型名解析 Vendor；供应商专用协议优先于默认 OpenAI Video。
 func Resolve(originModel, upstreamModel string) Vendor {
 	return ResolveWithChannel(originModel, upstreamModel, 0, "")
 }
@@ -38,6 +40,9 @@ func ResolveWithChannel(originModel, upstreamModel string, channelID int, baseUR
 	}
 	if chatvideo.IsRelay(originModel) {
 		return VendorChat
+	}
+	if grok.IsRelay(originModel, upstreamModel) {
+		return VendorGrok
 	}
 	if manju.IsRelay(originModel, upstreamModel) {
 		return VendorManju

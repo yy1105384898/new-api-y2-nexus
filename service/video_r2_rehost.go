@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
@@ -192,9 +193,13 @@ func patchVideoURLInTaskData(data []byte, publicURL string) ([]byte, error) {
 	if len(data) == 0 || strings.TrimSpace(publicURL) == "" {
 		return data, nil
 	}
+	prefix := ""
+	if gjson.GetBytes(data, "data").IsObject() {
+		prefix = "data."
+	}
 	out := data
 	var err error
-	for _, path := range []string{"video_url", "data.0.url", "data.0.video_url"} {
+	for _, path := range []string{prefix + "video_url", prefix + "result_url", prefix + "data.0.url", prefix + "data.0.video_url"} {
 		out, err = sjson.SetBytes(out, path, publicURL)
 		if err != nil {
 			return data, err
@@ -207,7 +212,11 @@ func patchVideoUsageSecondsInTaskData(data []byte, seconds int) ([]byte, error) 
 	if len(data) == 0 || seconds <= 0 {
 		return data, nil
 	}
-	return sjson.SetBytes(data, "usage.seconds", seconds)
+	prefix := ""
+	if gjson.GetBytes(data, "data").IsObject() {
+		prefix = "data."
+	}
+	return sjson.SetBytes(data, prefix+"usage.seconds", seconds)
 }
 
 // RehostVideoTaskResult copies upstream video to R2 and returns CDN URL plus patched task data.
