@@ -71,7 +71,6 @@ func SetRelayRouter(router *gin.Engine) {
 	relayV1Router.Use(middleware.RouteTag("relay"))
 	relayV1Router.Use(middleware.SystemPerformanceCheck())
 	relayV1Router.Use(middleware.TokenAuth())
-	relayV1Router.Use(middleware.ImageInFlightLimit())
 	relayV1Router.Use(middleware.PublicModelName())
 	relayV1Router.Use(middleware.ModelRequestRateLimit())
 	{
@@ -107,9 +106,7 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 
 		// image related routes
-		httpRouter.POST("/edits", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatOpenAIImage)
-		})
+		httpRouter.POST("/edits", controller.RelayOpenAIImageEdits)
 		httpRouter.POST("/images/generations", controller.RelayOpenAIImageGenerations)
 		httpRouter.POST("/images/edits", controller.RelayOpenAIImageEdits)
 

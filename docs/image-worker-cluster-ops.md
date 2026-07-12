@@ -23,17 +23,17 @@ Redis 正常时新任务由 `BLPOP` 立即唤醒，PostgreSQL 补偿扫描默认
 NODE_NAME=image-api-01
 IMAGE_ASYNC_WORKER_ENABLED=false
 IMAGE_SYNC_VIA_QUEUE=true
-IMAGE_SYNC_QUEUE_DEFAULT_RESPONSE_IS_URL=false
+IMAGE_SYNC_QUEUE_DEFAULT_RESPONSE_IS_URL=true
 IMAGE_ASYNC_MAX_QUEUED_GLOBAL=2000
 IMAGE_ASYNC_MAX_QUEUED_PER_USER=200
 IMAGE_SYNC_MAX_BACKLOG=64
 IMAGE_SYNC_QUEUE_WAIT_SECONDS=300
-IMAGE_MAX_IN_FLIGHT_LEASE_SECONDS=3600
+IMAGE_B64_DELIVERY_MAX_CONCURRENT=8
 ```
 
-API 节点负责鉴权、计费预占、R2 输入快照、写任务和同步兼容等待，不执行上游生成和输出转存。显式 `response_format=url` 进入任务链；`b64_json` 和未声明格式仍走旧同步路径，需继续受 `IMAGE_MAX_IN_FLIGHT_*` 保护。
+API 节点负责鉴权、计费预占、R2 输入快照、写任务和同步兼容等待，不执行上游生成和输出转存。同步 `url`、`b64_json` 和未声明格式全部进入任务链；Worker 将结果统一归档为 R2 URL。API 对 URL 与未声明格式直返 R2 地址，仅对显式 `b64_json` 从 R2 临时落盘并流式编码返回。
 
-`IMAGE_MAX_IN_FLIGHT_*` 在 Redis 可用时是跨 API 节点共享的 ZSET 租约，不会随 API 副本数倍增；Redis 异常时退回单节点内存限制。租约时间必须覆盖最长同步请求，节点崩溃后到期自动释放。
+旧的 `IMAGE_MAX_IN_FLIGHT_*` 生成在途限制已从公网路由移除。`IMAGE_B64_DELIVERY_MAX_CONCURRENT` 只约束单个 API 节点的 R2 下载与 base64 编码资源，不限制 Worker 生成并发；同步连接和任务接纳仍由 `IMAGE_SYNC_MAX_BACKLOG` 与网关连接上限保护。
 
 ## Worker 节点
 
@@ -75,7 +75,7 @@ IMAGE_GULIE_UPSTREAM_URL_ENABLED=true
 2. 部署 1 台 Worker canary，`IMAGE_ASYNC_MAX_CONCURRENT=8`，确认异步 generations/edits、R2 输入清理和任务结算。
 3. 扩到目标 Worker 数，观察 `/api/option/image_worker_stats`、数据库 backlog、上游 P95、R2 PUT P95。
 4. API 节点设置 `IMAGE_ASYNC_WORKER_ENABLED=false`，确认任务仍由独立 Worker 领取。
-5. 最后开启 `IMAGE_SYNC_VIA_QUEUE=true`，先对 URL/default 客户流量生效；显式 b64 客户保持旧链路。
+5. 最后开启 `IMAGE_SYNC_VIA_QUEUE=true`，确认 URL、b64_json 与未声明格式均由 Worker 完成生成。
 6. id68 URL 模式异常时仅关闭 `IMAGE_GULIE_UPSTREAM_URL_ENABLED`，无需回滚任务队列。
 
 ## 告警基线

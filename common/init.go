@@ -156,11 +156,6 @@ func initConstantEnv() {
 	constant.TaskQueryLimit = GetEnvOrDefault("TASK_QUERY_LIMIT", 1000)
 	// 异步任务超时时间（分钟），超过此时间未完成的任务将被标记为失败并退款。0 表示禁用。
 	constant.TaskTimeoutMinutes = GetEnvOrDefault("TASK_TIMEOUT_MINUTES", 1440)
-	// Bound long-running image requests before request-body parsing. Image edits
-	// retain multipart data until the upstream finishes, so request-rate limits
-	// alone cannot prevent heap growth when upstream latency is high.
-	constant.ImageMaxInFlightPerUser = GetEnvOrDefault("IMAGE_MAX_IN_FLIGHT_PER_USER", 24)
-	constant.ImageMaxInFlightGlobal = GetEnvOrDefault("IMAGE_MAX_IN_FLIGHT_GLOBAL", 64)
 	// Files above this threshold are spilled to temporary files by multipart.ReadForm.
 	constant.MultipartMemoryMB = GetEnvOrDefault("MULTIPART_MEMORY_MB", 1)
 
