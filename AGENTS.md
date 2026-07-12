@@ -119,6 +119,7 @@ Each [`Descriptor`](relay/imagevendor/descriptor.go) defines:
 | `Name` | Debug / documentation identifier |
 | `Match(originModel)` | Model prefix/suffix identity |
 | `Rehost` | R2 rehost policy (`AcceptUpstreamURL`, `PreferUpstreamB64JSON`, `AsyncPreferURLResponse`) |
+| `Rehost.TrustPublicURL` | Optional strict predicate for owned HTTPS object URLs that may bypass a second R2 upload |
 | `PatchRequest` | Optional: mutate `dto.ImageRequest` before upstream (strip fields, resize, prompt hints); may no-op inside for subset of matches |
 
 **When to use what:**
