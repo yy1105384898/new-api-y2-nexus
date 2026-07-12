@@ -9,11 +9,11 @@ import (
 )
 
 const (
-	ContentPolicyMessageZH = "您的提示词或参考素材触发了上游内容审查，请修改后重新提交。"
-	ContentPolicyMessageEN = "Your prompt or reference material was rejected by upstream content moderation. Please revise it and submit again."
+	ContentPolicyMessageZH = "您的提示词或参考素材未通过内容审查，请修改后重新提交。"
+	ContentPolicyMessageEN = "Your prompt or reference material was rejected by content moderation. Please revise it and submit again."
 
-	UpstreamUnavailableMessageZH = "上游服务暂时不可用，请稍后重试。"
-	UpstreamUnavailableMessageEN = "Upstream service temporarily unavailable, please retry later."
+	UpstreamUnavailableMessageZH = "服务暂时不可用，请稍后重试。"
+	UpstreamUnavailableMessageEN = "Service temporarily unavailable, please retry later."
 
 	TimeoutMessageZH = "生成超时，请稍后重试。"
 	TimeoutMessageEN = "Generation timed out, please retry later."
@@ -27,8 +27,8 @@ const (
 	GenerationFailedMessageZH = "视频生成失败，请稍后重试。"
 	GenerationFailedMessageEN = "Video generation failed, please retry later."
 
-	GenerationFailedNoDetailZH = "Leonardo 上游生成失败且未提供具体原因；参考素材已成功提交，这不代表素材数量超限，请调整提示词或素材后重试。"
-	GenerationFailedNoDetailEN = "Leonardo upstream generation failed without a specific reason. The references were accepted; this does not indicate a reference-count limit. Adjust the prompt or source material and retry."
+	GenerationFailedNoDetailZH = GenerationFailedMessageZH
+	GenerationFailedNoDetailEN = GenerationFailedMessageEN
 
 	InvalidRequestMessageZH = "请求参数不符合要求，请检查后重试。"
 	InvalidRequestMessageEN = "Request parameters are invalid, please check and retry."
@@ -171,6 +171,7 @@ func IsUpstreamUnavailableError(text string) bool {
 	lower := strings.ToLower(stripStatusCodePrefix(text))
 	patterns := []string{
 		"upstream service temporarily unavailable",
+		"video service is temporarily unavailable",
 		"upstream request failed",
 		"no capacity available",
 		"capacity available for model",
@@ -366,10 +367,10 @@ func NormalizeClientErrorMessageForLang(preferChinese bool, raw string) string {
 			}
 			return ContentPolicyMessageEN
 		}
-		if msg, ok := humanizeLeonardoGenerationFailureDetail(preferChinese, detail); ok {
-			return msg
+		if preferChinese {
+			return GenerationFailedMessageZH
 		}
-		return detail
+		return GenerationFailedMessageEN
 	}
 	if IsLeonardoPoolGenerationFailed(raw) {
 		if preferChinese {
