@@ -173,6 +173,14 @@ func buildHTTPRequestForImageTask(ctx context.Context, task *model.Task) (*http.
 			_ = writer.WriteField("response_format", "b64_json")
 		}
 		for _, file := range payload.Files {
+			if strings.TrimSpace(file.URL) != "" {
+				if err := writer.WriteField(file.Field, file.URL); err != nil {
+					writer.Close()
+					cleanup()
+					return nil, 0, err
+				}
+				continue
+			}
 			part, err := createQueuedEditFormFile(writer, file)
 			if err != nil {
 				writer.Close()
@@ -383,8 +391,16 @@ func SnapshotEditRequest(c *gin.Context, taskID string) ([]byte, error) {
 	}()
 	fileIndex := 0
 	for key, values := range form.Value {
-		if len(values) > 0 {
-			payload.Fields[key] = values[0]
+		for _, value := range values {
+			trimmedValue := strings.TrimSpace(value)
+			if isQueuedEditURLField(key, trimmedValue) {
+				field := strings.TrimSuffix(key, "[]")
+				payload.Files = append(payload.Files, EditFile{Field: field, URL: trimmedValue})
+				continue
+			}
+			if _, exists := payload.Fields[key]; !exists {
+				payload.Fields[key] = value
+			}
 		}
 	}
 	for key, files := range form.File {
@@ -420,6 +436,15 @@ func SnapshotEditRequest(c *gin.Context, taskID string) ([]byte, error) {
 		keepUploads = true
 	}
 	return snapshot, err
+}
+
+func isQueuedEditURLField(field, value string) bool {
+	switch strings.TrimSuffix(strings.TrimSpace(field), "[]") {
+	case "image", "mask":
+		return strings.HasPrefix(strings.ToLower(value), "https://")
+	default:
+		return false
+	}
 }
 
 func setupImageTaskChannelContext(c *gin.Context, channel *model.Channel, modelName, keyOverride string) *types.NewAPIError {

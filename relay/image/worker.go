@@ -22,6 +22,7 @@ import (
 const (
 	imageTaskNotifyQueue = "new-api:image:task-notify"
 	imageTaskNotifyDedup = "new-api:image:task-notify:"
+	imageTaskDoneChannel = "new-api:image:task-done:"
 )
 
 type imageWorkerConfig struct {
@@ -85,6 +86,13 @@ func GetWorkerStats() (WorkerStats, error) {
 var imageDispatcher imageTaskDispatcher
 var imageTaskURLPattern = regexp.MustCompile(`https?://[^\s"']+`)
 
+var imageTaskDoneNotifier struct {
+	once    sync.Once
+	mu      sync.Mutex
+	ready   bool
+	waiters map[string]map[chan struct{}]struct{}
+}
+
 func imageWorkerEnvInt(name string, fallback int) int {
 	value := strings.TrimSpace(os.Getenv(name))
 	if value == "" {
@@ -142,9 +150,6 @@ func StartWorker() {
 		for i := 0; i < config.concurrency; i++ {
 			go imageAsyncWorkerLoop()
 		}
-		if common.RedisEnabled && common.RDB != nil {
-			go imageRedisDispatchLoop()
-		}
 		go imageAsyncDispatchLoop()
 		common.SysLog(fmt.Sprintf(
 			"image async worker started, owner=%s concurrency=%d queue_capacity=%d db_scan=%s lease=%s",
@@ -200,27 +205,6 @@ func enqueueLocalImageTask(taskID string) bool {
 	}
 }
 
-func imageRedisDispatchLoop() {
-	for {
-		result, err := common.RDB.BLPop(context.Background(), 2*time.Second, imageTaskNotifyQueue).Result()
-		if err != nil {
-			if err != redis.Nil {
-				common.SysError("image redis dispatcher: " + err.Error())
-				time.Sleep(time.Second)
-			}
-			continue
-		}
-		if len(result) != 2 || result[1] == "" {
-			continue
-		}
-		taskID := result[1]
-		if !enqueueLocalImageTask(taskID) {
-			_ = common.RDB.Del(context.Background(), imageTaskNotifyDedup+taskID).Err()
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
-}
-
 func imageAsyncDispatchLoop() {
 	ticker := time.NewTicker(imageDispatcher.config.dbScanInterval)
 	defer ticker.Stop()
@@ -240,12 +224,39 @@ func dispatchClaimableImageTasks() {
 }
 
 func imageAsyncWorkerLoop() {
-	for taskID := range imageDispatcher.queue {
+	for {
+		taskID, ok := nextImageAsyncTaskID()
+		if !ok {
+			return
+		}
 		processImageAsyncTask(taskID)
 		imageDispatcher.mu.Lock()
 		delete(imageDispatcher.queued, taskID)
 		imageDispatcher.mu.Unlock()
 	}
+}
+
+// nextImageAsyncTaskID lets each idle worker compete for Redis notifications.
+// Distribution therefore follows free execution slots instead of assigning an
+// equal share to every node regardless of its configured concurrency.
+func nextImageAsyncTaskID() (string, bool) {
+	for common.RedisEnabled && common.RDB != nil {
+		select {
+		case taskID, ok := <-imageDispatcher.queue:
+			return taskID, ok
+		default:
+		}
+		result, err := common.RDB.BLPop(context.Background(), 2*time.Second, imageTaskNotifyQueue).Result()
+		if err == nil && len(result) == 2 && result[1] != "" {
+			return result[1], true
+		}
+		if err != nil && err != redis.Nil {
+			common.SysError("image redis worker: " + err.Error())
+			time.Sleep(time.Second)
+		}
+	}
+	taskID, ok := <-imageDispatcher.queue
+	return taskID, ok
 }
 
 func processImageAsyncTask(taskID string) {
@@ -309,6 +320,7 @@ func processImageAsyncTask(taskID string) {
 	}
 	cleanupImageTaskInputs(task.TaskID, inputObjectKeys)
 	imageDispatcher.completed.Add(1)
+	publishImageTaskDone(task.TaskID)
 
 	service.RecalculateTaskQuota(ctx, task, task.Quota, "image async complete")
 }
@@ -370,7 +382,77 @@ func failImageAsyncTask(ctx context.Context, task *model.Task, fromStatus model.
 	}
 	cleanupImageTaskInputs(task.TaskID, inputObjectKeys)
 	imageDispatcher.failed.Add(1)
+	publishImageTaskDone(task.TaskID)
 	service.RefundTaskQuota(ctx, task, reason)
+}
+
+func publishImageTaskDone(taskID string) {
+	if taskID == "" || !common.RedisEnabled || common.RDB == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := common.RDB.Publish(ctx, imageTaskDoneChannel+taskID, "1").Err(); err != nil {
+		common.SysError(fmt.Sprintf("image task completion notify failed for %s: %v", taskID, err))
+	}
+}
+
+// SubscribeTaskDone multiplexes all task completion events through one Redis
+// pattern subscription per API process, avoiding one Redis connection per
+// synchronous waiter.
+func SubscribeTaskDone(taskID string) (<-chan struct{}, func()) {
+	if taskID == "" || !common.RedisEnabled || common.RDB == nil {
+		return nil, func() {}
+	}
+	imageTaskDoneNotifier.once.Do(startImageTaskDoneNotifier)
+	imageTaskDoneNotifier.mu.Lock()
+	defer imageTaskDoneNotifier.mu.Unlock()
+	if !imageTaskDoneNotifier.ready {
+		return nil, func() {}
+	}
+	if imageTaskDoneNotifier.waiters == nil {
+		imageTaskDoneNotifier.waiters = make(map[string]map[chan struct{}]struct{})
+	}
+	waiter := make(chan struct{}, 1)
+	if imageTaskDoneNotifier.waiters[taskID] == nil {
+		imageTaskDoneNotifier.waiters[taskID] = make(map[chan struct{}]struct{})
+	}
+	imageTaskDoneNotifier.waiters[taskID][waiter] = struct{}{}
+	return waiter, func() {
+		imageTaskDoneNotifier.mu.Lock()
+		defer imageTaskDoneNotifier.mu.Unlock()
+		delete(imageTaskDoneNotifier.waiters[taskID], waiter)
+		if len(imageTaskDoneNotifier.waiters[taskID]) == 0 {
+			delete(imageTaskDoneNotifier.waiters, taskID)
+		}
+	}
+}
+
+func startImageTaskDoneNotifier() {
+	pubsub := common.RDB.PSubscribe(context.Background(), imageTaskDoneChannel+"*")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	_, err := pubsub.Receive(ctx)
+	cancel()
+	if err != nil {
+		_ = pubsub.Close()
+		return
+	}
+	imageTaskDoneNotifier.mu.Lock()
+	imageTaskDoneNotifier.ready = true
+	imageTaskDoneNotifier.mu.Unlock()
+	go func() {
+		for message := range pubsub.Channel() {
+			taskID := strings.TrimPrefix(message.Channel, imageTaskDoneChannel)
+			imageTaskDoneNotifier.mu.Lock()
+			for waiter := range imageTaskDoneNotifier.waiters[taskID] {
+				select {
+				case waiter <- struct{}{}:
+				default:
+				}
+			}
+			imageTaskDoneNotifier.mu.Unlock()
+		}
+	}()
 }
 
 func imageTaskInputObjectKeys(task *model.Task) []string {

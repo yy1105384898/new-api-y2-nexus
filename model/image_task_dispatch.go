@@ -7,6 +7,24 @@ import (
 	"gorm.io/gorm"
 )
 
+type ImageTaskStatus struct {
+	Status     TaskStatus
+	FailReason string
+}
+
+func GetImageTaskStatus(userID int, taskID string) (ImageTaskStatus, bool, error) {
+	if taskID == "" {
+		return ImageTaskStatus{}, false, nil
+	}
+	var status ImageTaskStatus
+	err := DB.Model(&Task{}).
+		Select("status", "fail_reason").
+		Where("user_id = ? AND task_id = ?", userID, taskID).
+		Take(&status).Error
+	exists, err := RecordExist(err)
+	return status, exists, err
+}
+
 // GetClaimableImageAsyncTaskIDs returns durable image jobs that are ready to
 // run. Multiple nodes may observe the same ids; ClaimImageAsyncTask is the
 // atomic boundary that elects exactly one worker.

@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relay/image"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
@@ -105,18 +106,21 @@ func relaySyncImageViaQueue(c *gin.Context) {
 
 func waitForQueuedSyncImage(c *gin.Context, taskID, responseFormat string) {
 	timeout := time.Duration(common.GetEnvOrDefault("IMAGE_SYNC_QUEUE_WAIT_SECONDS", 300)) * time.Second
-	interval := time.Duration(common.GetEnvOrDefault("IMAGE_SYNC_QUEUE_POLL_INTERVAL_MS", 250)) * time.Millisecond
-	if interval < 50*time.Millisecond {
-		interval = 50 * time.Millisecond
+	interval := time.Duration(common.GetEnvOrDefault("IMAGE_SYNC_QUEUE_POLL_INTERVAL_MS", 2000)) * time.Millisecond
+	if interval < 500*time.Millisecond {
+		interval = 500 * time.Millisecond
 	}
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
+	notifications, unsubscribe := image.SubscribeTaskDone(taskID)
+	defer unsubscribe()
+
 	userID := c.GetInt("id")
 	for {
-		task, exists, err := model.GetByTaskIdForFetch(userID, taskID)
+		status, exists, err := model.GetImageTaskStatus(userID, taskID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{
 				"message": "failed to read image task status",
@@ -124,13 +128,21 @@ func waitForQueuedSyncImage(c *gin.Context, taskID, responseFormat string) {
 			}})
 			return
 		}
-		if exists && task != nil {
-			switch task.Status {
+		if exists {
+			switch status.Status {
 			case model.TaskStatusSuccess:
+				task, taskExists, fetchErr := model.GetByTaskIdForFetch(userID, taskID)
+				if fetchErr != nil || !taskExists || task == nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{
+						"message": "failed to read completed image task",
+						"type":    "server_error",
+					}})
+					return
+				}
 				writeQueuedSyncImageResponse(c, task, responseFormat)
 				return
 			case model.TaskStatusFailure:
-				message := strings.TrimSpace(task.FailReason)
+				message := strings.TrimSpace(status.FailReason)
 				if message == "" {
 					message = "image generation failed"
 				}
@@ -152,6 +164,7 @@ func waitForQueuedSyncImage(c *gin.Context, taskID, responseFormat string) {
 				"type":    "timeout_error",
 			}})
 			return
+		case <-notifications:
 		case <-ticker.C:
 		}
 	}

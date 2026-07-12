@@ -64,6 +64,8 @@ web/default
 - `attempt` 超过 `IMAGE_ASYNC_MAX_ATTEMPTS` 后进入失败终态并走统一退款，避免坏任务无限重放。
 - API 与 worker 可分角色部署：API 节点设置 `IMAGE_ASYNC_WORKER_ENABLED=false`，独立 worker 节点启用；两者共享 PostgreSQL、Redis 与 R2 配置。
 - 同步生图的 `url`、`b64_json` 与未声明格式均由同一任务执行层处理，HTTP handler 只等待终态。Worker 将上游 URL/base64 统一归档到 R2；API 对 URL 与未声明格式直返地址，仅对显式 b64_json 从 R2 临时落盘后流式编码，避免把大 base64 写入 PostgreSQL/Redis 或同时保留二进制与编码副本。
+- 同步 handler 通过每 API 进程一条 Redis pattern subscription 等待图片任务终态；数据库仅作低频兜底且先查询 `status` / `fail_reason`，成功后才读取完整结果。Worker 完成数据库 CAS 后再发布通知，通知丢失不会影响最终一致性。
+- edits 的公网 HTTPS URL 快照只保存 URL：URL-capable 上游直接透传，file-only 上游在执行 Worker 内下载并流式写入 multipart；API 节点不重复转存 R2。本地文件仍先落 R2，保证跨节点可重放。
 
 ### 3.2 上游 URL 与 R2 隐私边界
 

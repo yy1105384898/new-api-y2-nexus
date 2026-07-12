@@ -165,8 +165,17 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 				}
 				imageRequest.Stream = common.GetPointer(stream)
 			}
-			if imageValue := formData.Get("image"); imageValue != "" {
-				imageRequest.Image, _ = common.Marshal(imageValue)
+			imageValues := append([]string(nil), formData["image"]...)
+			imageValues = append(imageValues, formData["image[]"]...)
+			if len(imageValues) > 0 {
+				if len(imageValues) == 1 {
+					imageRequest.Image, _ = common.Marshal(imageValues[0])
+				} else {
+					imageRequest.Image, _ = common.Marshal(imageValues)
+				}
+			}
+			if maskValue := formData.Get("mask"); maskValue != "" {
+				imageRequest.Mask, _ = common.Marshal(maskValue)
 			}
 
 			if imageRequest.Model == "gpt-image-1" {
