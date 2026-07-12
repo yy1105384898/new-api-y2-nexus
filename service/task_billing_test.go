@@ -41,6 +41,7 @@ func TestMain(m *testing.M) {
 	common.RedisEnabled = false
 	common.BatchUpdateEnabled = false
 	common.LogConsumeEnabled = true
+	common.DataExportEnabled = true
 
 	if err := db.AutoMigrate(
 		&model.Task{},
@@ -63,6 +64,7 @@ func TestMain(m *testing.M) {
 
 func truncate(t *testing.T) {
 	t.Helper()
+	clearQuotaDataCache()
 	t.Cleanup(func() {
 		model.DB.Exec("DELETE FROM tasks")
 		model.DB.Exec("DELETE FROM users")
@@ -71,7 +73,26 @@ func truncate(t *testing.T) {
 		model.DB.Exec("DELETE FROM channels")
 		model.DB.Exec("DELETE FROM top_ups")
 		model.DB.Exec("DELETE FROM user_subscriptions")
+		clearQuotaDataCache()
 	})
+}
+
+func clearQuotaDataCache() {
+	model.CacheQuotaDataLock.Lock()
+	defer model.CacheQuotaDataLock.Unlock()
+	model.CacheQuotaData = make(map[string]*model.QuotaData)
+}
+
+func getCachedQuotaData(userID int, modelName string) *model.QuotaData {
+	model.CacheQuotaDataLock.Lock()
+	defer model.CacheQuotaDataLock.Unlock()
+	for _, item := range model.CacheQuotaData {
+		if item.UserID == userID && item.ModelName == modelName {
+			copy := *item
+			return &copy
+		}
+	}
+	return nil
 }
 
 func seedUser(t *testing.T, id int, quota int) {
@@ -386,6 +407,12 @@ func TestRecalculate_ZeroDelta(t *testing.T) {
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeConsume, log.Type)
 	assert.Equal(t, preConsumed, log.Quota)
+
+	// Async image completion must remain visible in /api/data dashboard stats.
+	require.Eventually(t, func() bool {
+		quotaData := getCachedQuotaData(userID, "test-model")
+		return quotaData != nil && quotaData.Count == 1 && quotaData.Quota == preConsumed
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestRecalculate_ActualQuotaZero(t *testing.T) {

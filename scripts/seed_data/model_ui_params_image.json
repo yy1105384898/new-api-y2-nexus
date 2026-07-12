@@ -30,7 +30,6 @@
             "api_mode": "images-json-async",
             "match_mode": "exact",
             "match": [
-                "adobe-firefly-nano-banana-pro-1k",
                 "adobe-firefly-nano-banana-1k"
             ],
             "params": {
@@ -61,7 +60,6 @@
             "api_mode": "images-json-async",
             "match_mode": "exact",
             "match": [
-                "adobe-firefly-nano-banana-pro-2k",
                 "adobe-firefly-nano-banana-2k"
             ],
             "params": {
@@ -1363,7 +1361,6 @@
             "api_mode": "images-json-async",
             "match_mode": "exact",
             "match": [
-                "adobe-firefly-nano-banana-pro-4k",
                 "adobe-firefly-nano-banana-4k"
             ],
             "params": {
@@ -1440,6 +1437,81 @@
                     "text": "输出由上游固定为 PNG；格式、压缩、背景和审核参数不开放。"
                 }
             ]
+        },
+        {
+            "id": "image-tpl-adobe2api-nano-banana-pro-1k",
+            "api_mode": "images-json-async",
+            "match_mode": "exact",
+            "match": ["adobe-firefly-nano-banana-pro-1k"],
+            "params": {
+                "quality": {"enabled": false},
+                "aspectRatio": {"enabled": true, "options": [
+                    {"value": "1:1", "label": "1:1", "width": 1024, "height": 1024},
+                    {"value": "5:4", "label": "5:4", "width": 1120, "height": 896},
+                    {"value": "9:16", "label": "9:16", "width": 768, "height": 1360},
+                    {"value": "21:9", "label": "21:9", "width": 1456, "height": 624},
+                    {"value": "16:9", "label": "16:9", "width": 1360, "height": 768},
+                    {"value": "3:2", "label": "3:2", "width": 1248, "height": 832},
+                    {"value": "4:3", "label": "4:3", "width": 1152, "height": 864},
+                    {"value": "4:5", "label": "4:5", "width": 896, "height": 1120},
+                    {"value": "3:4", "label": "3:4", "width": 864, "height": 1152},
+                    {"value": "2:3", "label": "2:3", "width": 832, "height": 1248}
+                ]},
+                "customDimensions": {"enabled": false}, "count": {"enabled": true, "min": 1, "max": 1, "quickCount": 1},
+                "background": {"enabled": false}, "outputFormat": {"enabled": false},
+                "outputCompression": {"enabled": false}, "moderation": {"enabled": false}
+            },
+            "hints": [{"text": "Nano Banana Pro 1K 固定档位；画幅比例不会改变 1K 计费和分辨率档位。"}]
+        },
+        {
+            "id": "image-tpl-adobe2api-nano-banana-pro-2k",
+            "api_mode": "images-json-async",
+            "match_mode": "exact",
+            "match": ["adobe-firefly-nano-banana-pro-2k"],
+            "params": {
+                "quality": {"enabled": false},
+                "aspectRatio": {"enabled": true, "options": [
+                    {"value": "1:1", "label": "1:1", "width": 2048, "height": 2048},
+                    {"value": "5:4", "label": "5:4", "width": 2240, "height": 1792},
+                    {"value": "9:16", "label": "9:16", "width": 1536, "height": 2752},
+                    {"value": "21:9", "label": "21:9", "width": 2912, "height": 1248},
+                    {"value": "16:9", "label": "16:9", "width": 2752, "height": 1536},
+                    {"value": "3:2", "label": "3:2", "width": 2496, "height": 1664},
+                    {"value": "4:3", "label": "4:3", "width": 2048, "height": 1536},
+                    {"value": "4:5", "label": "4:5", "width": 1792, "height": 2240},
+                    {"value": "3:4", "label": "3:4", "width": 1536, "height": 2048},
+                    {"value": "2:3", "label": "2:3", "width": 1664, "height": 2496}
+                ]},
+                "customDimensions": {"enabled": false}, "count": {"enabled": true, "min": 1, "max": 1, "quickCount": 1},
+                "background": {"enabled": false}, "outputFormat": {"enabled": false},
+                "outputCompression": {"enabled": false}, "moderation": {"enabled": false}
+            },
+            "hints": [{"text": "Nano Banana Pro 2K 固定档位；画幅比例不会改变 2K 计费和分辨率档位。"}]
+        },
+        {
+            "id": "image-tpl-adobe2api-nano-banana-pro-4k",
+            "api_mode": "images-json-async",
+            "match_mode": "exact",
+            "match": ["adobe-firefly-nano-banana-pro-4k"],
+            "params": {
+                "quality": {"enabled": false},
+                "aspectRatio": {"enabled": true, "options": [
+                    {"value": "1:1", "label": "1:1", "width": 4096, "height": 4096},
+                    {"value": "5:4", "label": "5:4", "width": 4480, "height": 3584},
+                    {"value": "9:16", "label": "9:16", "width": 3072, "height": 5504},
+                    {"value": "21:9", "label": "21:9", "width": 5824, "height": 2496},
+                    {"value": "16:9", "label": "16:9", "width": 5504, "height": 3072},
+                    {"value": "3:2", "label": "3:2", "width": 4992, "height": 3328},
+                    {"value": "4:3", "label": "4:3", "width": 4096, "height": 3072},
+                    {"value": "4:5", "label": "4:5", "width": 3584, "height": 4480},
+                    {"value": "3:4", "label": "3:4", "width": 3072, "height": 4096},
+                    {"value": "2:3", "label": "2:3", "width": 3328, "height": 4992}
+                ]},
+                "customDimensions": {"enabled": false}, "count": {"enabled": true, "min": 1, "max": 1, "quickCount": 1},
+                "background": {"enabled": false}, "outputFormat": {"enabled": false},
+                "outputCompression": {"enabled": false}, "moderation": {"enabled": false}
+            },
+            "hints": [{"text": "Nano Banana Pro 4K 固定档位；画幅比例不会改变 4K 计费和分辨率档位。"}]
         },
         {
             "id": "image-tpl-adobe2api-nano-banana2-1k",
