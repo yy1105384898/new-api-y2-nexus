@@ -63,7 +63,7 @@ web/default
 - `priority=100` 保留给同步兼容等待请求，普通异步任务为 `0`；同优先级按任务 ID 先进先出。
 - `attempt` 超过 `IMAGE_ASYNC_MAX_ATTEMPTS` 后进入失败终态并走统一退款，避免坏任务无限重放。
 - API 与 worker 可分角色部署：API 节点设置 `IMAGE_ASYNC_WORKER_ENABLED=false`，独立 worker 节点启用；两者共享 PostgreSQL、Redis 与 R2 配置。
-- 显式 `response_format=url` 的同步生图由同一任务执行层处理，HTTP handler 只等待终态；`b64_json` 与未声明格式的请求暂留旧同步路径以保持响应契约。只有确认默认响应客户都接受 URL 时才开启 `IMAGE_SYNC_QUEUE_DEFAULT_RESPONSE_IS_URL`。
+- 同步生图的 `url`、`b64_json` 与未声明格式均由同一任务执行层处理，HTTP handler 只等待终态。Worker 将上游 URL/base64 统一归档到 R2；API 对 URL 与未声明格式直返地址，仅对显式 b64_json 从 R2 临时落盘后流式编码，避免把大 base64 写入 PostgreSQL/Redis 或同时保留二进制与编码副本。
 
 ### 3.2 上游 URL 与 R2 隐私边界
 
@@ -79,7 +79,7 @@ web/default
 
 - 提交前统计全局与单用户活跃生图任务。超过 `IMAGE_ASYNC_MAX_QUEUED_GLOBAL` / `IMAGE_ASYNC_MAX_QUEUED_PER_USER` 时返回 `429` 和 `Retry-After`。
 - 同步兼容请求另受 `IMAGE_SYNC_MAX_BACKLOG` 约束；预计无法在等待窗口内开始时应尽早拒绝，而不是持有无限 HTTP 连接。
-- `IMAGE_MAX_IN_FLIGHT_*` 在 Redis 可用时使用跨节点 ZSET 租约，所有 API 副本共享同一总量；Redis 故障时退回本机计数，租约到期可自动回收崩溃节点占用。
+- 旧的 `IMAGE_MAX_IN_FLIGHT_*` 生成在途限制不再挂载到公网路由。b64 交付使用每 API 节点独立的 `IMAGE_B64_DELIVERY_MAX_CONCURRENT` 有界磁盘流式转换；队列接纳和同步 waiter 继续使用独立 backlog 保护。
 - 稳态吞吐近似为 `worker 节点数 × 单节点生成并发 ÷ 平均任务耗时`，生产目标利用率不高于 70–75%。
 - Root 管理接口 `GET /api/option/image_worker_stats` 返回当前节点 worker 并发、缓冲、活跃/完成/失败计数和数据库全局 backlog；多节点监控需按节点采集后聚合。
 

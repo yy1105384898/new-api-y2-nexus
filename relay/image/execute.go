@@ -161,16 +161,16 @@ func buildHTTPRequestForImageTask(ctx context.Context, task *model.Task) (*http.
 		}
 		writer := multipart.NewWriter(body)
 		for key, value := range payload.Fields {
-			if key == "async" {
-				continue
-			}
-			if useURLResponse && key == "response_format" {
+			if key == "async" || key == "stream" || key == "response_format" {
 				continue
 			}
 			_ = writer.WriteField(key, value)
 		}
+		_ = writer.WriteField("stream", "false")
 		if useURLResponse {
 			_ = writer.WriteField("response_format", "url")
+		} else {
+			_ = writer.WriteField("response_format", "b64_json")
 		}
 		for _, file := range payload.Files {
 			part, err := createQueuedEditFormFile(writer, file)
@@ -272,7 +272,7 @@ func normalizeAsyncGenerationBody(body []byte, useURLResponse bool) ([]byte, err
 	raw["stream"] = json.RawMessage("false")
 	if useURLResponse {
 		raw["response_format"] = json.RawMessage("\"url\"")
-	} else if _, ok := raw["response_format"]; !ok {
+	} else {
 		raw["response_format"] = json.RawMessage("\"b64_json\"")
 	}
 	return common.Marshal(raw)

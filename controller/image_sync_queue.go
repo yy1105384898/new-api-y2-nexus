@@ -1,36 +1,49 @@
 package controller
 
 import (
+	"encoding/base64"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
 
 func shouldRunSyncImageViaQueue(c *gin.Context) bool {
-	if c == nil || c.Request == nil || !common.GetEnvOrDefaultBool("IMAGE_SYNC_VIA_QUEUE", true) {
-		return false
-	}
-	format := syncImageResponseFormat(c)
-	if strings.EqualFold(format, "url") {
-		return true
-	}
-	return format == "" && common.GetEnvOrDefaultBool("IMAGE_SYNC_QUEUE_DEFAULT_RESPONSE_IS_URL", false)
+	return c != nil && c.Request != nil && common.GetEnvOrDefaultBool("IMAGE_SYNC_VIA_QUEUE", true)
 }
 
-// syncImageRequestsB64JSON keeps explicit b64_json requests on the legacy
-// synchronous path. URL/default responses can use the durable task pipeline
-// without changing the public response shape.
-func syncImageRequestsB64JSON(c *gin.Context) bool {
-	return strings.EqualFold(syncImageResponseFormat(c), "b64_json")
+// requestedSyncImageResponseFormat freezes the public response contract before
+// the request enters the durable queue. The public default is url; b64_json is
+// retained only when the client requests it explicitly.
+func requestedSyncImageResponseFormat(c *gin.Context) string {
+	format := syncImageResponseFormat(c)
+	if strings.EqualFold(format, "b64_json") {
+		return "b64_json"
+	}
+	if format == "" && !common.GetEnvOrDefaultBool("IMAGE_SYNC_QUEUE_DEFAULT_RESPONSE_IS_URL", true) {
+		return "b64_json"
+	}
+	return "url"
 }
 
 func syncImageResponseFormat(c *gin.Context) string {
+	if c != nil && c.Request != nil && c.Request.MultipartForm == nil && strings.Contains(strings.ToLower(c.Request.Header.Get("Content-Type")), "multipart/form-data") {
+		if form, err := common.ParseMultipartFormReusable(c); err == nil {
+			c.Request.MultipartForm = form
+			c.Request.PostForm = form.Value
+		}
+	}
 	if c.Request.MultipartForm != nil {
 		values := c.Request.MultipartForm.Value["response_format"]
 		if len(values) > 0 {
@@ -61,6 +74,7 @@ func syncImageResponseFormat(c *gin.Context) string {
 }
 
 func relaySyncImageViaQueue(c *gin.Context) {
+	responseFormat := requestedSyncImageResponseFormat(c)
 	recorder := httptest.NewRecorder()
 	submit, _ := gin.CreateTestContext(recorder)
 	submit.Request = c.Request
@@ -86,10 +100,10 @@ func relaySyncImageViaQueue(c *gin.Context) {
 		return
 	}
 	c.Header("X-Cangyuan-Task-Id", job.ID)
-	waitForQueuedSyncImage(c, job.ID)
+	waitForQueuedSyncImage(c, job.ID, responseFormat)
 }
 
-func waitForQueuedSyncImage(c *gin.Context, taskID string) {
+func waitForQueuedSyncImage(c *gin.Context, taskID, responseFormat string) {
 	timeout := time.Duration(common.GetEnvOrDefault("IMAGE_SYNC_QUEUE_WAIT_SECONDS", 300)) * time.Second
 	interval := time.Duration(common.GetEnvOrDefault("IMAGE_SYNC_QUEUE_POLL_INTERVAL_MS", 250)) * time.Millisecond
 	if interval < 50*time.Millisecond {
@@ -113,7 +127,7 @@ func waitForQueuedSyncImage(c *gin.Context, taskID string) {
 		if exists && task != nil {
 			switch task.Status {
 			case model.TaskStatusSuccess:
-				writeQueuedSyncImageResponse(c, task)
+				writeQueuedSyncImageResponse(c, task, responseFormat)
 				return
 			case model.TaskStatusFailure:
 				message := strings.TrimSpace(task.FailReason)
@@ -143,10 +157,22 @@ func waitForQueuedSyncImage(c *gin.Context, taskID string) {
 	}
 }
 
-func writeQueuedSyncImageResponse(c *gin.Context, task *model.Task) {
+func queuedSyncImageResultURLs(task *model.Task) []string {
+	if task == nil {
+		return nil
+	}
 	urls := task.PrivateData.ImageResultURLs
 	if len(urls) == 0 && strings.TrimSpace(task.PrivateData.ResultURL) != "" {
 		urls = []string{task.PrivateData.ResultURL}
+	}
+	return urls
+}
+
+func writeQueuedSyncImageResponse(c *gin.Context, task *model.Task, responseFormat string) {
+	urls := queuedSyncImageResultURLs(task)
+	if strings.EqualFold(responseFormat, "b64_json") {
+		writeQueuedSyncImageB64Response(c, task, urls)
+		return
 	}
 	data := make([]dto.ImageData, 0, len(urls))
 	for _, resultURL := range urls {
@@ -162,4 +188,83 @@ func writeQueuedSyncImageResponse(c *gin.Context, task *model.Task) {
 		return
 	}
 	c.JSON(http.StatusOK, dto.ImageResponse{Created: time.Now().Unix(), Data: data})
+}
+
+var (
+	b64DeliveryLimiterOnce  sync.Once
+	b64DeliveryLimiter      chan struct{}
+	downloadTaskImageResult = service.DownloadTaskImageResult
+)
+
+func acquireB64DeliverySlot(ctx *gin.Context) (func(), error) {
+	b64DeliveryLimiterOnce.Do(func() {
+		limit := common.GetEnvOrDefault("IMAGE_B64_DELIVERY_MAX_CONCURRENT", 8)
+		if limit < 1 {
+			limit = 1
+		}
+		b64DeliveryLimiter = make(chan struct{}, limit)
+	})
+	select {
+	case b64DeliveryLimiter <- struct{}{}:
+		return func() { <-b64DeliveryLimiter }, nil
+	case <-ctx.Request.Context().Done():
+		return nil, ctx.Request.Context().Err()
+	}
+}
+
+func writeQueuedSyncImageB64Response(c *gin.Context, task *model.Task, urls []string) {
+	if len(urls) == 0 {
+		c.JSON(http.StatusBadGateway, gin.H{"error": gin.H{
+			"message": "image task completed without a result",
+			"type":    "upstream_error",
+		}})
+		return
+	}
+	release, err := acquireB64DeliverySlot(c)
+	if err != nil {
+		return
+	}
+	defer release()
+
+	files := make([]*os.File, 0, len(urls))
+	defer func() {
+		for _, file := range files {
+			name := file.Name()
+			_ = file.Close()
+			_ = os.Remove(name)
+		}
+	}()
+	for _, resultURL := range urls {
+		file, downloadErr := downloadTaskImageResult(c.Request.Context(), task.Properties.OriginModelName, resultURL)
+		if downloadErr != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": gin.H{
+				"message": "failed to prepare queued image response",
+				"type":    "upstream_error",
+			}})
+			return
+		}
+		files = append(files, file)
+	}
+
+	c.Header("Content-Type", "application/json; charset=utf-8")
+	c.Status(http.StatusOK)
+	_, _ = io.WriteString(c.Writer, `{"created":`+strconv.FormatInt(time.Now().Unix(), 10)+`,"data":[`)
+	for index, file := range files {
+		if index > 0 {
+			_, _ = io.WriteString(c.Writer, ",")
+		}
+		_, _ = io.WriteString(c.Writer, `{"b64_json":"`)
+		encoder := base64.NewEncoder(base64.StdEncoding, c.Writer)
+		if _, err = io.Copy(encoder, file); err != nil {
+			_ = encoder.Close()
+			_ = c.Error(fmt.Errorf("stream queued image result: %w", err))
+			return
+		}
+		if err = encoder.Close(); err != nil {
+			_ = c.Error(fmt.Errorf("finish queued image base64 response: %w", err))
+			return
+		}
+		_, _ = io.WriteString(c.Writer, `"}`)
+	}
+	_, _ = io.WriteString(c.Writer, `]}`)
 }

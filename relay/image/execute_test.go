@@ -33,7 +33,7 @@ func TestNormalizeAsyncGenerationBodyUsesURLResponseFormatFor4K(t *testing.T) {
 }
 
 func TestNormalizeAsyncGenerationBodyKeepsB64ForNon4K(t *testing.T) {
-	out, err := normalizeAsyncGenerationBody([]byte(`{"model":"Gulie-gpt-image-2","prompt":"test","async":true}`), false)
+	out, err := normalizeAsyncGenerationBody([]byte(`{"model":"go2api-gpt-image-2-1k","prompt":"test","async":true,"response_format":"url"}`), false)
 	if err != nil {
 		t.Fatalf("normalizeAsyncGenerationBody: %v", err)
 	}

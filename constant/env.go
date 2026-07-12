@@ -19,8 +19,6 @@ var GenerateDefaultToken bool
 var ErrorLogEnabled bool
 var TaskQueryLimit int
 var TaskTimeoutMinutes int
-var ImageMaxInFlightPerUser int
-var ImageMaxInFlightGlobal int
 var MultipartMemoryMB int
 
 // temporary variable for sora patch, will be removed in future
