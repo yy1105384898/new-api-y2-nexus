@@ -10,6 +10,9 @@ type RehostPolicy struct {
 	PreferUpstreamB64JSON bool
 	// AsyncPreferURLResponse：异步任务提交上游时使用 response_format=url。
 	AsyncPreferURLResponse bool
+	// TrustPublicURL allows an owned, public object URL to bypass a second R2 upload.
+	// The predicate must validate scheme, host and path strictly.
+	TrustPublicURL func(string) bool
 }
 
 // RequestPatchResult 请求补丁副作用：计费日志元数据。

@@ -227,14 +227,18 @@ func generatedURLRewriteAllowed(base, img *url.URL) bool {
 	return strings.Contains(strings.ToLower(base.Hostname()), "adobe")
 }
 
-func rewriteGeneratedImageDataURLsToChannelBase(channelBaseURL string, images []dto.ImageData) ([]dto.ImageData, bool) {
+func rewriteGeneratedImageDataURLsToChannelBase(channelBaseURL, originModel string, images []dto.ImageData) ([]dto.ImageData, bool) {
 	if len(images) == 0 {
 		return images, false
 	}
 	out := make([]dto.ImageData, len(images))
 	copy(out, images)
 	changed := false
+	policy := imagevendor.ResolveRehostPolicy(originModel)
 	for index := range out {
+		if policy.TrustPublicURL != nil && policy.TrustPublicURL(out[index].Url) {
+			continue
+		}
 		rewritten, ok := RewriteGeneratedUpstreamURLToChannelBase(channelBaseURL, out[index].Url)
 		if !ok {
 			continue
@@ -283,14 +287,21 @@ func syncImageNeedsRehost(originModel string, images []dto.ImageData, clientWant
 		return false
 	}
 	if imageDataNeedsURLRehost(images) {
-		return true
+		for _, item := range images {
+			if strings.TrimSpace(item.Url) == "" || strings.TrimSpace(item.B64Json) != "" {
+				continue
+			}
+			if policy.TrustPublicURL == nil || !policy.TrustPublicURL(item.Url) {
+				return true
+			}
+		}
 	}
 	return clientWantsURL && imageDataHasB64(images)
 }
 
 // RehostImageDataForClient 将上游 b64 或（4K/FLUX）url 转存 R2；clientWantsURL 时清除 b64_json 仅留公网 url。
 func RehostImageDataForClient(ctx context.Context, userID int, storeID, channelBaseURL, originModel string, images []dto.ImageData, clientWantsURL bool) ([]dto.ImageData, error) {
-	images, _ = rewriteGeneratedImageDataURLsToChannelBase(channelBaseURL, images)
+	images, _ = rewriteGeneratedImageDataURLsToChannelBase(channelBaseURL, originModel, images)
 	if !syncImageNeedsRehost(originModel, images, clientWantsURL) {
 		return images, nil
 	}
@@ -323,7 +334,11 @@ func RehostImageDataForClient(ctx context.Context, userID int, storeID, channelB
 		if strings.TrimSpace(item.Url) == "" {
 			continue
 		}
-		if !imagevendor.ResolveRehostPolicy(originModel).AcceptUpstreamURL {
+		policy := imagevendor.ResolveRehostPolicy(originModel)
+		if policy.TrustPublicURL != nil && policy.TrustPublicURL(item.Url) {
+			continue
+		}
+		if !policy.AcceptUpstreamURL {
 			continue
 		}
 		downloadURL := RewriteLoopbackUpstreamImageURL(channelBaseURL, item.Url)
@@ -453,6 +468,11 @@ func RehostTaskImageResultURLs(ctx context.Context, userID int, storeID, channel
 			continue
 		}
 		if mimeOrURL != "" {
+			policy := imagevendor.ResolveRehostPolicy(originModel)
+			if policy.TrustPublicURL != nil && policy.TrustPublicURL(mimeOrURL) {
+				resultURLs = append(resultURLs, mimeOrURL)
+				continue
+			}
 			if rewritten, ok := RewriteGeneratedUpstreamURLToChannelBase(channelBaseURL, mimeOrURL); ok {
 				mimeOrURL = rewritten
 			}

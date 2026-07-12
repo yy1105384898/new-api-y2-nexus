@@ -19,6 +19,8 @@
 | 标准异步视频 | `POST /v1/videos` | task adaptor → `DoTaskApiRequest` | `service.TaskPollingLoop` → `FetchTask` | 通用轮询路径 |
 | Adobe2API 视频 | `POST /v1/videos` | `oaivideo/vendors/adobe` → `/v1/videos/generations` | 通用视频轮询 CAS | 已纳入标准视频任务族 |
 
+Adobe 自有媒体出口固定为 `https://eu-ai.cangyuansuanli.cn/generated/`。生图按 Adobe 模型族、视频按 Adobe 渠道（75）校验，并同时严格校验 HTTPS、精确域名和 `/generated/` 路径；命中后直接透传，其他 URL 继续按默认策略转存 R2。
+
 因此，图像同步/异步仍然由图像能力决定，视频统一为标准异步 Task；Adobe 仅是上游 vendor 差异，不再拥有独立任务生命周期。
 
 客户可见的图像 API 文档只展示 `POST /v1/images/generations`、`POST /v1/images/edits` 与异步任务轮询。仓库中的 legacy chat image 转换仅用于读取和迁移历史客户端请求，不是模型广场或新客户端的公开调用方式。
