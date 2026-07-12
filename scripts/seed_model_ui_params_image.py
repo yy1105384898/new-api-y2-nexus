@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import sys
@@ -38,6 +39,13 @@ def esc_json(value) -> str:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--profile-prefix",
+        default="",
+        help="只同步 profile_id 以该前缀开头的 image profiles。",
+    )
+    args = parser.parse_args()
     doc = json.loads(JSON_PATH.read_text(encoding="utf-8"))
     now = int(time.time())
     default_id = doc.get("defaultId", "default-image")
@@ -56,6 +64,12 @@ def main() -> None:
     )
 
     profiles = doc.get("profiles") or []
+    if args.profile_prefix:
+        profiles = [
+            profile
+            for profile in profiles
+            if str(profile.get("id") or "").startswith(args.profile_prefix)
+        ]
     for profile in profiles:
         profile_id = profile.get("id")
         if not profile_id:

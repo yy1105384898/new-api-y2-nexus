@@ -12,16 +12,17 @@ relay/channel/task/oaivideo/
 └── vendors/
     ├── manju/
     ├── chatvideo/    # 聚合线路 chat 上游，对外仍是统一任务
+    ├── grok/         # 119337 generations endpoint + envelope normalization
     ├── seedance/
     ├── adobe/        # Adobe typed video endpoint + strict JSON normalization
-    └── defaultvideo/ # sora-2、grok 等兜底
+    └── defaultvideo/ # sora-2 等标准 OpenAI Video 兜底
 ```
 
 ## 统一轮询流水线
 
 所有视频模型共用 [`service/task_polling.go`](../service/task_polling.go) 中的 `TaskPollingLoop`（每 15 秒）：
 
-1. `FetchTask` — `GET {baseUrl}/v1/videos/{upstream_task_id}`（OpenAI Video 族协议相同）
+1. `FetchTask` — Router 使用任务保存的 internal / upstream 模型重新选择 vendor；标准线路请求 `GET {baseUrl}/v1/videos/{upstream_task_id}`，Grok 请求 `/v1/video/generations/{upstream_task_id}`
 2. `ParseTaskResult` / `ParseTaskResultForTask` — 将上游 JSON 映射为内部状态
 3. 写 DB（CAS `UpdateWithStatus`）
 4. `AdjustBillingOnComplete` — 按 Vendor 结算差额
@@ -54,7 +55,8 @@ Leonardo `cy-sd4-*` 渠道在插件主轮询窗口结束后仍返回 `in_progres
 | `aspect_ratio` | string | 如 `16:9`、`9:16`、`1:1` |
 | `resolution` | string | 如 `480p`、`720p`、`1080p` |
 | `generate_audio` | boolean | 是否生成音频，取决于模型能力 |
-| `image` / `images` / `image_urls` / `reference_image_urls` | string 或 string[] | JSON 参考图；支持 HTTPS URL，具体数量由模型 profile 决定 |
+| `video_url` | string | 参考视频公网 URL，仅支持已声明视频编辑能力的模型 |
+| `image` / `images` / `image_urls` / `reference_image_urls` | string、string[]；`image` 兼容 `{url}` | JSON 参考图；支持 HTTPS URL，具体数量由模型 profile 决定 |
 | `input_reference` | file 或 file[] | multipart 参考素材 |
 | `metadata` | object | 已登记 vendor 的扩展参数；不得用于选择上游协议或路径 |
 
@@ -73,6 +75,8 @@ JSON 示例：
 
 提交与轮询响应都使用统一视频对象：`id`、`object: "video"`、`model`、`status`、`progress`、`created_at`；成功时可通过响应结果 URL 或 `/content` 取片，失败时读取 `error.message`。`status` 只向客户暴露 `queued`、`in_progress`、`completed`、`failed`。
 
+时间字段对外统一为整数 Unix 秒。上游若返回带小数的 Unix 秒，`oaivideo/shared` 会在协议边界截断为整数，不能因供应商时间精度差异导致任务提交或轮询失败。
+
 `/v1/chat/completions`、`/v1/video/generations`、`/v1/videos/generations` 等均是部分供应商的内部上游协议，不属于公开视频 API，也不得出现在客户调用示例中。
 
 ## 统一时长参数契约
@@ -85,7 +89,8 @@ JSON 示例：
 
 | Vendor | 上游时长字段 | 说明 |
 |--------|------------------|------|
-| default（Grok / Sora 等标准 OpenAI Video） | `seconds` | 上游 `/v1/videos` 契约 |
+| default（Sora 等标准 OpenAI Video） | `seconds` | 上游 `/v1/videos` 契约 |
+| Grok generations | `seconds` | 上游 `/v1/video/generations`；参考图统一为 `image_urls` 字符串数组 |
 | Seedance | `duration` | OAIREGBox 按秒视频契约 |
 | Adobe | `duration` | Adobe typed `/v1/videos/generations` 严格 schema |
 
@@ -105,11 +110,12 @@ Adobe2API 视频现在属于标准视频任务族：对外使用 `POST /v1/video
 |-------------------|--------|----------|----------|
 | `manju-openai-sora*` | Manju | chat/completions 转换 | Manju 响应形（`platform:sora2` 等） |
 | `cy-vid2-*` / `cy-sd1-grok-video*` | Chat Video | 内部转 chat/completions，读 SSE/JSON 视频 URL | 提交时即归一化为已完成任务 |
+| `cy-gv1-grok-video*` | Grok generations | 严格 JSON → `/v1/video/generations` | generations envelope → OpenAI Video 形 |
 | `cy-sd1-seedance*` | Seedance | multipart 透传 `/v1/videos` | OpenAI Video 形 |
 | `cy-sd4-seedance*` | Seedance | Leonardo 渠道 | OpenAI Video 形 |
 | `cy-sd2-seedance*` / `tengd-seedance*` | Seedance | Tengda body 转换 | OpenAI Video 形 |
 | `adobe-*sora*` / `adobe-*veo*` | Adobe | 严格 JSON → `/v1/videos/generations` | `video.generation` → OpenAI Video 形 |
-| 其他（Grok、Sora 等） | default | 标准 OpenAI Video | OpenAI Video 形 |
+| 其他（Sora 等） | default | 标准 OpenAI Video | OpenAI Video 形 |
 
 门面适配器：[`relay/channel/task/oaivideo/router/adaptor.go`](../relay/channel/task/oaivideo/router/adaptor.go)
 
@@ -126,8 +132,8 @@ Adobe2API 视频现在属于标准视频任务族：对外使用 `POST /v1/video
 ## 新增视频模型 Checklist
 
 1. 在 `registry.ResolveWithChannel` 注册匹配规则（按 Adobe channel/model 进入独立 vendor adaptor，不复制任务生命周期）
-2. 确认提交阶段：走 Manju 转换 / Seedance 透传或 Tengda 转换 / default 透传
-3. 确认轮询：`FetchTask` 是否仍为 `/v1/videos/{id}`；解析属于 Manju 族还是 OpenAI Video 形
+2. 确认提交阶段：走 Manju / Grok / Seedance / Adobe 转换，还是 default 透传
+3. 确认轮询：`FetchTask` 是否仍为 `/v1/videos/{id}`；若路径不同，必须由任务模型重新选择 vendor
 4. 确认计费：`AdjustBillingOnComplete` 按秒还是按次
 5. 补充 `registry` / `router` 单测
 6. 源站抽一条任务验收状态推进与 quota

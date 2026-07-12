@@ -11,95 +11,197 @@ import time
 
 MODELS = {
     "adobe-sora2": {
+        "public": "sora-2",
         "profile": "video-tpl-adobe-sora2-json-async",
-        "description": "Adobe Firefly Sora2 视频生成。支持 4/8/12 秒与 16:9、9:16。",
+        "description": "Adobe Firefly Sora2 标准版。支持文生视频、单张帧参考图和负面提示词。",
         "tags": "video,sora,adobe,firefly",
         "duration": [4, 8, 12],
         "resolution": None,
+        "reference_mode": "frame",
+        "max_images": 1,
+        "supports_negative_prompt": True,
+        "variant": "标准版；可选 1 张帧参考图。",
     },
     "adobe-sora2-pro": {
+        "public": "sora-2-pro",
         "profile": "video-tpl-adobe-sora2-json-async",
-        "description": "Adobe Firefly Sora2 Pro 视频生成。支持 4/8/12 秒与 16:9、9:16。",
+        "description": "Adobe Firefly Sora2 Pro 高阶版。参数与标准版一致，支持单张帧参考图和负面提示词。",
         "tags": "video,sora,adobe,firefly,pro",
         "duration": [4, 8, 12],
         "resolution": None,
+        "reference_mode": "frame",
+        "max_images": 1,
+        "supports_negative_prompt": True,
+        "variant": "Pro 高阶版；可选 1 张帧参考图，参数范围与标准版一致。",
     },
     "adobe-veo31": {
+        "public": "veo-3-1",
         "profile": "video-tpl-adobe-veo31-json-async",
-        "description": "Adobe Firefly Veo 3.1 标准视频生成。支持 4/6/8 秒、画幅与分辨率。",
+        "description": "Adobe Firefly Veo 3.1 标准版。支持文生视频与最多 2 张首尾帧参考图。",
         "tags": "video,veo,adobe,firefly",
         "duration": [4, 6, 8],
         "resolution": ["720p", "1080p"],
+        "reference_mode": "frame",
+        "max_images": 2,
+        "supports_negative_prompt": False,
+        "variant": "标准引擎；参考图按首帧、尾帧顺序传入，最多 2 张。",
     },
     "adobe-veo31-ref": {
-        "profile": "video-tpl-adobe-veo31-json-async",
-        "description": "Adobe Firefly Veo 3.1 参考图视频生成。支持最多 3 张参考图。",
+        "public": "veo-3-1-ref",
+        "profile": "video-tpl-adobe-veo31-ref-json-async",
+        "description": "Adobe Firefly Veo 3.1 素材参考版。最多 3 张主体或素材参考图。",
         "tags": "video,veo,adobe,firefly,reference",
         "duration": [4, 6, 8],
         "resolution": ["720p", "1080p"],
+        "reference_mode": "image",
+        "max_images": 3,
+        "supports_negative_prompt": False,
+        "variant": "素材参考模式；参考图作为主体或素材约束，不表示首尾帧，最多 3 张。",
     },
     "adobe-veo31-fast": {
+        "public": "veo-3-1-fast",
         "profile": "video-tpl-adobe-veo31-json-async",
-        "description": "Adobe Firefly Veo 3.1 Fast 视频生成。支持 4/6/8 秒、画幅与分辨率。",
+        "description": "Adobe Firefly Veo 3.1 Fast 快速版。支持文生视频与最多 2 张首尾帧参考图。",
         "tags": "video,veo,adobe,firefly,fast",
         "duration": [4, 6, 8],
         "resolution": ["720p", "1080p"],
+        "reference_mode": "frame",
+        "max_images": 2,
+        "supports_negative_prompt": False,
+        "variant": "快速引擎；参数与标准版一致，适合低延迟或批量生成。",
     },
 }
 
 PRICE_USD = {
-    "adobe-sora2": 0.45,
-    "adobe-sora2-pro": 0.45,
-    "adobe-veo31": 0.8064,
-    "adobe-veo31-ref": 0.8064,
-    "adobe-veo31-fast": 0.504,
+    "adobe-sora2": 0.70,
+    "adobe-sora2-pro": 0.90,
+    "adobe-veo31": 0.90,
+    "adobe-veo31-ref": 0.90,
+    "adobe-veo31-fast": 0.70,
 }
 
 
-def build_api_doc(model: str, conf: dict) -> dict:
+def build_api_doc(conf: dict) -> dict:
+    public_model = conf["public"]
+    is_veo = conf["resolution"] is not None
+    supports_references = "reference_mode" in conf
     params = [
-        {"name": "model", "description": "必填，固定传 {{model}}。"},
-        {"name": "prompt", "description": "必填，视频提示词。"},
-        {"name": "duration", "description": f"视频时长（秒），可选值：{conf['duration']}。"},
-        {"name": "aspect_ratio", "description": "画幅比例：16:9 或 9:16。"},
-        {"name": "generate_audio", "description": "是否生成声音，布尔值。"},
+        {"name": "model", "description": f"必填，固定传 {public_model}。"},
+        {"name": "prompt", "description": "必填，视频提示词，最多 1200 字符。"},
+        {"name": "duration", "description": f"视频时长（秒），可选值：{conf['duration']}；默认 {conf['duration'][-1]}。"},
+        {"name": "seconds", "description": "duration 的兼容别名；两者不要同时传。"},
+        {"name": "aspect_ratio", "description": "画幅比例：16:9 或 9:16；默认 9:16。"},
+        {"name": "generate_audio", "description": "是否生成声音，布尔值；默认 true。"},
     ]
-    if conf["resolution"]:
+    if is_veo:
         params.append(
             {
                 "name": "resolution",
-                "description": f"视频分辨率，可选值：{conf['resolution']}。",
+                "description": f"视频分辨率，可选值：{conf['resolution']}；默认 1080p。",
+            }
+        )
+    if supports_references:
+        params.extend(
+            [
+                {
+                    "name": "reference_mode",
+                    "description": f"固定传 {conf['reference_mode']}；{conf['variant']}",
+                },
+                {
+                    "name": "images",
+                    "description": (
+                        f"可选，最多 {conf['max_images']} 张；支持 JPEG/PNG/WebP 的公网 URL 或 data URI，"
+                        "单张不超过 10MB。" + conf["variant"]
+                    ),
+                },
+            ]
+        )
+    if conf.get("supports_negative_prompt"):
+        params.append(
+            {
+                "name": "negative_prompt",
+                "description": "可选，负面提示词，最多 1200 字符。",
             }
         )
 
     request = {
-        "model": model,
+        "model": public_model,
         "prompt": "一辆跑车穿过雨夜城市",
         "duration": conf["duration"][1],
         "aspect_ratio": "16:9",
         "generate_audio": True,
     }
-    if conf["resolution"]:
+    if is_veo:
         request["resolution"] = conf["resolution"][0]
+
+    full_request = dict(request)
+    if supports_references:
+        full_request["reference_mode"] = conf["reference_mode"]
+        if conf["reference_mode"] == "image":
+            full_request["images"] = [
+                "https://example.com/character.png",
+                "https://example.com/product.png",
+                "https://example.com/style.png",
+            ]
+        elif conf["max_images"] == 2:
+            full_request["images"] = [
+                "https://example.com/first-frame.png",
+                "https://example.com/last-frame.png",
+            ]
+        else:
+            full_request["images"] = ["https://example.com/reference-frame.png"]
+    if conf.get("supports_negative_prompt"):
+        full_request["negative_prompt"] = "画面抖动、主体变形、文字水印"
+
+    intro = "Adobe2API Firefly 视频：POST /v1/videos 创建异步任务，GET /v1/videos/{task_id} 查询结果。"
+    if supports_references:
+        intro += conf["variant"]
+    unsupported = "seed、n、音频参考或 response_format"
+    if not conf.get("supports_negative_prompt"):
+        unsupported = "negative_prompt、" + unsupported
+    intro += f" 不支持 {unsupported}。"
 
     return {
         "dispatch_mode": "async",
-        "intro": "Adobe2API Firefly 视频：POST /v1/videos 创建异步任务，GET /v1/videos/{task_id} 查询结果。",
+        "intro": intro,
         "endpoints": [
             {
                 "method": "POST",
                 "path": "{{base}}/videos",
                 "description": "标准 OpenAI Video 创建接口。",
-            }
+            },
+            {
+                "method": "GET",
+                "path": "{{base}}/videos/{task_id}",
+                "description": "查询任务状态和结果。",
+            },
+            {
+                "method": "GET",
+                "path": "{{base}}/videos/{task_id}/content",
+                "description": "下载已完成任务的成片。",
+            },
         ],
         "basic_request_json": request,
+        "request_json": full_request,
         "params": params,
-        "response_json": {
-            "id": "task_adobe_video",
+        "create_response_json": {
+            "id": "task_adobe_video_01",
             "object": "video",
-            "model": model,
+            "model": public_model,
             "status": "queued",
             "progress": 0,
+            "created_at": 1780000000,
+        },
+        "query_response_json": {
+            "id": "task_adobe_video_01",
+            "object": "video",
+            "model": public_model,
+            "status": "completed",
+            "progress": 100,
+            "created_at": 1780000000,
+            "metadata": {
+                "video_url": "{{base}}/videos/task_adobe_video_01/content"
+            },
         },
     }
 
@@ -166,7 +268,7 @@ def main() -> None:
     now = int(time.time())
     endpoints = '{"openai-video":{"path":"/v1/videos","method":"POST"}}'
     for model, conf in MODELS.items():
-        api_doc = json.dumps(build_api_doc(model, conf), ensure_ascii=False, separators=(",", ":"))
+        api_doc = json.dumps(build_api_doc(conf), ensure_ascii=False, separators=(",", ":"))
         api_doc = api_doc.replace("'", "''")
         psql_exec(
             f"UPDATE models SET api_doc = '{api_doc}', "

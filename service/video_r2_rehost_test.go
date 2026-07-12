@@ -72,6 +72,26 @@ func TestPatchVideoUsageSecondsInTaskData(t *testing.T) {
 	}
 }
 
+func TestPatchVideoEnvelopeKeepsDataObject(t *testing.T) {
+	in := []byte(`{"code":"success","data":{"task_id":"task_x","status":"SUCCESS","result_url":"https://upstream.example/a.mp4"}}`)
+	cdn := "https://tmp.cangyuansuanli.cn/gen-videos/1/task_x.mp4"
+	out, err := patchVideoURLInTaskData(in, cdn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err = patchVideoUsageSecondsInTaskData(out, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(out)
+	if !strings.Contains(s, `"data":{"task_id"`) || !strings.Contains(s, `"result_url":"`+cdn+`"`) {
+		t.Fatalf("envelope data was corrupted: %s", s)
+	}
+	if !strings.Contains(s, `"usage":{"seconds":4}`) {
+		t.Fatalf("nested usage seconds not patched: %s", s)
+	}
+}
+
 func TestBuildGeneratedVideoObjectKey(t *testing.T) {
 	if got := buildGeneratedVideoObjectKey(1, "task_abc", ".mp4"); got != "gen-videos/1/task_abc.mp4" {
 		t.Fatalf("got=%q", got)

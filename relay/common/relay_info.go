@@ -709,6 +709,7 @@ type TaskSubmitReq struct {
 	Duration           int                    `json:"duration,omitempty"`
 	Seconds            string                 `json:"seconds,omitempty"`
 	GenerateAudio      *bool                  `json:"generate_audio,omitempty"`
+	VideoURL           string                 `json:"video_url,omitempty"`
 	InputReference     string                 `json:"input_reference,omitempty"`
 	Metadata           map[string]interface{} `json:"metadata,omitempty"`
 }
@@ -751,15 +752,19 @@ func (t *TaskSubmitReq) HasImage() bool {
 }
 
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
+	defer normalizeTaskSubmitImages(t)
+
 	var raw map[string]json.RawMessage
 	if err := common.Unmarshal(data, &raw); err != nil {
 		return err
 	}
 
+	imageRaw := raw["image"]
 	inputRefRaw := raw["input_reference"]
 	metadataRaw := raw["metadata"]
 	durationRaw := raw["duration"]
 	secondsRaw := raw["seconds"]
+	delete(raw, "image")
 	delete(raw, "input_reference")
 	delete(raw, "metadata")
 	delete(raw, "duration")
@@ -776,6 +781,16 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*t = TaskSubmitReq(alias)
+
+	if len(imageRaw) > 0 {
+		if refs, ok := unmarshalFlexibleStringSlice(imageRaw); ok {
+			if len(refs) == 1 {
+				t.Image = refs[0]
+			} else {
+				t.Images = append([]string(nil), refs...)
+			}
+		}
+	}
 
 	if len(durationRaw) > 0 {
 		if v, ok := unmarshalFlexibleInt(durationRaw); ok {
@@ -843,6 +858,26 @@ func unmarshalFlexibleStringSlice(raw json.RawMessage) ([]string, bool) {
 	var sliceVal []string
 	if err := common.Unmarshal(raw, &sliceVal); err == nil && len(sliceVal) > 0 {
 		return sliceVal, true
+	}
+	var objectVal struct {
+		URL string `json:"url"`
+	}
+	if err := common.Unmarshal(raw, &objectVal); err == nil && strings.TrimSpace(objectVal.URL) != "" {
+		return []string{objectVal.URL}, true
+	}
+	var objectSlice []struct {
+		URL string `json:"url"`
+	}
+	if err := common.Unmarshal(raw, &objectSlice); err == nil {
+		values := make([]string, 0, len(objectSlice))
+		for _, item := range objectSlice {
+			if value := strings.TrimSpace(item.URL); value != "" {
+				values = append(values, value)
+			}
+		}
+		if len(values) > 0 {
+			return values, true
+		}
 	}
 	return nil, false
 }

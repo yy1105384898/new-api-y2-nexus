@@ -11,21 +11,21 @@ import (
 )
 
 type ResponseTask struct {
-	ID                 string  `json:"id"`
-	TaskID             string  `json:"task_id,omitempty"`
-	Object             string  `json:"object"`
-	Model              string  `json:"model"`
-	Status             string  `json:"status"`
-	Progress           float64 `json:"progress"`
-	CreatedAt          int64   `json:"created_at"`
-	CompletedAt        int64   `json:"completed_at,omitempty"`
-	ExpiresAt          int64   `json:"expires_at,omitempty"`
-	Seconds            string  `json:"seconds,omitempty"`
-	Duration           float64 `json:"duration,omitempty"`
-	Size               string  `json:"size,omitempty"`
-	RemixedFromVideoID string  `json:"remixed_from_video_id,omitempty"`
-	VideoURL           string  `json:"videoUrl,omitempty"`
-	VideoURLSnake      string  `json:"video_url,omitempty"`
+	ID                 string        `json:"id"`
+	TaskID             string        `json:"task_id,omitempty"`
+	Object             string        `json:"object"`
+	Model              string        `json:"model"`
+	Status             string        `json:"status"`
+	Progress           float64       `json:"progress"`
+	CreatedAt          UnixTimestamp `json:"created_at"`
+	CompletedAt        UnixTimestamp `json:"completed_at,omitempty"`
+	ExpiresAt          UnixTimestamp `json:"expires_at,omitempty"`
+	Seconds            string        `json:"seconds,omitempty"`
+	Duration           float64       `json:"duration,omitempty"`
+	Size               string        `json:"size,omitempty"`
+	RemixedFromVideoID string        `json:"remixed_from_video_id,omitempty"`
+	VideoURL           string        `json:"videoUrl,omitempty"`
+	VideoURLSnake      string        `json:"video_url,omitempty"`
 	Data               []struct {
 		URL      string `json:"url,omitempty"`
 		VideoURL string `json:"video_url,omitempty"`
@@ -35,6 +35,24 @@ type ResponseTask struct {
 		VideoCount int     `json:"video_count"`
 	} `json:"usage,omitempty"`
 	Error json.RawMessage `json:"error,omitempty"`
+}
+
+// UnixTimestamp accepts both integer and fractional Unix seconds from upstream
+// providers while preserving the public integer-seconds response contract.
+type UnixTimestamp int64
+
+func (t *UnixTimestamp) UnmarshalJSON(data []byte) error {
+	raw := strings.TrimSpace(string(data))
+	if raw == "null" {
+		*t = 0
+		return nil
+	}
+	seconds, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		return fmt.Errorf("invalid unix timestamp %q: %w", raw, err)
+	}
+	*t = UnixTimestamp(int64(seconds))
+	return nil
 }
 
 func ParseResponseTask(respBody []byte) (ResponseTask, error) {

@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/registry"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/chatvideo"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/defaultvideo"
+	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/grok"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/manju"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/seedance"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -24,6 +25,7 @@ func TestRouterAdaptor_DelegateFor(t *testing.T) {
 		{"cy-sd4-seedance-2.0", "seedance-2.0", "seedance"},
 		{"cy-sd2-seedance-2.0", "manxue-2.0", "seedance"},
 		{"cy-vid2-sora-2", "cy-vid2-sora-2", "chat"},
+		{"cy-gv1-grok-video-1.5", "grok-video-1.5", "grok"},
 		{"sora-2", "sora-2", "default"},
 		{"cy-sd1-seedance-2.0-mini-480p", "Seedance-2.0-480p", "seedance"},
 	}
@@ -47,6 +49,10 @@ func TestRouterAdaptor_DelegateFor(t *testing.T) {
 		case "chat":
 			if _, ok := d.(*chatvideo.TaskAdaptor); !ok {
 				t.Fatalf("%s: expected chat video adaptor", tc.origin)
+			}
+		case "grok":
+			if _, ok := d.(*grok.TaskAdaptor); !ok {
+				t.Fatalf("%s: expected Grok adaptor", tc.origin)
 			}
 		default:
 			if _, ok := d.(*defaultvideo.TaskAdaptor); !ok {

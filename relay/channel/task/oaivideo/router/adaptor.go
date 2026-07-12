@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
@@ -13,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/adobe"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/chatvideo"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/defaultvideo"
+	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/grok"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/manju"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/seedance"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -42,11 +44,12 @@ type openAIVideoDelegate interface {
 	ConvertToOpenAIVideo(task *model.Task) ([]byte, error)
 }
 
-// RouterAdaptor 按模型路由到独立适配器，避免 default / Manju / Seedance 互相污染。
+// RouterAdaptor 按模型路由到独立 vendor，避免上游协议互相污染。
 type RouterAdaptor struct {
 	native   delegate
 	adobe    delegate
 	chat     delegate
+	grok     delegate
 	manju    delegate
 	seedance delegate
 }
@@ -56,6 +59,7 @@ func NewRouterAdaptor() channel.TaskAdaptor {
 		native:   &defaultvideo.TaskAdaptor{},
 		adobe:    &adobe.TaskAdaptor{},
 		chat:     &chatvideo.TaskAdaptor{},
+		grok:     &grok.TaskAdaptor{},
 		manju:    &manju.TaskAdaptor{},
 		seedance: &seedance.TaskAdaptor{},
 	}
@@ -70,6 +74,8 @@ func (r *RouterAdaptor) delegateFor(info *relaycommon.RelayInfo) delegate {
 		return r.adobe
 	case registry.VendorChat:
 		return r.chat
+	case registry.VendorGrok:
+		return r.grok
 	case registry.VendorManju:
 		return r.manju
 	case registry.VendorSeedance:
@@ -171,6 +177,7 @@ func (r *RouterAdaptor) GetModelList() []string {
 	models := append([]string{}, r.native.GetModelList()...)
 	models = append(models, r.adobe.GetModelList()...)
 	models = append(models, r.chat.GetModelList()...)
+	models = append(models, r.grok.GetModelList()...)
 	return append(append(models, r.manju.GetModelList()...), r.seedance.GetModelList()...)
 }
 
@@ -179,7 +186,36 @@ func (r *RouterAdaptor) GetChannelName() string {
 }
 
 func (r *RouterAdaptor) FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error) {
+	info := &relaycommon.RelayInfo{
+		OriginModelName: stringFromBody(body, "origin_model"),
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelId:         intFromBody(body, "channel_id"),
+			ChannelBaseUrl:    baseUrl,
+			UpstreamModelName: stringFromBody(body, "upstream_model"),
+		},
+	}
+	if d := r.delegateFor(info); d != nil {
+		return d.FetchTask(baseUrl, key, body, proxy)
+	}
 	return oaivideo.FetchVideoTask(baseUrl, key, body, proxy)
+}
+
+func intFromBody(body map[string]any, key string) int {
+	switch value := body[key].(type) {
+	case int:
+		return value
+	case int64:
+		return int(value)
+	case float64:
+		return int(value)
+	default:
+		return 0
+	}
+}
+
+func stringFromBody(body map[string]any, key string) string {
+	value, _ := body[key].(string)
+	return strings.TrimSpace(value)
 }
 
 func (r *RouterAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error) {
@@ -209,6 +245,8 @@ func (r *RouterAdaptor) parseTaskResultBody(respBody []byte, task *model.Task) (
 			return r.adobe.ParseTaskResult(respBody)
 		case registry.VendorChat:
 			return r.chat.ParseTaskResult(respBody)
+		case registry.VendorGrok:
+			return r.grok.ParseTaskResult(respBody)
 		case registry.VendorManju:
 			return r.manju.ParseTaskResult(respBody)
 		case registry.VendorSeedance:

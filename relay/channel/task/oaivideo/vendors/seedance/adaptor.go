@@ -288,7 +288,7 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	if task.FinishTime > 0 {
 		openAIVideo.CompletedAt = task.FinishTime
 	} else if dResp.CompletedAt > 0 {
-		openAIVideo.CompletedAt = dResp.CompletedAt
+		openAIVideo.CompletedAt = int64(dResp.CompletedAt)
 	}
 	videoURL := oaivideo.ExtractVideoURL(dResp)
 	if videoURL == "" {
