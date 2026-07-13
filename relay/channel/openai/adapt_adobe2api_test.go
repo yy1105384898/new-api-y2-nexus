@@ -117,6 +117,48 @@ func TestAdobe2APIImageRelayMatchesDedicatedFireflySKU(t *testing.T) {
 	}
 }
 
+func TestValidateAdobe2APIImageInputsRejectsOversizedMultipartBeforeQueue(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = &http.Request{MultipartForm: &multipart.Form{
+		File: map[string][]*multipart.FileHeader{
+			"image": {{Filename: "oversized.png", Size: adobe2APIMaxImageBytes + 1}},
+		},
+	}}
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "adobe-firefly-gpt-image-2-2k",
+		ChannelMeta:     &relaycommon.ChannelMeta{ChannelId: 75},
+	}
+
+	err := ValidateAdobe2APIImageInputs(c, info, dto.ImageRequest{})
+	if err == nil || !strings.Contains(err.Error(), "max 10MB") {
+		t.Fatalf("expected 10MB validation error, got %v", err)
+	}
+}
+
+func TestValidateAdobe2APIImageInputsRejectsTooManyAndOversizedInlineReferences(t *testing.T) {
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "adobe-firefly-gpt-image-2-2k",
+		ChannelMeta:     &relaycommon.ChannelMeta{ChannelId: 75},
+	}
+	tooMany := make([]string, adobe2APIMaxInputImages+1)
+	for i := range tooMany {
+		tooMany[i] = "https://example.com/reference.png"
+	}
+	tooManyRaw, _ := json.Marshal(tooMany)
+	err := ValidateAdobe2APIImageInputs(nil, info, dto.ImageRequest{Images: tooManyRaw})
+	if err == nil || !strings.Contains(err.Error(), "too many images") {
+		t.Fatalf("expected image count validation error, got %v", err)
+	}
+
+	encodedBytes := (adobe2APIMaxImageBytes+1)*4/3 + 8
+	oversized := `"data:image/png;base64,` + strings.Repeat("A", int(encodedBytes)) + `"`
+	err = ValidateAdobe2APIImageInputs(nil, info, dto.ImageRequest{Image: json.RawMessage(oversized)})
+	if err == nil || !strings.Contains(err.Error(), "max 10MB") {
+		t.Fatalf("expected inline size validation error, got %v", err)
+	}
+}
+
 func TestConvertAdobe2APIImageRequestStripsUnsupportedOpenAIParams(t *testing.T) {
 	n := uint(1)
 	request := dto.ImageRequest{

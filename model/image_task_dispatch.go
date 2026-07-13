@@ -29,12 +29,21 @@ func GetImageTaskStatus(userID int, taskID string) (ImageTaskStatus, bool, error
 // run. Multiple nodes may observe the same ids; ClaimImageAsyncTask is the
 // atomic boundary that elects exactly one worker.
 func GetClaimableImageAsyncTaskIDs(limit int, now int64) []string {
+	return GetClaimableImageAsyncTaskIDsForChannels(limit, now, nil, false)
+}
+
+// GetClaimableImageAsyncTaskIDsForChannels returns claimable image tasks from
+// one channel lane. include=true selects only channelIDs; include=false
+// excludes them. A nil exclusion keeps the historical all-channel behavior.
+func GetClaimableImageAsyncTaskIDsForChannels(limit int, now int64, channelIDs []int, include bool) []string {
 	if limit <= 0 {
 		return nil
 	}
 	var tasks []*Task
-	err := DB.Select("task_id", "user_id", "priority", "properties").
-		Where("platform = ?", constant.TaskPlatformImage).
+	query := DB.Select("task_id", "user_id", "priority", "properties").
+		Where("platform = ?", constant.TaskPlatformImage)
+	query = filterImageTaskChannels(query, channelIDs, include)
+	err := query.
 		Where("status IN ? OR (status = ? AND ((lease_owner != '' AND lease_expires_at < ?) OR (lease_owner = '' AND updated_at < ?)))",
 			[]TaskStatus{TaskStatusSubmitted, TaskStatusQueued}, TaskStatusInProgress, now, now-600).
 		Order("priority DESC, id ASC").
@@ -95,9 +104,17 @@ func fairImageTaskIDs(tasks []*Task, limit int) []string {
 }
 
 func CountActiveImageTasks(userID int) (global int64, perUser int64, err error) {
+	return CountActiveImageTasksForChannels(userID, nil, false)
+}
+
+// CountActiveImageTasksForChannels counts active tasks inside one channel
+// lane. It mirrors GetClaimableImageAsyncTaskIDsForChannels so admission and
+// dispatch always use the same isolation boundary.
+func CountActiveImageTasksForChannels(userID int, channelIDs []int, include bool) (global int64, perUser int64, err error) {
 	statuses := []TaskStatus{TaskStatusSubmitted, TaskStatusQueued, TaskStatusInProgress}
 	query := DB.Model(&Task{}).
 		Where("platform = ? AND status IN ?", constant.TaskPlatformImage, statuses)
+	query = filterImageTaskChannels(query, channelIDs, include)
 	if err = query.Count(&global).Error; err != nil {
 		return 0, 0, err
 	}
@@ -110,14 +127,23 @@ func CountActiveImageTasks(userID int) (global int64, perUser int64, err error) 
 // ClaimImageAsyncTask atomically leases an image job to one worker node. A
 // stale IN_PROGRESS task may be reclaimed after its lease expires.
 func ClaimImageAsyncTask(taskID, owner string, leaseDuration time.Duration) (*Task, bool, error) {
+	return ClaimImageAsyncTaskForChannels(taskID, owner, leaseDuration, nil, false)
+}
+
+// ClaimImageAsyncTaskForChannels atomically claims a task only when it belongs
+// to the caller's channel lane. This guards against stale Redis notifications
+// crossing lanes during rolling deployments.
+func ClaimImageAsyncTaskForChannels(taskID, owner string, leaseDuration time.Duration, channelIDs []int, include bool) (*Task, bool, error) {
 	if taskID == "" || owner == "" || leaseDuration <= 0 {
 		return nil, false, nil
 	}
 	now := time.Now().Unix()
 	leaseUntil := now + int64(leaseDuration/time.Second)
-	result := DB.Model(&Task{}).
+	query := DB.Model(&Task{}).
 		Where("task_id = ?", taskID).
-		Where("platform = ?", constant.TaskPlatformImage).
+		Where("platform = ?", constant.TaskPlatformImage)
+	query = filterImageTaskChannels(query, channelIDs, include)
+	result := query.
 		Where("status IN ? OR (status = ? AND ((lease_owner != '' AND lease_expires_at < ?) OR (lease_owner = '' AND updated_at < ?)))",
 			[]TaskStatus{TaskStatusSubmitted, TaskStatusQueued}, TaskStatusInProgress, now, now-600).
 		Updates(map[string]any{
@@ -144,6 +170,19 @@ func ClaimImageAsyncTask(taskID, owner string, leaseDuration time.Duration) (*Ta
 		return nil, false, nil
 	}
 	return &task, true, nil
+}
+
+func filterImageTaskChannels(query *gorm.DB, channelIDs []int, include bool) *gorm.DB {
+	if len(channelIDs) == 0 {
+		if include {
+			return query.Where("1 = 0")
+		}
+		return query
+	}
+	if include {
+		return query.Where("channel_id IN ?", channelIDs)
+	}
+	return query.Where("channel_id NOT IN ?", channelIDs)
 }
 
 func UpdateImageTaskWithLease(task *Task, owner string) (bool, error) {
