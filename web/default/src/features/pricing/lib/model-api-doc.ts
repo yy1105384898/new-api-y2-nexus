@@ -678,7 +678,10 @@ function pickImageOutputResolution(
 
 function usesBananaStyleImageParams(ui?: ImageUiParamsDoc): boolean {
   const id = (ui?.id || '').toLowerCase()
-  return id.includes('banana') || id.includes('adobe2api')
+  return (
+    id.includes('banana') ||
+    (id.includes('adobe2api') && !id.includes('gpt-image'))
+  )
 }
 
 function usesGulie2KImageParams(ui?: ImageUiParamsDoc): boolean {

@@ -223,16 +223,20 @@ export function ApiDocsPage() {
           headers={['场景', '说明']}
           rows={[
             [
-              '2K 固定档位',
-              '如 gpt-image-2-2k：size 仅传画幅比例（1:1、3:2、2:3、auto），勿传 quality、image_size、output_resolution、resolution 或像素尺寸；传入后平台会忽略。',
+              '模型档位与计费',
+              'GPT Image 2 的 1K / 2K / 4K 由模型名选择并分别计费。quality 只控制画质，不会切换模型档位、像素预算或计费。',
             ],
             [
-              '画幅与分辨率',
-              'Gemini Banana / GPT Image 4K 等模型请显式传 aspect_ratio（标准比例如 1:1、16:9）与 output_resolution（1K/2K/4K）；image_size 为兼容别名，若同时传入须保持一致。勿把 16:9-4k 等 UI 标签写进 size。',
+              'GPT Image 2 quality',
+              '可选 low / medium / high；省略或传 auto 时默认为 medium。quality 与 1K / 2K / 4K 售卖档位相互独立。',
             ],
             [
-              'quality / size 别名',
-              'quality 可作为别名：low=1K、medium=2K、high=4K；size 仅用于兼容旧 OpenAI 像素尺寸推断，勿与 aspect_ratio 混用。',
+              'GPT Image 2 精确 size',
+              '传 WIDTHxHEIGHT 时校验后原样转发，不推断比例、不重算尺寸。两边须为 16 的倍数，最长边 ≤3840px，长短边比例 ≤3:1，总像素至少 655360；1K / 2K / 4K 上限分别为 1048576 / 4194304 / 8294400。',
+            ],
+            [
+              '比例输入',
+              '未传精确 size 时，可传 aspect_ratio 或比例形式的 size（如 7:6），平台会在所选模型档位的像素预算内计算尺寸。Adobe Banana 系列的常见与自定义正整数 W:H 比例也使用 aspect_ratio。',
             ],
             [
               'resolution 字段',
@@ -240,11 +244,15 @@ export function ApiDocsPage() {
             ],
             [
               'JSON 图生图',
-              'POST /v1/images/generations，在 body 中传 image / images / reference_images（http(s) URL 或 data URI）。',
+              'POST /v1/images/generations；兼容 image、images、imageUrls、image_urls、reference_images、referenceImages、image_refs（http(s) URL 或 data URI）。别名之间会去重，最多 9 张唯一参考图。',
             ],
             [
               'multipart 图生图',
-              'POST /v1/images/edits；多图参考请重复字段名 image（勿用 image[]）；image 只传文件，不要填 URL。',
+              'POST /v1/images/edits；多图参考请重复字段名 image，最多 9 张；image 只传文件，不要填 URL。',
+            ],
+            [
+              '同步返回格式',
+              'response_format 可传 url（默认）或 b64_json；异步任务完成后返回图片 URL。',
             ],
             [
               'sync / async',
