@@ -54,6 +54,11 @@ var adobe2APIVideoModelPrefixes = []string{
 	"firefly-seedance",
 }
 
+const (
+	adobe2APIMaxInputImages = 6
+	adobe2APIMaxImageBytes  = int64(10 << 20)
+)
+
 func IsAdobe2APIImageOriginModel(model string) bool {
 	return hasAdobe2APIPrefix(model, adobe2APIImageModelPrefixes)
 }
@@ -92,6 +97,86 @@ func IsAdobe2APIVideoChatRelay(info *relaycommon.RelayInfo) bool {
 		return true
 	}
 	return false
+}
+
+// ValidateAdobe2APIImageInputs rejects inputs that Adobe2API would reject
+// before the durable task is inserted. This keeps oversized edits and excess
+// references from consuming queue capacity and worker leases.
+func ValidateAdobe2APIImageInputs(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) error {
+	if !IsAdobe2APIImageRelay(info) {
+		return nil
+	}
+	files, err := collectAdobe2APIMultipartImageFiles(c)
+	if err != nil {
+		return err
+	}
+	refs := adobe2APIReferenceImageValuesForValidation(c, request)
+	if len(files)+len(refs) > adobe2APIMaxInputImages {
+		return fmt.Errorf("too many images, max %d", adobe2APIMaxInputImages)
+	}
+	for _, file := range files {
+		if file != nil && file.Size > adobe2APIMaxImageBytes {
+			return fmt.Errorf("image too large, max 10MB")
+		}
+	}
+	for _, ref := range refs {
+		if size, ok := inlineImageDecodedSize(ref); ok && size > adobe2APIMaxImageBytes {
+			return fmt.Errorf("image too large, max 10MB")
+		}
+	}
+	return nil
+}
+
+func adobe2APIReferenceImageValuesForValidation(c *gin.Context, request dto.ImageRequest) []string {
+	refs := make([]string, 0, adobe2APIMaxInputImages)
+	hasMultipartForm := c != nil && c.Request != nil && c.Request.MultipartForm != nil
+	if !hasMultipartForm {
+		refs = append(refs, parseJSONStringList(request.Image)...)
+		refs = append(refs, parseJSONStringList(request.Images)...)
+		refs = append(refs, parseJSONStringList(request.Mask)...)
+	}
+	for _, key := range []string{"reference_images", "image_refs"} {
+		if raw, ok := request.Extra[key]; ok {
+			refs = append(refs, rawJSONStringList(raw)...)
+		}
+	}
+	if hasMultipartForm {
+		form := c.Request.MultipartForm
+		for _, field := range []string{"image", "image[]", "mask"} {
+			for _, value := range form.Value[field] {
+				if strings.TrimSpace(value) != "" {
+					refs = append(refs, value)
+				}
+			}
+		}
+	}
+	return refs
+}
+
+func inlineImageDecodedSize(raw string) (int64, bool) {
+	value := strings.TrimSpace(raw)
+	if !strings.HasPrefix(strings.ToLower(value), "data:") {
+		return 0, false
+	}
+	head, payload, ok := strings.Cut(value, ",")
+	if !ok {
+		return 0, true
+	}
+	if strings.Contains(strings.ToLower(head), ";base64") {
+		length := int64(len(strings.TrimSpace(payload)))
+		size := length * 3 / 4
+		if strings.HasSuffix(payload, "==") {
+			size -= 2
+		} else if strings.HasSuffix(payload, "=") {
+			size--
+		}
+		return size, true
+	}
+	decoded, err := url.PathUnescape(payload)
+	if err != nil {
+		return int64(len(payload)), true
+	}
+	return int64(len(decoded)), true
 }
 
 func isAdobe2APIChannel(info *relaycommon.RelayInfo) bool {

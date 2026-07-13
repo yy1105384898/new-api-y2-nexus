@@ -106,6 +106,35 @@ func TestGetClaimableImageAsyncTaskIDsPrioritizesSyncWaiters(t *testing.T) {
 	require.Equal(t, []string{priority.TaskID, normal.TaskID}, ids)
 }
 
+func TestImageTaskChannelLaneIsolation(t *testing.T) {
+	truncateTables(t)
+	regular := newQueuedImageTask("task_image_regular_lane")
+	regular.ChannelId = 77
+	regular.UserId = 7
+	insertTask(t, regular)
+	adobe := newQueuedImageTask("task_image_adobe_lane")
+	adobe.ChannelId = 75
+	adobe.UserId = 7
+	insertTask(t, adobe)
+
+	now := time.Now().Unix()
+	require.Equal(t, []string{adobe.TaskID}, GetClaimableImageAsyncTaskIDsForChannels(10, now, []int{75}, true))
+	require.Equal(t, []string{regular.TaskID}, GetClaimableImageAsyncTaskIDsForChannels(10, now, []int{75}, false))
+
+	global, perUser, err := CountActiveImageTasksForChannels(7, []int{75}, true)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), global)
+	require.Equal(t, int64(1), perUser)
+
+	_, won, err := ClaimImageAsyncTaskForChannels(adobe.TaskID, "regular-worker", time.Minute, []int{75}, false)
+	require.NoError(t, err)
+	require.False(t, won)
+	claimed, won, err := ClaimImageAsyncTaskForChannels(adobe.TaskID, "adobe-worker", time.Minute, []int{75}, true)
+	require.NoError(t, err)
+	require.True(t, won)
+	require.Equal(t, adobe.TaskID, claimed.TaskID)
+}
+
 func TestCountActiveImageTasks(t *testing.T) {
 	truncateTables(t)
 	first := newQueuedImageTask("task_image_count_1")

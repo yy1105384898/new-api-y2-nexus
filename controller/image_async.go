@@ -141,10 +141,6 @@ func RelayImageTaskSubmit(c *gin.Context) {
 
 	meta := request.GetTokenCountMeta()
 	userId := c.GetInt("id")
-	if taskErr := enforceImageTaskAdmission(c, userId); taskErr != nil {
-		respondTaskError(c, taskErr)
-		return
-	}
 	needSensitiveCheck := setting.ShouldCheckPromptSensitiveForUser(userId)
 	if meta != nil {
 		relaycommon.StorePromptInput(c, meta.CombineText)
@@ -185,6 +181,16 @@ func RelayImageTaskSubmit(c *gin.Context) {
 		relayInfo.UpstreamModelName = originModelName
 		if mapErr := helper.ModelMappedHelper(c, relayInfo, nil); mapErr != nil {
 			taskErr = service.TaskErrorWrapperLocal(mapErr, "model_mapping_failed", http.StatusBadRequest)
+			break
+		}
+		if imageReq, ok := request.(*dto.ImageRequest); ok {
+			if validateErr := openai.ValidateAdobe2APIImageInputs(c, relayInfo, *imageReq); validateErr != nil {
+				taskErr = service.TaskErrorWrapperLocal(validateErr, "invalid_request", http.StatusBadRequest)
+				break
+			}
+		}
+		if admissionErr := enforceImageTaskAdmission(c, userId, channel.Id); admissionErr != nil {
+			taskErr = admissionErr
 			break
 		}
 
@@ -247,7 +253,7 @@ func RelayImageTaskSubmit(c *gin.Context) {
 			break
 		}
 
-		image.EnqueueTask(task.TaskID)
+		image.EnqueueTaskForChannel(task.TaskID, task.ChannelId)
 		job := task.ToOpenAIImageJob(image.JobObjectForPath(requestPath))
 		if public := service.ClientFacingModelFromTask(task); public != "" {
 			job.Model = public
@@ -261,18 +267,31 @@ func RelayImageTaskSubmit(c *gin.Context) {
 	}
 }
 
-func enforceImageTaskAdmission(c *gin.Context, userID int) *dto.TaskError {
-	global, perUser, err := model.CountActiveImageTasks(userID)
+func enforceImageTaskAdmission(c *gin.Context, userID int, channelID int) *dto.TaskError {
+	adobeChannelIDs := image.AdobeDirectChannelIDs()
+	isAdobeLane := image.IsAdobeDirectChannel(channelID)
+	global, perUser, err := model.CountActiveImageTasksForChannels(userID, adobeChannelIDs, isAdobeLane)
 	if err != nil {
 		return service.TaskErrorWrapper(err, "image_queue_status_failed", http.StatusInternalServerError)
 	}
 	globalLimit := int64(common.GetEnvOrDefault("IMAGE_ASYNC_MAX_QUEUED_GLOBAL", 2000))
 	perUserLimit := int64(common.GetEnvOrDefault("IMAGE_ASYNC_MAX_QUEUED_PER_USER", 200))
+	if isAdobeLane {
+		globalLimit = int64(common.GetEnvOrDefault("IMAGE_ASYNC_ADOBE_MAX_QUEUED_GLOBAL", 500))
+		perUserLimit = int64(common.GetEnvOrDefault("IMAGE_ASYNC_ADOBE_MAX_QUEUED_PER_USER", 100))
+	}
 	if c.GetBool("image_sync_wait") {
-		globalLimit = int64(common.GetEnvOrDefault("IMAGE_SYNC_MAX_BACKLOG", 64))
+		if isAdobeLane {
+			globalLimit = int64(common.GetEnvOrDefault("IMAGE_SYNC_ADOBE_MAX_BACKLOG", 32))
+		} else {
+			globalLimit = int64(common.GetEnvOrDefault("IMAGE_SYNC_MAX_BACKLOG", 64))
+		}
 	}
 	if (globalLimit > 0 && global >= globalLimit) || (perUserLimit > 0 && perUser >= perUserLimit) {
 		c.Header("Retry-After", "5")
+		if isAdobeLane {
+			c.Header("X-Image-Queue-Lane", "adobe")
+		}
 		return service.TaskErrorWrapperLocal(
 			fmt.Errorf("image queue is at capacity; retry later"),
 			"image_queue_full",
