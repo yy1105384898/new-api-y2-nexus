@@ -16,6 +16,7 @@ import json
 import os
 import subprocess
 import time
+from pathlib import Path
 
 
 FAMILIES = (
@@ -29,6 +30,26 @@ BASIC_RATIOS = ("1:1", "4:3", "3:4", "16:9", "9:16")
 BANANA_PRO_RATIOS = ("1:1", "5:4", "9:16", "21:9", "16:9", "3:2", "4:3", "4:5", "3:4", "2:3")
 BANANA2_RATIOS = BASIC_RATIOS + ("1:8", "1:4", "4:1", "8:1")
 GPT_IMAGE_RATIOS = ("1:1", "5:4", "7:6", "9:16", "21:9", "16:9", "3:2", "4:3", "4:5", "3:4", "2:3")
+GPT_IMAGE_TIER_LIMITS = {
+    "1K": 1_048_576,
+    "2K": 4_194_304,
+    "4K": 8_294_400,
+}
+GPT_IMAGE_EXAMPLE_SIZES = {
+    "1K": "1024x1024",
+    "2K": "2048x2048",
+    "4K": "3840x2160",
+}
+REFERENCE_ALIASES = (
+    "image",
+    "images",
+    "imageUrls",
+    "image_urls",
+    "reference_images",
+    "referenceImages",
+    "image_refs",
+)
+PROFILE_JSON_PATH = Path(__file__).resolve().parent / "seed_data" / "model_ui_params_image.json"
 
 
 def specs() -> list[dict]:
@@ -62,37 +83,105 @@ def specs() -> list[dict]:
 def build_doc(spec: dict) -> dict:
     public = spec["public"]
     tier = spec["tier"]
+    is_gpt_image = public.startswith("gpt-image-2-")
     common_params = [
-        {"name": "model", "description": f"必填，固定传 {public}。"},
+        {"name": "model", "description": f"必填，固定传 {public}；模型名决定 {tier} 计费与像素预算。"},
         {"name": "prompt", "description": "必填，生图或编辑指令。prompt 中的 1K/2K/4K 文字不会改变计费档位。"},
-        {"name": "aspect_ratio", "description": "支持任意正整数 W:H（如 7:6、110:73）；常用预设：" + "、".join(spec["ratios"]) + f"；默认 16:9。只改变画幅，不改变 {tier} 分辨率和计费档位。"},
-        {"name": "image_size", "description": f"可省略；如传必须为 {tier}，服务端始终按 SKU 固定为 {tier}，不会被 aspect_ratio 覆盖。"},
-        {"name": "size", "description": f"OpenAI 兼容字段；只能表达画幅或与 {tier} 一致的尺寸，错档返回 400。"},
-        {"name": "quality", "description": f"OpenAI 兼容字段；如传必须对应 {tier}，错档返回 400。"},
-        {"name": "images", "description": "JSON 参考图数组，最多 9 张；支持 JPEG/PNG/WebP 公网 URL 或 data URI，单张不超过 10MB。"},
-        {"name": "image", "description": "multipart 图生图文件字段；最多 6 张，重复提交同名 image 字段。"},
-        {"name": "n", "description": "仅支持 1；大于 1 返回 400。"},
-        {"name": "async", "description": "true 返回异步任务；省略或 false 同步返回图片。"},
     ]
-    basic = {"model": public, "prompt": "电影感城市夜景", "aspect_ratio": "16:9", "image_size": tier}
+    if is_gpt_image:
+        max_pixels = GPT_IMAGE_TIER_LIMITS[tier]
+        common_params.extend(
+            [
+                {
+                    "name": "size",
+                    "description": (
+                        "精确尺寸传 WIDTHxHEIGHT 时校验后原样转发，不推断比例或重算尺寸；"
+                        "两边须为 16 的倍数，最长边不超过 3840px，长短边比例不超过 3:1，"
+                        f"总像素为 655360–{max_pixels}。也可传 W:H 比例，由平台在 {tier} 像素预算内计算尺寸。"
+                    ),
+                },
+                {
+                    "name": "aspect_ratio",
+                    "description": (
+                        "比例输入，支持正整数 W:H；常用预设："
+                        + "、".join(spec["ratios"])
+                        + f"。仅在未传精确 size 时计算 {tier} 档位内的尺寸。"
+                    ),
+                },
+                {
+                    "name": "quality",
+                    "description": "画质可选 low、medium、high；省略或传 auto 时默认为 medium。quality 不改变模型档位、像素预算或计费。",
+                },
+                {
+                    "name": "image_size / output_resolution",
+                    "description": f"可省略；模型名已固定 {tier} 档位。如传必须为 {tier}，错档在扣费前返回 400。",
+                },
+            ]
+        )
+    else:
+        common_params.extend(
+            [
+                {"name": "aspect_ratio", "description": "支持任意正整数 W:H（如 7:6、110:73）；常用预设：" + "、".join(spec["ratios"]) + f"；默认 16:9。只改变画幅，不改变 {tier} 分辨率和计费档位。"},
+                {"name": "image_size / output_resolution", "description": f"可省略；如传必须为 {tier}，服务端始终按 SKU 固定为 {tier}，不会被 aspect_ratio 覆盖。"},
+                {"name": "size", "description": f"OpenAI 兼容字段；只能表达画幅或与 {tier} 一致的尺寸，错档返回 400。"},
+                {"name": "quality", "description": f"OpenAI 兼容档位别名；如传必须对应 {tier}，错档返回 400。"},
+            ]
+        )
+    common_params.extend(
+        [
+            {
+                "name": " / ".join(REFERENCE_ALIASES),
+                "description": "JSON 参考图别名；支持 JPEG/PNG/WebP 公网 URL 或 data URI。别名之间会去重，最多 9 张唯一参考图，单张不超过 10MB。",
+            },
+            {"name": "multipart image", "description": "multipart 图生图文件字段；重复提交同名 image，最多 9 张。"},
+            {"name": "n", "description": "仅支持 1；大于 1 返回 400。"},
+            {"name": "async", "description": "true 返回异步任务；省略或 false 同步返回图片。"},
+        ]
+    )
+    if is_gpt_image:
+        basic = {
+            "model": public,
+            "prompt": "电影感城市夜景",
+            "size": GPT_IMAGE_EXAMPLE_SIZES[tier],
+            "quality": "medium",
+            "n": 1,
+        }
+    else:
+        basic = {"model": public, "prompt": "电影感城市夜景", "aspect_ratio": "16:9", "image_size": tier}
     async_request = {**basic, "async": True}
+    sync_params = list(common_params)
+    if is_gpt_image:
+        sync_params.append(
+            {
+                "name": "response_format",
+                "description": "同步模式可选 url（默认）或 b64_json；异步任务完成后返回 URL。",
+            }
+        )
+    sync_intro = (
+        f"Adobe Firefly {spec['label']} {tier} 固定计费档位。POST /v1/images/generations 同步出图。"
+        + ("支持 response_format=url（默认）或 b64_json。" if is_gpt_image else "输出固定为 PNG URL；不支持 seed、response_format、背景、格式或压缩参数。")
+    )
+    async_intro = (
+        f"Adobe Firefly {spec['label']} {tier} 固定计费档位异步模式。提交后按创建入口通过任务 ID 轮询。"
+        + ("任务完成后返回 PNG URL。" if is_gpt_image else "输出固定为 PNG URL；不支持 seed、response_format、背景、格式或压缩参数。")
+    )
     return {
         "modes": {
             "sync": {
                 "dispatch_mode": "sync",
-                "intro": f"Adobe Firefly {spec['label']} {tier} 固定档位。POST /v1/images/generations 同步出图。输出固定为 PNG URL；不支持 seed、response_format、背景、格式或压缩参数。",
+                "intro": sync_intro,
                 "endpoints": [
                     {"method": "POST", "path": "{{base}}/images/generations", "description": "同步文生图（JSON）。"},
                     {"method": "POST", "path": "{{base}}/images/edits", "description": "同步图生图（multipart，重复 image 字段）。"},
                 ],
-                "basic_request_json": basic,
-                "request_json": dict(basic, images=["https://example.com/reference.png"]),
-                "params": common_params,
+                "basic_request_json": dict(basic, **({"response_format": "url"} if is_gpt_image else {})),
+                "request_json": dict(basic, images=["https://example.com/reference.png"], **({"response_format": "url"} if is_gpt_image else {})),
+                "params": sync_params,
                 "create_response_json": {"created": 1715923200, "data": [{"url": "https://example.com/image.png"}]},
             },
             "async": {
                 "dispatch_mode": "async",
-                "intro": f"Adobe Firefly {spec['label']} {tier} 异步模式。提交后按创建入口通过任务 ID 轮询。输出固定为 PNG URL；不支持 seed、response_format、背景、格式或压缩参数。",
+                "intro": async_intro,
                 "endpoints": [
                     {"method": "POST", "path": "{{base}}/images/generations", "description": "异步提交，async=true。"},
                     {"method": "POST", "path": "{{base}}/images/edits", "description": "异步图生图（multipart）。"},
@@ -120,6 +209,50 @@ def build_doc(spec: dict) -> dict:
             },
         }
     }
+
+
+def validate_generated_docs(all_specs: list[dict]) -> None:
+    docs = {spec["public"]: build_doc(spec) for spec in all_specs}
+    for tier in TIERS:
+        public = f"gpt-image-2-{tier}"
+        doc_text = json.dumps(docs[public], ensure_ascii=False)
+        required = (
+            "默认为 medium",
+            "不改变模型档位",
+            "原样转发",
+            "最长边不超过 3840px",
+            "最多 9 张",
+            "imageUrls",
+            "referenceImages",
+            "response_format",
+        )
+        missing = [text for text in required if text not in doc_text]
+        if missing:
+            raise ValueError(f"{public} api_doc missing contract text: {missing}")
+        if "最多 6 张" in doc_text:
+            raise ValueError(f"{public} api_doc contains the obsolete six-image limit")
+        if "quality" not in docs[public]["modes"]["sync"]["basic_request_json"]:
+            raise ValueError(f"{public} sync example must include the default quality")
+
+
+def validate_gpt_image_profiles() -> None:
+    profile_doc = json.loads(PROFILE_JSON_PATH.read_text(encoding="utf-8"))
+    profiles = {profile.get("id"): profile for profile in profile_doc.get("profiles", [])}
+    for tier in TIERS:
+        profile_id = f"image-tpl-adobe2api-gpt-image-2-{tier}"
+        profile = profiles.get(profile_id)
+        if not profile:
+            raise ValueError(f"missing image profile {profile_id}")
+        params = profile.get("params") or {}
+        quality = params.get("quality") or {}
+        quality_values = [option.get("value") for option in quality.get("options") or []]
+        if not quality.get("enabled") or quality_values != ["medium", "low", "high"]:
+            raise ValueError(f"{profile_id} quality must default to medium and expose low/high")
+        if not (params.get("customDimensions") or {}).get("enabled"):
+            raise ValueError(f"{profile_id} must allow exact custom dimensions")
+        count = params.get("count") or {}
+        if count.get("min") != 1 or count.get("max") != 1:
+            raise ValueError(f"{profile_id} must keep n fixed at 1")
 
 
 def psql(sql: str, *, capture: bool = False) -> str:
@@ -150,8 +283,14 @@ def load_prices(required: set[str]) -> dict[str, float]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--docs-only", action="store_true")
+    parser.add_argument("--check", action="store_true", help="只校验生成文档，不连接数据库。")
     args = parser.parse_args()
     all_specs = specs()
+    validate_generated_docs(all_specs)
+    validate_gpt_image_profiles()
+    if args.check:
+        print(f"validated {len(all_specs)} Adobe Firefly image api_doc payloads")
+        return
     now = int(time.time())
 
     for spec in all_specs:
