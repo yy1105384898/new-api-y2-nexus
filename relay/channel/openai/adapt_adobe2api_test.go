@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -610,6 +611,88 @@ func TestBuildAdobe2APIImageEditMultipartUsesRepeatedImageField(t *testing.T) {
 	}
 	if len(parsed.File["image[]"]) != 0 {
 		t.Fatalf("unexpected image[] files: %#v", parsed.File["image[]"])
+	}
+}
+
+func TestBuildAdobe2APIImageEditMultipartPreservesMaskFile(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	_ = writer.WriteField("model", "adobe-firefly-gpt-image-2-1k")
+	_ = writer.WriteField("prompt", "replace only the masked area")
+	imagePart, err := writer.CreateFormFile("image", "source.png")
+	if err != nil {
+		t.Fatalf("create image: %v", err)
+	}
+	_, _ = imagePart.Write([]byte("source-png"))
+	maskPart, err := writer.CreateFormFile("mask", "mask.png")
+	if err != nil {
+		t.Fatalf("create mask: %v", err)
+	}
+	_, _ = maskPart.Write([]byte("mask-png"))
+	_ = writer.Close()
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
+	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "adobe-firefly-gpt-image-2-1k",
+		RelayMode:       relayconstant.RelayModeImagesEdits,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelId:         75,
+			UpstreamModelName: "gpt-image",
+		},
+	}
+
+	out, err := BuildAdobe2APIImageEditMultipart(c, info, dto.ImageRequest{
+		Model:  "adobe-firefly-gpt-image-2-1k",
+		Prompt: "replace only the masked area",
+	})
+	if err != nil {
+		t.Fatalf("build multipart: %v", err)
+	}
+	_, params, err := mime.ParseMediaType(c.Request.Header.Get("Content-Type"))
+	if err != nil {
+		t.Fatalf("parse content type: %v", err)
+	}
+	parsed, err := multipart.NewReader(out, params["boundary"]).ReadForm(1 << 20)
+	if err != nil {
+		t.Fatalf("parse multipart: %v", err)
+	}
+	if files := parsed.File["image"]; len(files) != 1 || files[0].Filename != "source.png" {
+		t.Fatalf("image files = %#v", files)
+	}
+	if files := parsed.File["mask"]; len(files) != 1 || files[0].Filename != "mask.png" {
+		t.Fatalf("mask files = %#v", files)
+	}
+}
+
+func TestConvertAdobe2APIImageRequestKeepsMaskSeparateFromReferences(t *testing.T) {
+	mask := "https://example.com/mask.png"
+	bodyAny, err := ConvertAdobe2APIImageRequest(nil, &relaycommon.RelayInfo{
+		OriginModelName: "adobe-firefly-gpt-image-2-1k",
+		RelayMode:       relayconstant.RelayModeImagesEdits,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelId:         75,
+			UpstreamModelName: "gpt-image",
+		},
+	}, dto.ImageRequest{
+		Model:  "adobe-firefly-gpt-image-2-1k",
+		Prompt: "masked edit",
+		Image:  json.RawMessage(`"https://example.com/source.png"`),
+		Mask:   json.RawMessage(strconv.Quote(mask)),
+	})
+	if err != nil {
+		t.Fatalf("convert: %v", err)
+	}
+	body := bodyAny.(map[string]any)
+	if body["mask"] != mask {
+		t.Fatalf("mask = %#v", body["mask"])
+	}
+	refs, ok := body["images"].([]string)
+	if !ok || len(refs) != 1 || refs[0] != "https://example.com/source.png" {
+		t.Fatalf("images = %#v", body["images"])
 	}
 }
 

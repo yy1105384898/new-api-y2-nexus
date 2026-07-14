@@ -152,6 +152,25 @@ func ValidateAdobe2APIImageInputs(c *gin.Context, info *relaycommon.RelayInfo, r
 			return fmt.Errorf("image too large, max 10MB")
 		}
 	}
+	maskFiles, err := collectAdobe2APIMultipartMaskFiles(c)
+	if err != nil {
+		return err
+	}
+	maskValues := adobe2APIMaskValues(c, request)
+	if len(maskFiles)+len(maskValues) > 1 {
+		return fmt.Errorf("mask supports exactly one file or URL")
+	}
+	if (len(maskFiles) > 0 || len(maskValues) > 0) && !isAdobe2APIGPTImageModelName(modelName) {
+		return fmt.Errorf("mask is only supported for Adobe GPT Image 2")
+	}
+	if len(maskFiles) == 1 && maskFiles[0] != nil && maskFiles[0].Size > adobe2APIMaxImageBytes {
+		return fmt.Errorf("mask too large, max 10MB")
+	}
+	for _, value := range maskValues {
+		if size, ok := inlineImageDecodedSize(value); ok && size > adobe2APIMaxImageBytes {
+			return fmt.Errorf("mask too large, max 10MB")
+		}
+	}
 	return nil
 }
 
@@ -161,7 +180,6 @@ func adobe2APIReferenceImageValuesForValidation(c *gin.Context, request dto.Imag
 	if !hasMultipartForm {
 		refs = append(refs, parseJSONStringList(request.Image)...)
 		refs = append(refs, parseJSONStringList(request.Images)...)
-		refs = append(refs, parseJSONStringList(request.Mask)...)
 	}
 	for _, key := range adobe2APIReferenceImageAliasKeys {
 		if raw, ok := request.Extra[key]; ok {
@@ -170,7 +188,7 @@ func adobe2APIReferenceImageValuesForValidation(c *gin.Context, request dto.Imag
 	}
 	if hasMultipartForm {
 		form := c.Request.MultipartForm
-		for _, field := range []string{"image", "image[]", "mask"} {
+		for _, field := range []string{"image", "image[]"} {
 			for _, value := range form.Value[field] {
 				if strings.TrimSpace(value) != "" {
 					refs = append(refs, value)
@@ -179,6 +197,14 @@ func adobe2APIReferenceImageValuesForValidation(c *gin.Context, request dto.Imag
 		}
 	}
 	return uniqueNonEmptyStrings(refs)
+}
+
+func adobe2APIMaskValues(c *gin.Context, request dto.ImageRequest) []string {
+	values := parseJSONStringList(request.Mask)
+	if c != nil && c.Request != nil && c.Request.MultipartForm != nil {
+		values = append(values, c.Request.MultipartForm.Value["mask"]...)
+	}
+	return uniqueNonEmptyStrings(values)
 }
 
 func inlineImageDecodedSize(raw string) (int64, bool) {
@@ -349,6 +375,16 @@ func ConvertAdobe2APIImageRequest(c *gin.Context, info *relaycommon.RelayInfo, r
 	if len(refs) > 0 {
 		body["images"] = refs
 	}
+	maskValues, err := adobe2APIMaskInputs(c, request)
+	if err != nil {
+		return nil, err
+	}
+	if len(maskValues) > 0 {
+		if !isAdobe2APIGPTImageModelName(modelName) {
+			return nil, fmt.Errorf("mask is only supported for Adobe GPT Image 2")
+		}
+		body["mask"] = maskValues[0]
+	}
 	return body, nil
 }
 
@@ -365,10 +401,21 @@ func BuildAdobe2APIImageEditMultipart(c *gin.Context, info *relaycommon.RelayInf
 	if len(imageFiles) == 0 {
 		return nil, fmt.Errorf("image is required")
 	}
+	maskFiles, err := collectAdobe2APIMultipartMaskFiles(c)
+	if err != nil {
+		return nil, err
+	}
+	maskValues := adobe2APIMaskValues(c, request)
+	if len(maskFiles)+len(maskValues) > 1 {
+		return nil, fmt.Errorf("mask supports exactly one file or URL")
+	}
 
 	modelName := resolveAdobe2APIUpstreamModel(info, request.Model)
 	if modelName == "" {
 		return nil, fmt.Errorf("model is required")
+	}
+	if (len(maskFiles) > 0 || len(maskValues) > 0) && !isAdobe2APIGPTImageModelName(modelName) {
+		return nil, fmt.Errorf("mask is only supported for Adobe GPT Image 2")
 	}
 
 	var requestBody bytes.Buffer
@@ -379,24 +426,18 @@ func BuildAdobe2APIImageEditMultipart(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	for i, fileHeader := range imageFiles {
-		file, err := fileHeader.Open()
-		if err != nil {
-			return nil, fmt.Errorf("failed to open image file %d: %w", i, err)
+		if err := writeAdobe2APIMultipartFile(writer, "image", fileHeader); err != nil {
+			return nil, fmt.Errorf("write image file %d: %w", i, err)
 		}
-		mimeType := detectImageMimeType(fileHeader.Filename)
-		h := make(textproto.MIMEHeader)
-		h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="image"; filename="%s"`, fileHeader.Filename))
-		h.Set("Content-Type", mimeType)
-		part, err := writer.CreatePart(h)
-		if err != nil {
-			_ = file.Close()
-			return nil, fmt.Errorf("create form part failed for image %d: %w", i, err)
+	}
+	if len(maskFiles) == 1 {
+		if err := writeAdobe2APIMultipartFile(writer, "mask", maskFiles[0]); err != nil {
+			return nil, fmt.Errorf("write mask file: %w", err)
 		}
-		if _, err := io.Copy(part, file); err != nil {
-			_ = file.Close()
-			return nil, fmt.Errorf("copy file failed for image %d: %w", i, err)
+	} else if len(maskValues) == 1 {
+		if err := writer.WriteField("mask", maskValues[0]); err != nil {
+			return nil, fmt.Errorf("write mask URL: %w", err)
 		}
-		_ = file.Close()
 	}
 
 	if err := writer.Close(); err != nil {
@@ -406,6 +447,24 @@ func BuildAdobe2APIImageEditMultipart(c *gin.Context, info *relaycommon.RelayInf
 		c.Request.Header.Set("Content-Type", writer.FormDataContentType())
 	}
 	return &requestBody, nil
+}
+
+func writeAdobe2APIMultipartFile(writer *multipart.Writer, fieldName string, fileHeader *multipart.FileHeader) error {
+	file, err := fileHeader.Open()
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	mimeType := detectImageMimeType(fileHeader.Filename)
+	header := make(textproto.MIMEHeader)
+	header.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, fileHeader.Filename))
+	header.Set("Content-Type", mimeType)
+	part, err := writer.CreatePart(header)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(part, file)
+	return err
 }
 
 func writeAdobe2APIImageEditFormFields(writer *multipart.Writer, info *relaycommon.RelayInfo, request dto.ImageRequest, modelName string) error {
@@ -537,6 +596,23 @@ func collectAdobe2APIMultipartImageFiles(c *gin.Context) ([]*multipart.FileHeade
 		}
 	}
 	return imageFiles, nil
+}
+
+func collectAdobe2APIMultipartMaskFiles(c *gin.Context) ([]*multipart.FileHeader, error) {
+	if c == nil || c.Request == nil {
+		return nil, nil
+	}
+	if err := ensureMultipartFormParsed(c); err != nil {
+		return nil, err
+	}
+	if c.Request.MultipartForm == nil || c.Request.MultipartForm.File == nil {
+		return nil, nil
+	}
+	files := c.Request.MultipartForm.File["mask"]
+	if len(files) > 1 {
+		return nil, fmt.Errorf("mask supports exactly one file")
+	}
+	return files, nil
 }
 
 func adobe2APIImageSize(info *relaycommon.RelayInfo, request dto.ImageRequest) string {
@@ -859,12 +935,38 @@ func adobe2APIReferenceImages(c *gin.Context, request dto.ImageRequest) ([]strin
 			refs = append(refs, rawJSONStringList(raw)...)
 		}
 	}
-	extracted, err := collectChatImageReferenceURLs(c, request)
+	refs = append(refs, parseJSONStringList(request.Image)...)
+	refs = append(refs, parseJSONStringList(request.Images)...)
+	if c != nil && c.Request != nil {
+		if err := ensureMultipartFormParsed(c); err != nil {
+			return nil, err
+		}
+		if c.Request.MultipartForm != nil {
+			refs = append(refs, c.Request.MultipartForm.Value["image"]...)
+			refs = append(refs, c.Request.MultipartForm.Value["image[]"]...)
+		}
+	}
+	return uniqueNonEmptyStrings(refs), nil
+}
+
+func adobe2APIMaskInputs(c *gin.Context, request dto.ImageRequest) ([]string, error) {
+	values := adobe2APIMaskValues(c, request)
+	files, err := collectAdobe2APIMultipartMaskFiles(c)
 	if err != nil {
 		return nil, err
 	}
-	refs = append(refs, extracted...)
-	return uniqueNonEmptyStrings(refs), nil
+	for _, file := range files {
+		dataURI, err := multipartFileToDataURI(file)
+		if err != nil {
+			return nil, err
+		}
+		values = append(values, dataURI)
+	}
+	values = uniqueNonEmptyStrings(values)
+	if len(values) > 1 {
+		return nil, fmt.Errorf("mask supports exactly one file or URL")
+	}
+	return values, nil
 }
 
 func ConvertAdobe2APIOpenAIChatRequest(c *gin.Context, request *dto.GeneralOpenAIRequest, info *relaycommon.RelayInfo) (any, error) {

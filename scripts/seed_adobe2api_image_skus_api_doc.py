@@ -116,6 +116,14 @@ def build_doc(spec: dict) -> dict:
                     "name": "image_size / output_resolution",
                     "description": f"可省略；模型名已固定 {tier} 档位。如传必须为 {tier}，错档在扣费前返回 400。",
                 },
+                {
+                    "name": "multipart mask",
+                    "description": (
+                        "可选，GPT Image 2 局部重绘蒙版。仅在 POST /v1/images/edits 使用；"
+                        "只支持 1 个 PNG 文件或 HTTPS URL，须带 alpha 通道，并与第一张 input image 同格式、同尺寸；"
+                        "透明区域为编辑区，单文件不超过 10MB。"
+                    ),
+                },
             ]
         )
     else:
@@ -172,7 +180,7 @@ def build_doc(spec: dict) -> dict:
                 "intro": sync_intro,
                 "endpoints": [
                     {"method": "POST", "path": "{{base}}/images/generations", "description": "同步文生图（JSON）。"},
-                    {"method": "POST", "path": "{{base}}/images/edits", "description": "同步图生图（multipart，重复 image 字段）。"},
+                    {"method": "POST", "path": "{{base}}/images/edits", "description": "同步图生图（multipart，重复 image 字段；GPT Image 2 可附带单个 mask 局部重绘）。"},
                 ],
                 "basic_request_json": dict(basic, **({"response_format": "url"} if is_gpt_image else {})),
                 "request_json": dict(basic, images=["https://example.com/reference.png"], **({"response_format": "url"} if is_gpt_image else {})),
@@ -184,7 +192,7 @@ def build_doc(spec: dict) -> dict:
                 "intro": async_intro,
                 "endpoints": [
                     {"method": "POST", "path": "{{base}}/images/generations", "description": "异步提交，async=true。"},
-                    {"method": "POST", "path": "{{base}}/images/edits", "description": "异步图生图（multipart）。"},
+                    {"method": "POST", "path": "{{base}}/images/edits", "description": "异步图生图（multipart；GPT Image 2 可附带单个 mask 局部重绘）。"},
                     {"method": "GET", "path": "{{base}}/images/generations/{task_id}", "description": "轮询任务状态与结果。"},
                     {"method": "GET", "path": "{{base}}/images/edits/{task_id}", "description": "轮询 multipart 图生图任务。"},
                 ],
@@ -225,6 +233,8 @@ def validate_generated_docs(all_specs: list[dict]) -> None:
             "imageUrls",
             "referenceImages",
             "response_format",
+            "multipart mask",
+            "alpha 通道",
         )
         missing = [text for text in required if text not in doc_text]
         if missing:
