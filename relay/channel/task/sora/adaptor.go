@@ -162,7 +162,7 @@ func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, erro
 // BuildRequestHeader sets required headers.
 func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
 	req.Header.Set("Authorization", "Bearer "+a.apiKey)
-	if isManxiaobaiGrokVideo(info) {
+	if isJSONGrokVideo(info) {
 		req.Header.Set("Content-Type", "application/json")
 		return nil
 	}
@@ -170,11 +170,14 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 	return nil
 }
 
-func isManxiaobaiGrokVideo(info *relaycommon.RelayInfo) bool {
-	return info.ChannelId == 184 && strings.HasPrefix(info.UpstreamModelName, "grok-video")
+func isJSONGrokVideo(info *relaycommon.RelayInfo) bool {
+	if info.ChannelId == 192 && info.UpstreamModelName == "grok-imagine-video" {
+		return true
+	}
+	return (info.ChannelId == 182 || info.ChannelId == 184) && strings.HasPrefix(info.UpstreamModelName, "grok-video")
 }
 
-func buildManxiaobaiGrokVideoJSON(formData *multipart.Form, upstreamModel string) (io.Reader, error) {
+func buildJSONGrokVideoBody(formData *multipart.Form, upstreamModel string) (io.Reader, error) {
 	body := make(map[string]any, len(formData.Value)+2)
 	body["model"] = upstreamModel
 	imageURLs := make([]string, 0)
@@ -257,8 +260,8 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if err != nil {
 			return bytes.NewReader(cachedBody), nil
 		}
-		if isManxiaobaiGrokVideo(info) {
-			return buildManxiaobaiGrokVideoJSON(formData, info.UpstreamModelName)
+		if isJSONGrokVideo(info) {
+			return buildJSONGrokVideoBody(formData, info.UpstreamModelName)
 		}
 		var buf bytes.Buffer
 		writer := multipart.NewWriter(&buf)

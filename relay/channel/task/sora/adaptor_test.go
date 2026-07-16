@@ -29,7 +29,7 @@ func TestBuildRequestURL_Sub2APIGrokImagineVideo(t *testing.T) {
 	}
 }
 
-func TestBuildManxiaobaiGrokVideoJSON(t *testing.T) {
+func TestBuildJSONGrokVideoBody(t *testing.T) {
 	var payload bytes.Buffer
 	writer := multipart.NewWriter(&payload)
 	if err := writer.WriteField("prompt", "animate this image"); err != nil {
@@ -51,7 +51,7 @@ func TestBuildManxiaobaiGrokVideoJSON(t *testing.T) {
 	}
 	defer form.RemoveAll()
 
-	body, err := buildManxiaobaiGrokVideoJSON(form, "grok-video-1.5")
+	body, err := buildJSONGrokVideoBody(form, "grok-video-1.5")
 	if err != nil {
 		t.Fatal(err)
 	}
