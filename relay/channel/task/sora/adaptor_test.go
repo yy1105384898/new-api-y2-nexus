@@ -4,9 +4,27 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 )
+
+func TestBuildRequestURL_Sub2APIGrokImagineVideo(t *testing.T) {
+	adaptor := &TaskAdaptor{baseURL: "http://sub2api:8091"}
+	url, err := adaptor.BuildRequestURL(&relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelId:         192,
+			UpstreamModelName: "grok-imagine-video",
+		},
+		TaskRelayInfo: &relaycommon.TaskRelayInfo{Action: constant.TaskActionGenerate},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if url != "http://sub2api:8091/v1/videos/generations" {
+		t.Fatalf("got %q", url)
+	}
+}
 
 func TestParseTaskResult_GZFormat(t *testing.T) {
 	adaptor := &TaskAdaptor{}
