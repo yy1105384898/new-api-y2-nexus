@@ -12,7 +12,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 )
 
-func TestBuildRequestURL_Sub2APIGrokImagineVideo(t *testing.T) {
+func TestBuildRequestURL_GrokImagineVideo(t *testing.T) {
 	adaptor := &TaskAdaptor{baseURL: "http://sub2api:8091"}
 	url, err := adaptor.BuildRequestURL(&relaycommon.RelayInfo{
 		ChannelMeta: &relaycommon.ChannelMeta{
@@ -24,7 +24,7 @@ func TestBuildRequestURL_Sub2APIGrokImagineVideo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if url != "http://sub2api:8091/v1/videos/generations" {
+	if url != "http://sub2api:8091/v1/videos" {
 		t.Fatalf("got %q", url)
 	}
 }
@@ -62,37 +62,6 @@ func TestBuildJSONGrokVideoBody(t *testing.T) {
 	if !bytes.Contains(data, []byte(`"model":"grok-video-1.5"`)) ||
 		!bytes.Contains(data, []byte(`"image_urls":["data:image/png;base64,`)) {
 		t.Fatalf("unexpected JSON body: %s", data)
-	}
-}
-
-func TestBuildJSONGrokVideoBody_DropsImaginePreset(t *testing.T) {
-	var payload bytes.Buffer
-	writer := multipart.NewWriter(&payload)
-	if err := writer.WriteField("preset", "standard"); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.WriteField("resolution_name", "720P"); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.Close(); err != nil {
-		t.Fatal(err)
-	}
-	form, err := multipart.NewReader(&payload, writer.Boundary()).ReadForm(1024 * 1024)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer form.RemoveAll()
-
-	body, err := buildJSONGrokVideoBody(form, "grok-imagine-video")
-	if err != nil {
-		t.Fatal(err)
-	}
-	data, err := io.ReadAll(body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if bytes.Contains(data, []byte(`"preset"`)) || bytes.Contains(data, []byte(`"resolution_name"`)) {
-		t.Fatalf("UI-only fields must not be forwarded: %s", data)
 	}
 }
 

@@ -152,10 +152,6 @@ func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, erro
 	if info.Action == constant.TaskActionRemix {
 		return fmt.Sprintf("%s/v1/videos/%s/remix", a.baseURL, info.OriginTaskID), nil
 	}
-	// sub2api's Grok Imagine video endpoint differs from the public OpenAI-style video entry.
-	if info.ChannelId == 192 && info.UpstreamModelName == "grok-imagine-video" {
-		return fmt.Sprintf("%s/v1/videos/generations", a.baseURL), nil
-	}
 	return fmt.Sprintf("%s/v1/videos", a.baseURL), nil
 }
 
@@ -171,9 +167,6 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 }
 
 func isJSONGrokVideo(info *relaycommon.RelayInfo) bool {
-	if info.ChannelId == 192 && info.UpstreamModelName == "grok-imagine-video" {
-		return true
-	}
 	return (info.ChannelId == 182 || info.ChannelId == 184) && strings.HasPrefix(info.UpstreamModelName, "grok-video")
 }
 
@@ -185,11 +178,6 @@ func buildJSONGrokVideoBody(formData *multipart.Form, upstreamModel string) (io.
 		switch key {
 		case "model":
 			continue
-		case "preset", "resolution_name":
-			// Grok Imagine rejects these UI-only display fields.
-			if upstreamModel == "grok-imagine-video" {
-				continue
-			}
 		case "input_reference", "input_reference[]", "image_urls":
 			imageURLs = append(imageURLs, values...)
 		default:
