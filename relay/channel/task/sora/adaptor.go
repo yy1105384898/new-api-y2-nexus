@@ -2,6 +2,7 @@ package sora
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -161,8 +162,65 @@ func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, erro
 // BuildRequestHeader sets required headers.
 func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
 	req.Header.Set("Authorization", "Bearer "+a.apiKey)
+	if isManxiaobaiGrokVideo(info) {
+		req.Header.Set("Content-Type", "application/json")
+		return nil
+	}
 	req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	return nil
+}
+
+func isManxiaobaiGrokVideo(info *relaycommon.RelayInfo) bool {
+	return info.ChannelId == 184 && strings.HasPrefix(info.UpstreamModelName, "grok-video")
+}
+
+func buildManxiaobaiGrokVideoJSON(formData *multipart.Form, upstreamModel string) (io.Reader, error) {
+	body := make(map[string]any, len(formData.Value)+2)
+	body["model"] = upstreamModel
+	imageURLs := make([]string, 0)
+	for key, values := range formData.Value {
+		switch key {
+		case "model":
+			continue
+		case "input_reference", "input_reference[]", "image_urls":
+			imageURLs = append(imageURLs, values...)
+		default:
+			if len(values) == 1 {
+				body[key] = values[0]
+			} else {
+				body[key] = values
+			}
+		}
+	}
+	for fieldName, fileHeaders := range formData.File {
+		if fieldName != "input_reference" && fieldName != "input_reference[]" && fieldName != "image" {
+			continue
+		}
+		for _, fh := range fileHeaders {
+			file, err := fh.Open()
+			if err != nil {
+				return nil, err
+			}
+			content, readErr := io.ReadAll(file)
+			file.Close()
+			if readErr != nil {
+				return nil, readErr
+			}
+			contentType := fh.Header.Get("Content-Type")
+			if contentType == "" || contentType == "application/octet-stream" {
+				contentType = http.DetectContentType(content)
+			}
+			imageURLs = append(imageURLs, "data:"+contentType+";base64,"+base64.StdEncoding.EncodeToString(content))
+		}
+	}
+	if len(imageURLs) > 0 {
+		body["image_urls"] = imageURLs
+	}
+	data, err := common.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewReader(data), nil
 }
 
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
@@ -198,6 +256,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		formData, err := common.ParseMultipartFormReusable(c)
 		if err != nil {
 			return bytes.NewReader(cachedBody), nil
+		}
+		if isManxiaobaiGrokVideo(info) {
+			return buildManxiaobaiGrokVideoJSON(formData, info.UpstreamModelName)
 		}
 		var buf bytes.Buffer
 		writer := multipart.NewWriter(&buf)

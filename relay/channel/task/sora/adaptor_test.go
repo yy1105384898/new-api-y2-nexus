@@ -1,6 +1,9 @@
 package sora
 
 import (
+	"bytes"
+	"io"
+	"mime/multipart"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -23,6 +26,42 @@ func TestBuildRequestURL_Sub2APIGrokImagineVideo(t *testing.T) {
 	}
 	if url != "http://sub2api:8091/v1/videos/generations" {
 		t.Fatalf("got %q", url)
+	}
+}
+
+func TestBuildManxiaobaiGrokVideoJSON(t *testing.T) {
+	var payload bytes.Buffer
+	writer := multipart.NewWriter(&payload)
+	if err := writer.WriteField("prompt", "animate this image"); err != nil {
+		t.Fatal(err)
+	}
+	file, err := writer.CreateFormFile("input_reference", "reference.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = file.Write([]byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}); err != nil {
+		t.Fatal(err)
+	}
+	if err = writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	form, err := multipart.NewReader(&payload, writer.Boundary()).ReadForm(1024 * 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer form.RemoveAll()
+
+	body, err := buildManxiaobaiGrokVideoJSON(form, "grok-video-1.5")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := io.ReadAll(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(data, []byte(`"model":"grok-video-1.5"`)) ||
+		!bytes.Contains(data, []byte(`"image_urls":["data:image/png;base64,`)) {
+		t.Fatalf("unexpected JSON body: %s", data)
 	}
 }
 
