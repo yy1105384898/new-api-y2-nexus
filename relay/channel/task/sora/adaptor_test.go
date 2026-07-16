@@ -71,6 +71,9 @@ func TestBuildJSONGrokVideoBody_DropsImaginePreset(t *testing.T) {
 	if err := writer.WriteField("preset", "standard"); err != nil {
 		t.Fatal(err)
 	}
+	if err := writer.WriteField("resolution_name", "720P"); err != nil {
+		t.Fatal(err)
+	}
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -88,8 +91,8 @@ func TestBuildJSONGrokVideoBody_DropsImaginePreset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Contains(data, []byte(`"preset"`)) {
-		t.Fatalf("preset must not be forwarded: %s", data)
+	if bytes.Contains(data, []byte(`"preset"`)) || bytes.Contains(data, []byte(`"resolution_name"`)) {
+		t.Fatalf("UI-only fields must not be forwarded: %s", data)
 	}
 }
 

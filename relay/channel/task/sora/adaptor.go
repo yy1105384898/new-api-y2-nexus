@@ -185,8 +185,8 @@ func buildJSONGrokVideoBody(formData *multipart.Form, upstreamModel string) (io.
 		switch key {
 		case "model":
 			continue
-		case "preset":
-			// sub2api's Grok Imagine endpoint rejects the UI-only preset field.
+		case "preset", "resolution_name":
+			// Grok Imagine rejects these UI-only display fields.
 			if upstreamModel == "grok-imagine-video" {
 				continue
 			}
