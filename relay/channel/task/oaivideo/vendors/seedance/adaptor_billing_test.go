@@ -54,3 +54,23 @@ func TestValidateRequestAcceptsOairegboxDurationRange(t *testing.T) {
 		t.Fatalf("unexpected error: %v", taskErr)
 	}
 }
+
+func TestValidateRequestRejectsLeonardoMini8sDurationOverEight(t *testing.T) {
+	for _, duration := range []string{"9", "15"} {
+		c := multipartSeedanceContext(t, duration)
+		info := &relaycommon.RelayInfo{OriginModelName: leonardoSeedanceMini8sModel}
+		if taskErr := (&TaskAdaptor{}).ValidateRequestAndSetAction(c, info); taskErr == nil {
+			t.Fatalf("expected duration %s to be rejected", duration)
+		}
+	}
+}
+
+func TestValidateRequestAcceptsLeonardoMini8sDurationAtMostEight(t *testing.T) {
+	for _, duration := range []string{"", "4", "8"} {
+		c := multipartSeedanceContext(t, duration)
+		info := &relaycommon.RelayInfo{OriginModelName: leonardoSeedanceMini8sModel}
+		if taskErr := (&TaskAdaptor{}).ValidateRequestAndSetAction(c, info); taskErr != nil {
+			t.Fatalf("duration %s should be accepted: %v", duration, taskErr)
+		}
+	}
+}
