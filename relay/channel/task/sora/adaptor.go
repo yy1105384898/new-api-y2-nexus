@@ -152,13 +152,16 @@ func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, erro
 	if info.Action == constant.TaskActionRemix {
 		return fmt.Sprintf("%s/v1/videos/%s/remix", a.baseURL, info.OriginTaskID), nil
 	}
+	if isGrok2APIVideo(info) {
+		return fmt.Sprintf("%s/v1/videos/generations", a.baseURL), nil
+	}
 	return fmt.Sprintf("%s/v1/videos", a.baseURL), nil
 }
 
 // BuildRequestHeader sets required headers.
 func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
 	req.Header.Set("Authorization", "Bearer "+a.apiKey)
-	if isJSONGrokVideo(info) {
+	if isGrok2APIVideo(info) || isJSONGrokVideo(info) {
 		req.Header.Set("Content-Type", "application/json")
 		return nil
 	}
@@ -168,6 +171,91 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info
 
 func isJSONGrokVideo(info *relaycommon.RelayInfo) bool {
 	return (info.ChannelId == 182 || info.ChannelId == 184) && strings.HasPrefix(info.UpstreamModelName, "grok-video")
+}
+
+func isGrok2APIVideo(info *relaycommon.RelayInfo) bool {
+	return info.ChannelId == 192 && info.UpstreamModelName == "grok-imagine-video"
+}
+
+func grok2APIAspectRatio(size string) string {
+	switch strings.TrimSpace(size) {
+	case "1280x720", "1792x1024":
+		return "16:9"
+	case "720x1280", "1024x1792":
+		return "9:16"
+	case "1024x1024":
+		return "1:1"
+	default:
+		return ""
+	}
+}
+
+func buildGrok2APIVideoJSON(formData *multipart.Form, upstreamModel string) (io.Reader, error) {
+	body := map[string]any{"model": upstreamModel}
+	value := func(key string) string {
+		if values := formData.Value[key]; len(values) > 0 {
+			return strings.TrimSpace(values[0])
+		}
+		return ""
+	}
+	for _, key := range []string{"prompt", "user", "duration", "aspect_ratio", "resolution"} {
+		if item := value(key); item != "" {
+			body[key] = item
+		}
+	}
+	if _, ok := body["duration"]; !ok {
+		if seconds := value("seconds"); seconds != "" {
+			body["duration"] = seconds
+		}
+	}
+	if _, ok := body["aspect_ratio"]; !ok {
+		if ratio := grok2APIAspectRatio(value("size")); ratio != "" {
+			body["aspect_ratio"] = ratio
+		}
+	}
+	if _, ok := body["resolution"]; !ok {
+		if resolution := value("resolution_name"); resolution != "" {
+			body["resolution"] = strings.ToLower(resolution)
+		}
+	}
+
+	urls := make([]string, 0)
+	for _, key := range []string{"input_reference", "input_reference[]", "image", "image_urls"} {
+		urls = append(urls, formData.Value[key]...)
+	}
+	for _, key := range []string{"input_reference", "input_reference[]", "image"} {
+		for _, header := range formData.File[key] {
+			file, err := header.Open()
+			if err != nil {
+				return nil, err
+			}
+			content, readErr := io.ReadAll(file)
+			file.Close()
+			if readErr != nil {
+				return nil, readErr
+			}
+			contentType := header.Header.Get("Content-Type")
+			if contentType == "" || contentType == "application/octet-stream" {
+				contentType = http.DetectContentType(content)
+			}
+			urls = append(urls, "data:"+contentType+";base64,"+base64.StdEncoding.EncodeToString(content))
+		}
+	}
+	if len(urls) > 0 {
+		body["image"] = map[string]string{"url": urls[0]}
+	}
+	if len(urls) > 1 {
+		references := make([]map[string]string, 0, len(urls)-1)
+		for _, item := range urls[1:] {
+			references = append(references, map[string]string{"url": item})
+		}
+		body["reference_images"] = references
+	}
+	data, err := common.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewReader(data), nil
 }
 
 func buildJSONGrokVideoBody(formData *multipart.Form, upstreamModel string) (io.Reader, error) {
@@ -252,6 +340,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		formData, err := common.ParseMultipartFormReusable(c)
 		if err != nil {
 			return bytes.NewReader(cachedBody), nil
+		}
+		if isGrok2APIVideo(info) {
+			return buildGrok2APIVideoJSON(formData, info.UpstreamModelName)
 		}
 		if isJSONGrokVideo(info) {
 			return buildJSONGrokVideoBody(formData, info.UpstreamModelName)

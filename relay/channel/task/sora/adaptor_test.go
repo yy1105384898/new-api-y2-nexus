@@ -24,8 +24,55 @@ func TestBuildRequestURL_GrokImagineVideo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if url != "http://sub2api:8091/v1/videos" {
+	if url != "http://sub2api:8091/v1/videos/generations" {
 		t.Fatalf("got %q", url)
+	}
+}
+
+func TestBuildGrok2APIVideoJSON(t *testing.T) {
+	var payload bytes.Buffer
+	writer := multipart.NewWriter(&payload)
+	for key, value := range map[string]string{
+		"prompt":          "animate this image",
+		"seconds":         "8",
+		"size":            "1792x1024",
+		"resolution_name": "720p",
+		"input_reference": "https://example.com/reference.png",
+		"preset":          "normal",
+	} {
+		if err := writer.WriteField(key, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	form, err := multipart.NewReader(&payload, writer.Boundary()).ReadForm(1024 * 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer form.RemoveAll()
+
+	body, err := buildGrok2APIVideoJSON(form, "grok-imagine-video")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := io.ReadAll(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`"duration":"8"`, `"aspect_ratio":"16:9"`, `"resolution":"720p"`,
+		`"image":{"url":"https://example.com/reference.png"}`,
+	} {
+		if !bytes.Contains(data, []byte(want)) {
+			t.Fatalf("missing %s in %s", want, data)
+		}
+	}
+	for _, forbidden := range []string{`"seconds"`, `"size"`, `"resolution_name"`, `"preset"`} {
+		if bytes.Contains(data, []byte(forbidden)) {
+			t.Fatalf("unexpected %s in %s", forbidden, data)
+		}
 	}
 }
 
