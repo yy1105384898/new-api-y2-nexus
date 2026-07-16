@@ -65,6 +65,34 @@ func TestBuildJSONGrokVideoBody(t *testing.T) {
 	}
 }
 
+func TestBuildJSONGrokVideoBody_DropsImaginePreset(t *testing.T) {
+	var payload bytes.Buffer
+	writer := multipart.NewWriter(&payload)
+	if err := writer.WriteField("preset", "standard"); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	form, err := multipart.NewReader(&payload, writer.Boundary()).ReadForm(1024 * 1024)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer form.RemoveAll()
+
+	body, err := buildJSONGrokVideoBody(form, "grok-imagine-video")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := io.ReadAll(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(data, []byte(`"preset"`)) {
+		t.Fatalf("preset must not be forwarded: %s", data)
+	}
+}
+
 func TestParseTaskResult_GZFormat(t *testing.T) {
 	adaptor := &TaskAdaptor{}
 
