@@ -27,6 +27,8 @@ type TaskAdaptor struct {
 	baseURL     string
 }
 
+const leonardoSeedanceMini8sModel = "cy-sd4-seedance-2.0-mini-8s"
+
 func (a *TaskAdaptor) Init(info *relaycommon.RelayInfo) {
 	a.ChannelType = info.ChannelType
 	a.baseURL = info.ChannelBaseUrl
@@ -37,14 +39,26 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	if taskErr := relaycommon.ValidateMultipartDirect(c, info); taskErr != nil {
 		return taskErr
 	}
-	if !IsOairegboxRelay(info.OriginModelName) || service.IsPerRequestTaskBilling(info.OriginModelName) {
-		return nil
-	}
 	req, err := relaycommon.GetTaskRequest(c)
 	if err != nil {
 		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
 	}
 	seconds := req.RequestedDurationSeconds()
+	if info.OriginModelName == leonardoSeedanceMini8sModel {
+		// This Leonardo SKU is backed by the 1300-credit mini pool. Keep the
+		// product boundary enforced at the relay, including direct API callers.
+		if seconds != 0 && (seconds < 4 || seconds > 8) {
+			return service.TaskErrorWrapperLocal(
+				fmt.Errorf("duration must be an integer between 4 and 8 seconds for %s", leonardoSeedanceMini8sModel),
+				"invalid_duration",
+				http.StatusBadRequest,
+			)
+		}
+		return nil
+	}
+	if !IsOairegboxRelay(info.OriginModelName) || service.IsPerRequestTaskBilling(info.OriginModelName) {
+		return nil
+	}
 	if seconds == 0 {
 		return service.TaskErrorWrapperLocal(
 			fmt.Errorf("duration is required for per-second Seedance models"),
