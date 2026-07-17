@@ -30,6 +30,8 @@ var ModelList = []string{
 	"adobe-veo31",
 	"adobe-veo31-ref",
 	"adobe-veo31-fast",
+	"cy-sd5-seedance-2.0",
+	"cy-sd5-seedance-2.0-fast",
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
@@ -107,7 +109,7 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	} else if ratio := normalizeAspectRatio(asString(raw["size"])); ratio != "" {
 		out["aspect_ratio"] = ratio
 	}
-	for _, key := range []string{"resolution", "negative_prompt", "reference_mode"} {
+	for _, key := range []string{"resolution", "negative_prompt", "reference_mode", "first_image_url", "last_image_url"} {
 		if value := strings.TrimSpace(asString(raw[key])); value != "" {
 			out[key] = value
 		}
@@ -119,6 +121,11 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	}
 	if images := collectImages(raw, req.Images); len(images) > 0 {
 		out["images"] = images
+	}
+	for _, key := range []string{"reference_videos", "reference_audios"} {
+		if values := collectStringList(raw[key]); len(values) > 0 {
+			out[key] = values
+		}
 	}
 
 	encoded, err := common.Marshal(out)
@@ -221,4 +228,21 @@ func collectImages(raw map[string]any, normalized []string) []string {
 		}
 	}
 	return nil
+}
+
+func collectStringList(value any) []string {
+	if single := strings.TrimSpace(asString(value)); single != "" {
+		return []string{single}
+	}
+	list, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(list))
+	for _, item := range list {
+		if entry := strings.TrimSpace(asString(item)); entry != "" {
+			out = append(out, entry)
+		}
+	}
+	return out
 }

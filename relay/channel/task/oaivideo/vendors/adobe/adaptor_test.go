@@ -59,13 +59,13 @@ func TestBuildRequestBodyUsesAdobeStrictVideoSchema(t *testing.T) {
 	}
 }
 
-func TestBuildRequestBodyUsesMappedSeedanceSourceModel(t *testing.T) {
+func TestBuildRequestBodyPreservesSeedance933References(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	body := `{"model":"cy-sd4-seedance-2.0-fast","prompt":"test","duration":4,"resolution":"480p"}`
+	body := `{"model":"cy-sd5-seedance-2.0-fast","prompt":"test","duration":4,"resolution":"480p","reference_mode":"media","images":["i1"],"reference_videos":["v1","v2","v3"],"reference_audios":["a1","a2","a3"]}`
 	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
 	c.Request = httptest.NewRequest("POST", "/v1/videos", strings.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
-	c.Set("task_request", relaycommon.TaskSubmitReq{Model: "cy-sd4-seedance-2.0-fast", Prompt: "test", Duration: 4})
+	c.Set("task_request", relaycommon.TaskSubmitReq{Model: "cy-sd5-seedance-2.0-fast", Prompt: "test", Duration: 4, Images: []string{"i1"}})
 
 	reader, err := (&TaskAdaptor{}).BuildRequestBody(c, &relaycommon.RelayInfo{
 		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "cy-sd5-seedance-2.0-fast"},
@@ -83,6 +83,12 @@ func TestBuildRequestBodyUsesMappedSeedanceSourceModel(t *testing.T) {
 	}
 	if payload["model"] != "cy-sd5-seedance-2.0-fast" {
 		t.Fatalf("mapped source model was not used: %#v", payload)
+	}
+	if got, ok := payload["reference_videos"].([]any); !ok || len(got) != 3 {
+		t.Fatalf("reference videos were not preserved: %#v", payload)
+	}
+	if got, ok := payload["reference_audios"].([]any); !ok || len(got) != 3 {
+		t.Fatalf("reference audios were not preserved: %#v", payload)
 	}
 }
 

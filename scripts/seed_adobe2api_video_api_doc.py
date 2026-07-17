@@ -10,6 +10,34 @@ import time
 
 
 MODELS = {
+    "cy-sd5-seedance-2.0": {
+        "public": "sd5-seedance-2.0",
+        "profile": "video-tpl-cy-sd5-seedance-933-async",
+        "description": "Seedance 2.0 新源标准版。支持 480p/720p 与 9 图、3 视频、3 音频全能参考。",
+        "tags": "video,seedance,sd5,933",
+        "duration": [4, 6, 8],
+        "resolution": ["480p", "720p"],
+        "reference_mode": "media",
+        "max_images": 9,
+        "max_videos": 3,
+        "max_audios": 3,
+        "supports_negative_prompt": True,
+        "variant": "全能参考最多 9 图、3 视频、3 音频；也支持成对首尾帧。",
+    },
+    "cy-sd5-seedance-2.0-fast": {
+        "public": "sd5-seedance-2.0-fast",
+        "profile": "video-tpl-cy-sd5-seedance-933-async",
+        "description": "Seedance 2.0 新源 Fast。参数同标准版，快速出片。",
+        "tags": "video,seedance,sd5,933,fast",
+        "duration": [4, 6, 8],
+        "resolution": ["480p", "720p"],
+        "reference_mode": "media",
+        "max_images": 9,
+        "max_videos": 3,
+        "max_audios": 3,
+        "supports_negative_prompt": True,
+        "variant": "全能参考最多 9 图、3 视频、3 音频；也支持成对首尾帧。",
+    },
     "adobe-sora2": {
         "public": "sora-2",
         "profile": "video-tpl-adobe-sora2-json-async",
@@ -73,6 +101,8 @@ MODELS = {
 }
 
 PRICE_USD = {
+    "cy-sd5-seedance-2.0": 3.85,
+    "cy-sd5-seedance-2.0-fast": 2.60,
     "adobe-sora2": 0.70,
     "adobe-sora2-pro": 0.90,
     "adobe-veo31": 0.90,
@@ -116,6 +146,20 @@ def build_api_doc(conf: dict) -> dict:
                 },
             ]
         )
+        if conf.get("max_videos"):
+            params.append(
+                {
+                    "name": "reference_videos",
+                    "description": f"可选，HTTPS 直链数组，最多 {conf['max_videos']} 条；素材下载与上传均直连，不经过动态代理。",
+                }
+            )
+        if conf.get("max_audios"):
+            params.append(
+                {
+                    "name": "reference_audios",
+                    "description": f"可选，HTTPS 直链数组，最多 {conf['max_audios']} 条；素材下载与上传均直连，不经过动态代理。",
+                }
+            )
     if conf.get("supports_negative_prompt"):
         params.append(
             {
@@ -148,15 +192,36 @@ def build_api_doc(conf: dict) -> dict:
                 "https://example.com/first-frame.png",
                 "https://example.com/last-frame.png",
             ]
+        elif conf["max_images"] > 2:
+            full_request["images"] = [
+                f"https://example.com/reference-{index}.png"
+                for index in range(1, conf["max_images"] + 1)
+            ]
         else:
             full_request["images"] = ["https://example.com/reference-frame.png"]
+        if conf.get("max_videos"):
+            full_request["reference_videos"] = [
+                "https://example.com/reference-1.mp4",
+                "https://example.com/reference-2.mp4",
+                "https://example.com/reference-3.mp4",
+            ]
+        if conf.get("max_audios"):
+            full_request["reference_audios"] = [
+                "https://example.com/reference-1.wav",
+                "https://example.com/reference-2.wav",
+                "https://example.com/reference-3.wav",
+            ]
     if conf.get("supports_negative_prompt"):
         full_request["negative_prompt"] = "画面抖动、主体变形、文字水印"
 
-    intro = "Adobe2API Firefly 视频：POST /v1/videos 创建异步任务，GET /v1/videos/{task_id} 查询结果。"
+    intro = (
+        "Seedance 2.0 视频：POST /v1/videos 创建异步任务，GET /v1/videos/{task_id} 查询结果。"
+        if conf.get("max_videos")
+        else "Adobe2API Firefly 视频：POST /v1/videos 创建异步任务，GET /v1/videos/{task_id} 查询结果。"
+    )
     if supports_references:
         intro += conf["variant"]
-    unsupported = "seed、n、音频参考或 response_format"
+    unsupported = "seed、n 或 response_format" if conf.get("max_audios") else "seed、n、音频参考或 response_format"
     if not conf.get("supports_negative_prompt"):
         unsupported = "negative_prompt、" + unsupported
     intro += f" 不支持 {unsupported}。"
