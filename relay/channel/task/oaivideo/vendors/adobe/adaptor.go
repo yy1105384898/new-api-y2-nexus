@@ -118,8 +118,19 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 		if audio, valid := asBool(value); valid {
 			out["generate_audio"] = audio
 		}
+	} else if value, ok := raw["audio"]; ok {
+		if audio, valid := asBool(value); valid {
+			out["generate_audio"] = audio
+		}
 	}
-	if images := collectImages(raw, req.Images); len(images) > 0 {
+	images := collectImages(raw, req.Images)
+	if isSeedanceSD5Model(modelName) {
+		images = collectSeedanceMediaImages(raw, req.Images)
+		if len(images) > 0 && !hasExplicitFrameInput(raw) {
+			out["reference_mode"] = "media"
+		}
+	}
+	if len(images) > 0 {
 		out["images"] = images
 	}
 	for _, key := range []string{"reference_videos", "reference_audios"} {
@@ -201,6 +212,41 @@ func normalizeAspectRatio(raw string) string {
 		return raw
 	}
 	return ""
+}
+
+func isSeedanceSD5Model(modelName string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(modelName)), "cy-sd5-seedance-2.0")
+}
+
+func hasExplicitFrameInput(raw map[string]any) bool {
+	return strings.TrimSpace(asString(raw["first_image_url"])) != "" ||
+		strings.TrimSpace(asString(raw["last_image_url"])) != ""
+}
+
+func collectSeedanceMediaImages(raw map[string]any, normalized []string) []string {
+	images := make([]string, 0, len(normalized)+1)
+	seen := make(map[string]struct{})
+	add := func(values ...string) {
+		for _, value := range values {
+			value = strings.TrimSpace(value)
+			if value == "" {
+				continue
+			}
+			if _, exists := seen[value]; exists {
+				continue
+			}
+			seen[value] = struct{}{}
+			images = append(images, value)
+		}
+	}
+
+	add(asString(raw["image_url"]))
+	add(asString(raw["image"]))
+	for _, key := range []string{"images", "image_urls", "reference_image_urls"} {
+		add(collectStringList(raw[key])...)
+	}
+	add(normalized...)
+	return images
 }
 
 func collectImages(raw map[string]any, normalized []string) []string {
