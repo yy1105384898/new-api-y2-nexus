@@ -347,7 +347,14 @@ def main() -> None:
         for model, price in PRICE_USD.items():
             model_price[model] = price
         save_json_option("ModelPrice", model_price)
-        print(f"api_doc + ModelPrice updated: {len(MODELS)} Adobe2API video models")
+        billing_mode = load_json_option("billing_setting.billing_mode")
+        request_unit = load_json_option("billing_setting.request_unit")
+        for model in ("cy-sd5-seedance-2.0", "cy-sd5-seedance-2.0-fast"):
+            billing_mode[model] = "per_request"
+            request_unit[model] = "generation"
+        save_json_option("billing_setting.billing_mode", billing_mode)
+        save_json_option("billing_setting.request_unit", request_unit)
+        print(f"api_doc + pricing updated: {len(MODELS)} Adobe2API video models")
     else:
         print(f"api_doc updated without pricing changes: {len(MODELS)} Adobe2API video models")
 
