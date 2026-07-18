@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/chatvideo"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/grok"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/manju"
+	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/sd5"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/seedance"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 )
@@ -22,6 +23,7 @@ const (
 	VendorChat     Vendor = "chat-video"
 	VendorGrok     Vendor = "grok-generations"
 	VendorManju    Vendor = "manju"
+	VendorSD5      Vendor = "sd5-seedance"
 	VendorSeedance Vendor = "seedance"
 )
 
@@ -35,6 +37,9 @@ func Resolve(originModel, upstreamModel string) Vendor {
 // mappings commonly expose upstream names such as "sora2" without the Adobe
 // prefix.
 func ResolveWithChannel(originModel, upstreamModel string, channelID int, baseURL string) Vendor {
+	if sd5.IsRelay(originModel, upstreamModel) {
+		return VendorSD5
+	}
 	if adobe.IsRelay(originModel, upstreamModel, channelID, baseURL) {
 		return VendorAdobe
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/defaultvideo"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/grok"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/manju"
+	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/sd5"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/seedance"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
@@ -51,6 +52,7 @@ type RouterAdaptor struct {
 	chat     delegate
 	grok     delegate
 	manju    delegate
+	sd5      delegate
 	seedance delegate
 }
 
@@ -61,6 +63,7 @@ func NewRouterAdaptor() channel.TaskAdaptor {
 		chat:     &chatvideo.TaskAdaptor{},
 		grok:     &grok.TaskAdaptor{},
 		manju:    &manju.TaskAdaptor{},
+		sd5:      &sd5.TaskAdaptor{},
 		seedance: &seedance.TaskAdaptor{},
 	}
 }
@@ -78,6 +81,8 @@ func (r *RouterAdaptor) delegateFor(info *relaycommon.RelayInfo) delegate {
 		return r.grok
 	case registry.VendorManju:
 		return r.manju
+	case registry.VendorSD5:
+		return r.sd5
 	case registry.VendorSeedance:
 		return r.seedance
 	default:
@@ -178,7 +183,9 @@ func (r *RouterAdaptor) GetModelList() []string {
 	models = append(models, r.adobe.GetModelList()...)
 	models = append(models, r.chat.GetModelList()...)
 	models = append(models, r.grok.GetModelList()...)
-	return append(append(models, r.manju.GetModelList()...), r.seedance.GetModelList()...)
+	models = append(models, r.manju.GetModelList()...)
+	models = append(models, r.sd5.GetModelList()...)
+	return append(models, r.seedance.GetModelList()...)
 }
 
 func (r *RouterAdaptor) GetChannelName() string {
@@ -249,6 +256,8 @@ func (r *RouterAdaptor) parseTaskResultBody(respBody []byte, task *model.Task) (
 			return r.grok.ParseTaskResult(respBody)
 		case registry.VendorManju:
 			return r.manju.ParseTaskResult(respBody)
+		case registry.VendorSD5:
+			return r.sd5.ParseTaskResult(respBody)
 		case registry.VendorSeedance:
 			return r.seedance.ParseTaskResult(respBody)
 		}

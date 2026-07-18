@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/defaultvideo"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/grok"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/manju"
+	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/sd5"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/seedance"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 )
@@ -23,6 +24,7 @@ func TestRouterAdaptor_DelegateFor(t *testing.T) {
 	}{
 		{"manju-openai-sora2", "sora2", "manju"},
 		{"cy-sd4-seedance-2.0", "seedance-2.0", "seedance"},
+		{"cy-sd5-seedance-2.0-fast", "cy-sd5-seedance-2.0-fast", "sd5"},
 		{"cy-sd2-seedance-2.0", "manxue-2.0", "seedance"},
 		{"cy-vid2-sora-2", "cy-vid2-sora-2", "chat"},
 		{"cy-gv1-grok-video-1.5", "grok-video-1.5", "grok"},
@@ -53,6 +55,10 @@ func TestRouterAdaptor_DelegateFor(t *testing.T) {
 		case "grok":
 			if _, ok := d.(*grok.TaskAdaptor); !ok {
 				t.Fatalf("%s: expected Grok adaptor", tc.origin)
+			}
+		case "sd5":
+			if _, ok := d.(*sd5.TaskAdaptor); !ok {
+				t.Fatalf("%s: expected SD5 adaptor", tc.origin)
 			}
 		default:
 			if _, ok := d.(*defaultvideo.TaskAdaptor); !ok {
