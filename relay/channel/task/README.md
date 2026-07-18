@@ -28,6 +28,7 @@ oaivideo/
     ├── chatvideo/   # 聚合视频线路：统一任务请求 → chat/completions
     ├── grok/        # cy-gv1：/v1/video/generations 提交、轮询与响应归一化
     ├── seedance/    # cy-sd1 / cy-sd2 / cy-sd4 / tengd-seedance*
+    ├── sd5/         # cy-sd5 Seedance：typed JSON、seed、9/3/3（合计 12）
     ├── adobe/       # Adobe2API typed video：/v1/videos/generations
     └── defaultvideo/ # 兜底：sora-2 等标准 OpenAI Video
 ```

@@ -56,6 +56,7 @@ Leonardo `cy-sd4-*` 渠道在插件主轮询窗口结束后仍返回 `in_progres
 | `duration` / `seconds` | integer 或整数字符串 | 可任选其一；同时传入时必须一致 |
 | `aspect_ratio` | string | 如 `16:9`、`9:16`、`1:1` |
 | `resolution` | string | 如 `480p`、`720p`、`1080p` |
+| `seed` | integer | 可复现种子；当前仅 SD5 Seedance 支持，显式 `0` 也会透传 |
 | `generate_audio` | boolean | 是否生成音频，取决于模型能力 |
 | `video_url` | string | 参考视频公网 URL，仅支持已声明视频编辑能力的模型 |
 | `image` / `images` / `image_urls` / `reference_image_urls` | string、string[]；`image` 兼容 `{url}` | JSON 参考图；支持 HTTPS URL，具体数量由模型 profile 决定 |
@@ -99,6 +100,8 @@ Leonardo `cy-sd4-*` 的失败消息按可操作原因归一化：号池并发占
 | Adobe | `duration` | Adobe typed `/v1/videos/generations` 严格 schema |
 
 JSON 的其他字段和 multipart 文件必须保留；仅模型名与时长别名在 vendor 边界发生转换。
+SD5 Seedance vendor 还会将可选整数 `seed` 原样传给 Adobe2API，包括显式零值；其他
+Adobe Sora/Veo 模型继续过滤不支持的 seed。
 
 Seedance 2.0 的参考图、参考视频和参考音频均为可选且可独立使用；仅传 `prompt` 即为文生视频。Seedance vendor 不得因 `reference_videos` / `reference_audios` 存在而强制要求参考图，仍需保留各 profile 的数量、大小、时长与首尾帧互斥校验。
 
@@ -117,7 +120,7 @@ Adobe2API 视频现在属于标准视频任务族：对外使用 `POST /v1/video
 | `cy-gv1-grok-video*` | Grok generations | 严格 JSON → `/v1/video/generations` | generations envelope → OpenAI Video 形 |
 | `cy-sd1-seedance*` | Seedance | multipart 透传 `/v1/videos` | OpenAI Video 形 |
 | `cy-sd4-seedance*` | Seedance | Leonardo 渠道，独立 4 图 / 3 视频 / 1 音频 profile | OpenAI Video 形 |
-| `cy-sd5-seedance*` | SD5 Seedance | 按模型名前缀独立路由，不依赖 Adobe 渠道 ID 或模型映射；9 图 / 3 视频 / 3 音频严格 JSON → `/v1/videos/generations` | `video.generation` → OpenAI Video 形 |
+| `cy-sd5-seedance*` | SD5 Seedance | 按模型名前缀独立路由，不依赖 Adobe 渠道 ID 或模型映射；seed、9 图 / 3 视频 / 3 音频（合计最多 12）严格 JSON → `/v1/videos/generations` | `video.generation` → OpenAI Video 形 |
 | `cy-sd2-seedance*` / `tengd-seedance*` | Seedance | Tengda body 转换 | OpenAI Video 形 |
 | `adobe-*sora*` / `adobe-*veo*` | Adobe | 严格 JSON → `/v1/videos/generations` | `video.generation` → OpenAI Video 形 |
 | 其他（Sora 等） | default | 标准 OpenAI Video | OpenAI Video 形 |

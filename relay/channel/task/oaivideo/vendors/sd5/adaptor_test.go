@@ -22,11 +22,18 @@ func TestIsRelayUsesSD5ModelIdentityWithoutMapping(t *testing.T) {
 
 func TestBuildRequestBodyPreservesSeedance933References(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	body := `{"model":"cy-sd5-seedance-2.0-fast","prompt":"test","duration":4,"aspect_ratio":"16x9","resolution":"480p","images":["i1"],"reference_videos":["v1","v2","v3"],"reference_audios":["a1","a2","a3"]}`
+	body := `{"model":"cy-sd5-seedance-2.0-fast","prompt":"test","duration":4,"aspect_ratio":"16x9","resolution":"480p","seed":0,"images":["i1"],"reference_videos":["v1","v2","v3"],"reference_audios":["a1","a2","a3"]}`
 	c := gin.CreateTestContextOnly(httptest.NewRecorder(), gin.New())
 	c.Request = httptest.NewRequest("POST", "/v1/videos", strings.NewReader(body))
 	c.Request.Header.Set("Content-Type", "application/json")
-	c.Set("task_request", relaycommon.TaskSubmitReq{Model: "cy-sd5-seedance-2.0-fast", Prompt: "test", Duration: 4, Images: []string{"i1"}})
+	var taskRequest relaycommon.TaskSubmitReq
+	if err := basecommon.Unmarshal([]byte(body), &taskRequest); err != nil {
+		t.Fatal(err)
+	}
+	if taskRequest.Seed == nil || *taskRequest.Seed != 0 {
+		t.Fatalf("decoded seed = %#v, want explicit zero", taskRequest.Seed)
+	}
+	c.Set("task_request", taskRequest)
 
 	reader, err := (&TaskAdaptor{}).BuildRequestBody(c, &relaycommon.RelayInfo{
 		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "cy-sd5-seedance-2.0-fast"},
@@ -47,6 +54,9 @@ func TestBuildRequestBodyPreservesSeedance933References(t *testing.T) {
 	}
 	if payload["aspect_ratio"] != "16:9" || payload["reference_mode"] != "media" {
 		t.Fatalf("SD5 request normalization failed: %#v", payload)
+	}
+	if seedValue, ok := payload["seed"].(float64); !ok || seedValue != 0 {
+		t.Fatalf("seed = %#v, want explicit zero", payload["seed"])
 	}
 	if got, ok := payload["reference_videos"].([]any); !ok || len(got) != 3 {
 		t.Fatalf("reference videos were not preserved: %#v", payload)

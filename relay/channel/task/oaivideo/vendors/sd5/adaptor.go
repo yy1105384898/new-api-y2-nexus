@@ -109,6 +109,9 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			out["generate_audio"] = audio
 		}
 	}
+	if req.Seed != nil {
+		out["seed"] = *req.Seed
+	}
 	if images := collectMediaImages(raw, req.Images); len(images) > 0 {
 		out["images"] = images
 		if !hasExplicitFrameInput(raw) {

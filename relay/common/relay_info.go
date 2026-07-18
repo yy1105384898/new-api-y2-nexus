@@ -706,6 +706,7 @@ type TaskSubmitReq struct {
 	Size               string                 `json:"size,omitempty"`
 	AspectRatio        string                 `json:"aspect_ratio,omitempty"`
 	Resolution         string                 `json:"resolution,omitempty"`
+	Seed               *int64                 `json:"seed,omitempty"`
 	Duration           int                    `json:"duration,omitempty"`
 	Seconds            string                 `json:"seconds,omitempty"`
 	GenerateAudio      *bool                  `json:"generate_audio,omitempty"`
