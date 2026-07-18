@@ -1,4 +1,4 @@
-package adobe
+package sd5
 
 import (
 	"bytes"
@@ -17,19 +17,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// TaskAdaptor uses the same OpenAI Video contract as every other standard
-// video upstream. Adobe is a vendor identity and model mapping, not a second
-// task protocol.
 type TaskAdaptor struct {
 	defaultvideo.TaskAdaptor
 }
 
 var ModelList = []string{
-	"adobe-sora2",
-	"adobe-sora2-pro",
-	"adobe-veo31",
-	"adobe-veo31-ref",
-	"adobe-veo31-fast",
+	"cy-sd5-seedance-2.0",
+	"cy-sd5-seedance-2.0-fast",
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
@@ -37,13 +31,13 @@ func (a *TaskAdaptor) GetModelList() []string {
 }
 
 func (a *TaskAdaptor) GetChannelName() string {
-	return "adobe-video"
+	return "sd5-seedance-video"
 }
 
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
 	if c == nil || c.Request == nil || !strings.HasPrefix(strings.ToLower(c.GetHeader("Content-Type")), "application/json") {
 		return service.TaskErrorWrapperLocal(
-			fmt.Errorf("Adobe video requests must use application/json"),
+			fmt.Errorf("SD5 video requests must use application/json"),
 			"invalid_request",
 			http.StatusBadRequest,
 		)
@@ -51,32 +45,26 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 	return a.TaskAdaptor.ValidateRequestAndSetAction(c, info)
 }
 
-// BuildRequestURL targets Adobe2API's typed video endpoint. NewAPI keeps its
-// public endpoint as POST /v1/videos; only this vendor boundary knows the
-// upstream path is /v1/videos/generations.
 func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info == nil || strings.TrimSpace(info.ChannelBaseUrl) == "" {
-		return "", fmt.Errorf("adobe video base url is empty")
+		return "", fmt.Errorf("SD5 video base url is empty")
 	}
 	return strings.TrimRight(info.ChannelBaseUrl, "/") + "/v1/videos/generations", nil
 }
 
-// BuildRequestBody converts NewAPI's broad video request into Adobe2API's
-// strict VideoGenerateRequest schema. In particular, size/seconds aliases and
-// UI-only fields must not leak to Adobe2API, whose schema rejects unknown keys.
 func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayInfo) (io.Reader, error) {
 	storage, err := common.GetBodyStorage(c)
 	if err != nil {
-		return nil, fmt.Errorf("read adobe video request: %w", err)
+		return nil, fmt.Errorf("read SD5 video request: %w", err)
 	}
 	body, err := storage.Bytes()
 	if err != nil {
-		return nil, fmt.Errorf("read adobe video request bytes: %w", err)
+		return nil, fmt.Errorf("read SD5 video request bytes: %w", err)
 	}
 
 	var raw map[string]any
 	if err := common.Unmarshal(body, &raw); err != nil {
-		return nil, fmt.Errorf("adobe video request must be JSON: %w", err)
+		return nil, fmt.Errorf("SD5 video request must be JSON: %w", err)
 	}
 	req, _ := relaycommon.GetTaskRequest(c)
 
@@ -121,9 +109,11 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 			out["generate_audio"] = audio
 		}
 	}
-	images := collectImages(raw, req.Images)
-	if len(images) > 0 {
+	if images := collectMediaImages(raw, req.Images); len(images) > 0 {
 		out["images"] = images
+		if !hasExplicitFrameInput(raw) {
+			out["reference_mode"] = "media"
+		}
 	}
 	for _, key := range []string{"reference_videos", "reference_audios"} {
 		if values := collectStringList(raw[key]); len(values) > 0 {
@@ -133,15 +123,13 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 
 	encoded, err := common.Marshal(out)
 	if err != nil {
-		return nil, fmt.Errorf("marshal adobe video request: %w", err)
+		return nil, fmt.Errorf("marshal SD5 video request: %w", err)
 	}
 	c.Request.Header.Set("Content-Type", "application/json")
 	return bytes.NewReader(encoded), nil
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
-	// Pass the outer adaptor so DoTaskApiRequest dispatches to this vendor's
-	// BuildRequestURL instead of the embedded default video's URL.
 	return channel.DoTaskApiRequest(a, c, info, requestBody)
 }
 
@@ -158,26 +146,6 @@ func asString(value any) string {
 	default:
 		return ""
 	}
-}
-
-func firstPositiveInt(values ...any) int {
-	for _, value := range values {
-		switch typed := value.(type) {
-		case int:
-			if typed > 0 {
-				return typed
-			}
-		case float64:
-			if typed > 0 {
-				return int(typed)
-			}
-		case string:
-			if n, err := strconv.Atoi(strings.TrimSpace(strings.TrimSuffix(typed, "s"))); err == nil && n > 0 {
-				return n
-			}
-		}
-	}
-	return 0
 }
 
 func asBool(value any) (bool, bool) {
@@ -206,31 +174,35 @@ func normalizeAspectRatio(raw string) string {
 	return ""
 }
 
-func collectImages(raw map[string]any, normalized []string) []string {
-	if len(normalized) > 0 {
-		return normalized
+func hasExplicitFrameInput(raw map[string]any) bool {
+	return strings.TrimSpace(asString(raw["first_image_url"])) != "" ||
+		strings.TrimSpace(asString(raw["last_image_url"])) != ""
+}
+
+func collectMediaImages(raw map[string]any, normalized []string) []string {
+	images := make([]string, 0, len(normalized)+1)
+	seen := make(map[string]struct{})
+	add := func(values ...string) {
+		for _, value := range values {
+			value = strings.TrimSpace(value)
+			if value == "" {
+				continue
+			}
+			if _, exists := seen[value]; exists {
+				continue
+			}
+			seen[value] = struct{}{}
+			images = append(images, value)
+		}
 	}
+
+	add(asString(raw["image_url"]))
+	add(asString(raw["image"]))
 	for _, key := range []string{"images", "image_urls", "reference_image_urls"} {
-		value, ok := raw[key]
-		if !ok {
-			continue
-		}
-		if single := strings.TrimSpace(asString(value)); single != "" {
-			return []string{single}
-		}
-		if list, ok := value.([]any); ok {
-			images := make([]string, 0, len(list))
-			for _, item := range list {
-				if image := strings.TrimSpace(asString(item)); image != "" {
-					images = append(images, image)
-				}
-			}
-			if len(images) > 0 {
-				return images
-			}
-		}
+		add(collectStringList(raw[key])...)
 	}
-	return nil
+	add(normalized...)
+	return images
 }
 
 func collectStringList(value any) []string {

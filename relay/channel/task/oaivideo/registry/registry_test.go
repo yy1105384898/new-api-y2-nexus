@@ -11,6 +11,8 @@ func TestResolve(t *testing.T) {
 		{"manju-openai-sora2", "sora2", VendorManju},
 		{"cy-sd1-seedance-2.0-fast-720p", "Seedance-2.0-720p", VendorSeedance},
 		{"cy-sd4-seedance-2.0", "seedance-2.0", VendorSeedance},
+		{"cy-sd5-seedance-2.0", "cy-sd5-seedance-2.0", VendorSD5},
+		{"cy-sd5-seedance-2.0-fast", "cy-sd5-seedance-2.0-fast", VendorSD5},
 		{"cy-sd2-seedance-2.0", "manxue-2.0", VendorSeedance},
 		{"tengd-seedance-2.0", "manxue-2.0", VendorSeedance},
 		{"cy-vid2-sora-2", "cy-vid2-sora-2", VendorChat},
@@ -24,6 +26,15 @@ func TestResolve(t *testing.T) {
 		if got := Resolve(tc.origin, tc.upstream); got != tc.want {
 			t.Fatalf("Resolve(%q,%q)=%q want %q", tc.origin, tc.upstream, got, tc.want)
 		}
+	}
+}
+
+func TestResolveWithChannelKeepsSD5SeparateFromAdobe(t *testing.T) {
+	if got := ResolveWithChannel("cy-sd5-seedance-2.0", "cy-sd5-seedance-2.0", 86, "http://45.67.221.45:6002"); got != VendorSD5 {
+		t.Fatalf("SD5 route = %q, want %q", got, VendorSD5)
+	}
+	if got := ResolveWithChannel("adobe-sora2", "sora2", 75, "http://45.67.221.45:6001"); got != VendorAdobe {
+		t.Fatalf("Adobe route = %q, want %q", got, VendorAdobe)
 	}
 }
 
