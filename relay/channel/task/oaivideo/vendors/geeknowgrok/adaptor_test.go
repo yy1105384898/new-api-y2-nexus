@@ -98,7 +98,7 @@ func TestParseTaskResultUsesOpenAIVideoShape(t *testing.T) {
 
 func TestBuildRequestURLUsesChannelBaseURL(t *testing.T) {
 	url, err := (&TaskAdaptor{}).BuildRequestURL(&relaycommon.RelayInfo{
-		ChannelBaseUrl: "https://tengda.ai",
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://tengda.ai"},
 	})
 	if err != nil {
 		t.Fatalf("BuildRequestURL: %v", err)
