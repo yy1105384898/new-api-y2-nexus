@@ -2428,7 +2428,7 @@
                 "videos": 3,
                 "audios": 3,
                 "total": 12,
-                "imageMaxBytes": 10485760,
+                "imageMaxBytes": 31457280,
                 "videoMaxBytes": 52428800,
                 "audioMaxBytes": 15728640,
                 "video": {
