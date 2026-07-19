@@ -176,7 +176,7 @@ func TestValidateAdobe2APIImageInputsRejectsOversizedMultipartBeforeQueue(t *tes
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = &http.Request{MultipartForm: &multipart.Form{
 		File: map[string][]*multipart.FileHeader{
-			"image": {{Filename: "oversized.png", Size: adobe2APIMaxImageBytes + 1}},
+			"image": {{Filename: "oversized.png", Size: common.ReferenceImageMaxBytes + 1}},
 		},
 	}}
 	info := &relaycommon.RelayInfo{
@@ -185,8 +185,8 @@ func TestValidateAdobe2APIImageInputsRejectsOversizedMultipartBeforeQueue(t *tes
 	}
 
 	err := ValidateAdobe2APIImageInputs(c, info, dto.ImageRequest{})
-	if err == nil || !strings.Contains(err.Error(), "max 10MB") {
-		t.Fatalf("expected 10MB validation error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "max 30MB") {
+		t.Fatalf("expected 30MB validation error, got %v", err)
 	}
 }
 
@@ -215,10 +215,10 @@ func TestValidateAdobe2APIImageInputsRejectsTooManyAndOversizedInlineReferences(
 		t.Fatalf("expected image count validation error, got %v", err)
 	}
 
-	encodedBytes := (adobe2APIMaxImageBytes+1)*4/3 + 8
+	encodedBytes := (common.ReferenceImageMaxBytes+1)*4/3 + 8
 	oversized := `"data:image/png;base64,` + strings.Repeat("A", int(encodedBytes)) + `"`
 	err = ValidateAdobe2APIImageInputs(nil, info, dto.ImageRequest{Image: json.RawMessage(oversized)})
-	if err == nil || !strings.Contains(err.Error(), "max 10MB") {
+	if err == nil || !strings.Contains(err.Error(), "max 30MB") {
 		t.Fatalf("expected inline size validation error, got %v", err)
 	}
 }

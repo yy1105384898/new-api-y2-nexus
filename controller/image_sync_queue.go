@@ -146,6 +146,7 @@ func waitForQueuedSyncImage(c *gin.Context, taskID, responseFormat string) {
 				if message == "" {
 					message = "image generation failed"
 				}
+				message = service.NormalizeClientErrorMessage(c, message)
 				c.JSON(http.StatusBadGateway, gin.H{"error": gin.H{
 					"message": message,
 					"type":    "upstream_error",

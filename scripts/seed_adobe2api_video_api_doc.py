@@ -156,7 +156,7 @@ def build_api_doc(conf: dict) -> dict:
                     "name": "images",
                     "description": (
                         f"可选，最多 {conf['max_images']} 张；支持 JPEG/PNG/WebP 的公网 URL 或 data URI，"
-                        "单张不超过 10MB。"
+                        "单张不超过 30MB。"
                         + ("Seedance 仅在 reference_mode=media 时使用该字段。" if is_seedance else conf["variant"])
                     ),
                 },

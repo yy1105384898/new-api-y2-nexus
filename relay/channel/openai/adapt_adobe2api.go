@@ -56,7 +56,6 @@ var adobe2APIVideoModelPrefixes = []string{
 
 const (
 	adobe2APIMaxInputImages = 9
-	adobe2APIMaxImageBytes  = int64(10 << 20)
 )
 
 var adobe2APIReferenceImageAliasKeys = []string{
@@ -143,13 +142,13 @@ func ValidateAdobe2APIImageInputs(c *gin.Context, info *relaycommon.RelayInfo, r
 		return fmt.Errorf("too many images, max %d", adobe2APIMaxInputImages)
 	}
 	for _, file := range files {
-		if file != nil && file.Size > adobe2APIMaxImageBytes {
-			return fmt.Errorf("image too large, max 10MB")
+		if file != nil && file.Size > common.ReferenceImageMaxBytes {
+			return fmt.Errorf("%s", common.ReferenceImageTooLargeDetail())
 		}
 	}
 	for _, ref := range refs {
-		if size, ok := inlineImageDecodedSize(ref); ok && size > adobe2APIMaxImageBytes {
-			return fmt.Errorf("image too large, max 10MB")
+		if size, ok := inlineImageDecodedSize(ref); ok && size > common.ReferenceImageMaxBytes {
+			return fmt.Errorf("%s", common.ReferenceImageTooLargeDetail())
 		}
 	}
 	maskFiles, err := collectAdobe2APIMultipartMaskFiles(c)
@@ -163,12 +162,12 @@ func ValidateAdobe2APIImageInputs(c *gin.Context, info *relaycommon.RelayInfo, r
 	if (len(maskFiles) > 0 || len(maskValues) > 0) && !isAdobe2APIGPTImageModelName(modelName) {
 		return fmt.Errorf("mask is only supported for Adobe GPT Image 2")
 	}
-	if len(maskFiles) == 1 && maskFiles[0] != nil && maskFiles[0].Size > adobe2APIMaxImageBytes {
-		return fmt.Errorf("mask too large, max 10MB")
+	if len(maskFiles) == 1 && maskFiles[0] != nil && maskFiles[0].Size > common.ReferenceImageMaxBytes {
+		return fmt.Errorf("%s", common.ReferenceMaskTooLargeDetail())
 	}
 	for _, value := range maskValues {
-		if size, ok := inlineImageDecodedSize(value); ok && size > adobe2APIMaxImageBytes {
-			return fmt.Errorf("mask too large, max 10MB")
+		if size, ok := inlineImageDecodedSize(value); ok && size > common.ReferenceImageMaxBytes {
+			return fmt.Errorf("%s", common.ReferenceMaskTooLargeDetail())
 		}
 	}
 	return nil
