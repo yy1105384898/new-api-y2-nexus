@@ -29,8 +29,16 @@ V2V_PARAMS = [
     {"name": "prompt", "description": "必填，改风格/内容的描述。"},
     {"name": "aspect_ratio", "description": "16:9 或 9:16。"},
     {
-        "name": "video_url",
-        "description": "V2V 源视频公网 URL（≤5MB、1920×1080 内）；或 multipart 字段 input_video。",
+        "name": "reference_videos",
+        "description": "参考视频 URL 数组（最多 2 条，每条 ≤8MB、1920×1080 内）；单条也可传 video_url。",
+    },
+    {
+        "name": "reference_image_urls",
+        "description": "参考图 URL 数组（与视频混用时最多 2 张，每张 ≤8MB）。",
+    },
+    {
+        "name": "input_video / input_video2",
+        "description": "multipart 上传参考视频（最多 2 个文件，各 ≤8MB）；由服务端映射至上游。",
     },
 ]
 
@@ -81,21 +89,26 @@ DOCS: dict[str, dict] = {
     "oairegbox-omni-v2v": {
         "intro": (
             "Omni 视频转视频（V2V）。按次 ¥0.55。"
-            "JSON 传 video_url，或 multipart 上传 input_video（≤5MB）。固定 720p、约 10 秒。"
-            "请传 public 名 omni-v2v。"
+            "公开契约：reference_videos（最多 2 条）与 reference_image_urls（混用时最多 2 张）；"
+            "单条视频/图片 ≤8MB。服务端自动映射至上游 videos / images 协议。"
+            "固定 720p、约 10 秒。请传 public 名 omni-v2v。"
         ),
         "params": V2V_PARAMS,
         "basic_request_json": {
             "model": "omni-v2v",
             "prompt": "将画面风格转换为赛博朋克风",
             "aspect_ratio": "16:9",
-            "video_url": "https://cdn.example.com/source.mp4",
+            "reference_videos": ["https://cdn.example.com/source.mp4"],
         },
         "request_json": {
             "model": "omni-v2v",
-            "prompt": "将画面风格转换为赛博朋克风",
+            "prompt": "融合两段素材的运动，转换为赛博朋克风",
             "aspect_ratio": "16:9",
-            "video_url": "https://cdn.example.com/source.mp4",
+            "reference_videos": [
+                "https://cdn.example.com/source-a.mp4",
+                "https://cdn.example.com/source-b.mp4",
+            ],
+            "reference_image_urls": ["https://cdn.example.com/ref.jpg"],
         },
     },
     "oairegbox-omni-v2v-no-water": {
@@ -112,9 +125,12 @@ DOCS: dict[str, dict] = {
         },
         "request_json": {
             "model": "omni-v2v-no-water",
-            "prompt": "将画面风格转换为赛博朋克风",
+            "prompt": "融合两段素材的运动，转换为赛博朋克风",
             "aspect_ratio": "16:9",
-            "video_url": "https://cdn.example.com/source.mp4",
+            "reference_videos": [
+                "https://cdn.example.com/source-a.mp4",
+                "https://cdn.example.com/source-b.mp4",
+            ],
         },
     },
 }

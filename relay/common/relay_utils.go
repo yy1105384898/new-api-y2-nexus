@@ -124,6 +124,7 @@ func validateMultipartTaskRequest(c *gin.Context, info *RelayInfo, action string
 		Resolution:         formData.Get("resolution"),
 		Seconds:            formData.Get("seconds"),
 		VideoURL:           formData.Get("video_url"),
+		ReferenceVideos:    append([]string(nil), formData["reference_videos"]...),
 		ImageUrls:          append([]string(nil), formData["image_urls"]...),
 		ReferenceImageUrls: append([]string(nil), formData["reference_image_urls"]...),
 		InputReference:     formData.Get("input_reference"),
@@ -250,7 +251,10 @@ func isKnownTaskField(field string) bool {
 		"duration":             true,
 		"seconds":              true,
 		"generate_audio":       true,
+		"reference_videos":     true,
 		"video_url":            true,
+		"input_video":          true,
+		"input_video2":         true,
 		"metadata":             true,
 		"input_reference":      true, // Sora 特有字段
 	}
