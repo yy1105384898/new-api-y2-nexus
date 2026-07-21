@@ -1338,15 +1338,15 @@
         {
             "id": "video-tpl-async-v2v-ref1",
             "apiMode": "videos-json-async",
-            "payloadBuilder": "omni-v2v",
+            "payloadBuilder": "seedance-flat",
             "validationKey": "omni-v2v",
             "match": [
                 "omni-v2v",
                 "omni-v2v-no-water"
             ],
             "referenceLimits": {
-                "images": 0,
-                "videos": 1,
+                "images": 2,
+                "videos": 2,
                 "audios": 0
             },
             "params": {
@@ -1385,12 +1385,12 @@
                 },
                 "frameInputs": {
                     "enabled": false,
-                    "hint": "需上传源视频（5MB、1080P 以内）"
+                    "hint": "最多 2 条参考视频 + 2 张参考图（各 ≤8MB、1080P 以内）"
                 }
             },
             "hints": [
                 {
-                    "text": "视频转视频：上传源视频后按提示词改风格或内容；源视频请控制在 5MB、1080P 以内。"
+                    "text": "视频转视频：支持最多 2 条参考视频，可与最多 2 张参考图混用；单条视频/图片请控制在 8MB、1080P 以内。"
                 }
             ]
         },

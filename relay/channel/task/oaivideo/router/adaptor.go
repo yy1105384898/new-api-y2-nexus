@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/geeknowgrok"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/grok"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/manju"
+	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/omniv2v"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/sd5"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/seedanceleonardo"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/seedanceoairegbox"
@@ -56,6 +57,7 @@ type RouterAdaptor struct {
 	grok        delegate
 	geeknowGrok delegate
 	manju    delegate
+	omniV2V  delegate
 	sd5               delegate
 	seedanceOairegbox delegate
 	seedanceLeonardo  delegate
@@ -70,6 +72,7 @@ func NewRouterAdaptor() channel.TaskAdaptor {
 		grok:        &grok.TaskAdaptor{},
 		geeknowGrok: &geeknowgrok.TaskAdaptor{},
 		manju:    &manju.TaskAdaptor{},
+		omniV2V:  &omniv2v.TaskAdaptor{},
 		sd5:               &sd5.TaskAdaptor{},
 		seedanceOairegbox: &seedanceoairegbox.TaskAdaptor{},
 		seedanceLeonardo:  &seedanceleonardo.TaskAdaptor{},
@@ -92,6 +95,8 @@ func (r *RouterAdaptor) delegateFor(info *relaycommon.RelayInfo) delegate {
 		return r.geeknowGrok
 	case registry.VendorManju:
 		return r.manju
+	case registry.VendorOmniV2V:
+		return r.omniV2V
 	case registry.VendorSD5:
 		return r.sd5
 	case registry.VendorSeedanceOairegbox:
@@ -276,6 +281,8 @@ func (r *RouterAdaptor) parseTaskResultBody(respBody []byte, task *model.Task) (
 			return r.geeknowGrok.ParseTaskResult(respBody)
 		case registry.VendorManju:
 			return r.manju.ParseTaskResult(respBody)
+		case registry.VendorOmniV2V:
+			return r.omniV2V.ParseTaskResult(respBody)
 		case registry.VendorSD5:
 			return r.sd5.ParseTaskResult(respBody)
 		case registry.VendorSeedanceOairegbox:

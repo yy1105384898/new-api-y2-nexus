@@ -703,6 +703,7 @@ type TaskSubmitReq struct {
 	Images             []string               `json:"images,omitempty"`
 	ImageUrls          []string               `json:"image_urls,omitempty"`
 	ReferenceImageUrls []string               `json:"reference_image_urls,omitempty"`
+	ReferenceVideos    []string               `json:"reference_videos,omitempty"`
 	Size               string                 `json:"size,omitempty"`
 	AspectRatio        string                 `json:"aspect_ratio,omitempty"`
 	Resolution         string                 `json:"resolution,omitempty"`
