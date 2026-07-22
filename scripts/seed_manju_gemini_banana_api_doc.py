@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 import time
@@ -59,11 +60,6 @@ ASYNC_ENDPOINTS = [
         "path": "{{base}}/images/{task_id}/content",
         "description": "下载任务图片（R2 代理地址）。",
     },
-    {
-        "method": "POST",
-        "path": "{{base}}/chat/completions",
-        "description": "（已弃用）兼容旧客户端 chat 出图。",
-    },
 ]
 
 SYNC_ENDPOINTS = [
@@ -76,11 +72,6 @@ SYNC_ENDPOINTS = [
         "method": "POST",
         "path": "{{base}}/images/edits",
         "description": "图生图 multipart（参考图/蒙版）；与 JSON 传 image/images 等价。",
-    },
-    {
-        "method": "POST",
-        "path": "{{base}}/chat/completions",
-        "description": "（已弃用）兼容旧客户端。",
     },
 ]
 
@@ -181,9 +172,24 @@ def build_params(public: str, size_desc: str, *, async_mode: bool) -> list[dict]
         },
         {
             "name": "size",
-            "description": "画幅比例（aspect_ratio）：1:1、16:9 等；auto 可省略。",
+            "description": "兼容旧 OpenAI 尺寸/比例；仅用于推断 aspect_ratio/output_resolution，不推荐与 aspect_ratio 混用。",
         },
-        {"name": "quality", "description": size_desc},
+        {
+            "name": "aspect_ratio",
+            "description": "推荐传画幅比例：1:1、16:9、9:16、4:3、3:4；auto 可省略并由参考图推断。",
+        },
+        {
+            "name": "output_resolution",
+            "description": f"{size_desc} Adobe2API / Manju 均会读取该字段。",
+        },
+        {
+            "name": "image_size",
+            "description": "output_resolution 的兼容别名；若同时传入，须与 output_resolution 保持一致。",
+        },
+        {
+            "name": "quality",
+            "description": "OpenAI 风格别名：low=1K、medium=2K、high=4K；推荐直接传 output_resolution。",
+        },
     ] + REFERENCE_PARAMS + COMMON_PARAMS_TAIL
     if async_mode:
         params.append({"name": "async", "description": "异步模式必填 true。"})
@@ -191,13 +197,13 @@ def build_params(public: str, size_desc: str, *, async_mode: bool) -> list[dict]
 
 
 def build_basic_request(public: str, basic_size: str, *, async_mode: bool) -> dict:
-    quality = {"1K": "low", "2K": "medium", "4K": "high"}.get(basic_size, "low")
     body = {
         "model": public,
         "stream": False,
         "prompt": "一只橘猫坐在窗台上，午后阳光",
-        "size": "1:1",
-        "quality": quality,
+        "aspect_ratio": "1:1",
+        "output_resolution": basic_size,
+        "image_size": basic_size,
     }
     if async_mode:
         body["async"] = True
@@ -205,13 +211,13 @@ def build_basic_request(public: str, basic_size: str, *, async_mode: bool) -> di
 
 
 def build_full_request(public: str, full_size: str, *, async_mode: bool) -> dict:
-    quality = {"1K": "low", "2K": "medium", "4K": "high"}.get(full_size, "high")
     body = {
         "model": public,
         "stream": False,
         "prompt": "将 @图片1 的风格应用到新场景",
-        "size": "3:2",
-        "quality": quality,
+        "aspect_ratio": "16:9",
+        "output_resolution": full_size,
+        "image_size": full_size,
         "image": "https://example.com/ref.png",
     }
     if async_mode:
@@ -298,6 +304,14 @@ def merge_model_price(updates: dict[str, float]) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="更新 Manju Gemini Banana 模型文档与价格")
+    parser.add_argument(
+        "--docs-only",
+        action="store_true",
+        help="只更新 api_doc/profile，不修改 ModelPrice",
+    )
+    args = parser.parse_args()
+
     now = int(time.time())
     price_updates: dict[str, float] = {}
 
@@ -315,10 +329,13 @@ def main() -> None:
         price_updates[spec["internal"]] = spec["price"]
         print(f"api_doc updated: {spec['internal']} -> public {spec['public']}")
 
-    merge_model_price(price_updates)
-    print("ModelPrice updated:")
-    for k, v in price_updates.items():
-        print(f"  {k}: {v}")
+    if args.docs_only:
+        print("ModelPrice unchanged (--docs-only)")
+    else:
+        merge_model_price(price_updates)
+        print("ModelPrice updated:")
+        for k, v in price_updates.items():
+            print(f"  {k}: {v}")
 
     psql_exec(
         "SELECT model_name, image_profile_id, length(api_doc) AS doc_len "

@@ -228,7 +228,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if err != nil {
 		return nil, service.TaskErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
 	}
-	if resp != nil && resp.StatusCode != http.StatusOK {
+	if resp != nil && (resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices) {
 		responseBody, _ := io.ReadAll(resp.Body)
 		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode)
 	}
@@ -581,5 +581,12 @@ func TaskModel2Dto(task *model.Task) *dto.TaskDto {
 func TaskModel2DtoForClient(c *gin.Context, task *model.Task) *dto.TaskDto {
 	taskDto := TaskModel2Dto(task)
 	taskDto.FailReason = service.NormalizeClientErrorMessage(c, taskDto.FailReason)
+	if c != nil && model.IsAdmin(c.GetInt("id")) {
+		return taskDto
+	}
+	taskDto.Properties = service.ClientFacingTaskProperties(task)
+	if patched, err := service.PatchClientFacingModelJSONFromTask(task, taskDto.Data); err == nil {
+		taskDto.Data = patched
+	}
 	return taskDto
 }

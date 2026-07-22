@@ -29,6 +29,25 @@ func TestSetupApiRequestHeaderUsesJSONForMarshaledUpstreamBody(t *testing.T) {
 	require.Equal(t, "application/json", headers.Get("Content-Type"))
 }
 
+func TestSetupApiRequestHeaderKeepsConvertedMultipartContentType(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", nil)
+	ctx.Request.Header.Set("Content-Type", "multipart/form-data; boundary=client")
+
+	info := &relaycommon.RelayInfo{
+		RelayMode:                  relayconstant.RelayModeImagesEdits,
+		UpstreamRequestBodySize:    128,
+		UpstreamRequestContentType: "multipart/form-data; boundary=upstream",
+	}
+
+	headers := http.Header{}
+	SetupApiRequestHeader(info, ctx, &headers)
+	require.Equal(t, "multipart/form-data; boundary=upstream", headers.Get("Content-Type"))
+}
+
 func TestProcessHeaderOverride_ChannelTestSkipsPassthroughRules(t *testing.T) {
 	t.Parallel()
 

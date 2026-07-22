@@ -6,9 +6,9 @@ it under the terms of the GNU Affero General Public License as
 published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
 */
+import { QUOTA_TYPE_VALUES } from '../constants'
 import type { PricingModel } from '../types'
 import { getPricingSignature } from './price'
-import { QUOTA_TYPE_VALUES } from '../constants'
 
 /**
  * 官方模型名首段（`-` 前）。若首段属于此集合，则视为模型本名而非渠道别名前缀。
@@ -88,6 +88,9 @@ const MODEL_FAMILY_FIRST_SEGMENTS = new Set([
   'meta',
 ])
 
+/** 需在模型广场与 API 文档中保留的 public 路由前缀。 */
+const PUBLIC_MODEL_PREFIX_FIRST_SEGMENTS = new Set(['sd5'])
+
 function getNameFirstSegment(modelName: string): string | null {
   const trimmed = modelName.trim()
   const dash = trimmed.indexOf('-')
@@ -97,7 +100,10 @@ function getNameFirstSegment(modelName: string): string | null {
 
 export function isModelFamilyFirstSegment(segment: string): boolean {
   const normalized = segment.toLowerCase()
-  if (MODEL_FAMILY_FIRST_SEGMENTS.has(normalized)) return true
+  if (
+    MODEL_FAMILY_FIRST_SEGMENTS.has(normalized) ||
+    PUBLIC_MODEL_PREFIX_FIRST_SEGMENTS.has(normalized)
+  ) return true
 
   // Versioned official families such as qwen3.7-plus must remain intact.
   return /^qwen\d+(?:\.\d+)?$/.test(normalized)
@@ -124,11 +130,6 @@ export function formatModelDisplayName(modelName: string) {
 export function getModelDisplayName(
   model: Pick<PricingModel, 'model_name' | 'display_name'>
 ) {
-  // Older API data may persist `plus` as display_name for qwen3.7-plus.
-  // Prefer the canonical model name for versioned Qwen families.
-  if (/^qwen\d+(?:\.\d+)?-/i.test(model.model_name.trim())) {
-    return formatModelDisplayName(model.model_name)
-  }
   return model.display_name || formatModelDisplayName(model.model_name)
 }
 

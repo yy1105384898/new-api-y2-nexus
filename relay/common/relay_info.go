@@ -163,6 +163,10 @@ type RelayInfo struct {
 	// http.Request.ContentLength manually (net/http only auto-detects it for
 	// *bytes.Reader/Buffer/strings.Reader). 0 means "let net/http decide".
 	UpstreamRequestBodySize int64
+	// UpstreamRequestContentType overrides the client content type when a
+	// converted body is staged in BodyStorage. Empty defaults to JSON for the
+	// existing marshaled-body path.
+	UpstreamRequestContentType string
 
 	PriceData types.PriceData
 
@@ -191,6 +195,10 @@ type RelayInfo struct {
 	*TaskRelayInfo
 	// ImageClientWantsURL：客户请求 response_format=url；Gulie 类模型对内改走 b64_json 后仍按 url 形态返回 R2 公网地址。
 	ImageClientWantsURL bool
+	// RehostedImageURLs 同步生图 R2 转存后的公网链接，写入 consume 日志供客户查看。
+	RehostedImageURLs []string
+	// Adobe2APIImageEditMultipart 为 true 时，图生图走上游 POST /v1/images/edits（multipart，重复 image 字段）。
+	Adobe2APIImageEditMultipart bool
 }
 
 func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
@@ -688,22 +696,38 @@ type TaskRelayInfo struct {
 }
 
 type TaskSubmitReq struct {
-	Prompt              string                 `json:"prompt"`
-	Model               string                 `json:"model,omitempty"`
-	Mode                string                 `json:"mode,omitempty"`
-	Image               string                 `json:"image,omitempty"`
-	Images              []string               `json:"images,omitempty"`
-	ImageUrls           []string               `json:"image_urls,omitempty"`
-	ReferenceImageUrls  []string               `json:"reference_image_urls,omitempty"`
-	Size                string                 `json:"size,omitempty"`
-	Duration            int                    `json:"duration,omitempty"`
-	Seconds             string                 `json:"seconds,omitempty"`
-	InputReference      string                 `json:"input_reference,omitempty"`
-	Metadata            map[string]interface{} `json:"metadata,omitempty"`
+	Prompt             string                 `json:"prompt"`
+	Model              string                 `json:"model,omitempty"`
+	Mode               string                 `json:"mode,omitempty"`
+	Image              string                 `json:"image,omitempty"`
+	Images             []string               `json:"images,omitempty"`
+	ImageUrls          []string               `json:"image_urls,omitempty"`
+	ReferenceImageUrls []string               `json:"reference_image_urls,omitempty"`
+	ReferenceVideos    []string               `json:"reference_videos,omitempty"`
+	Size               string                 `json:"size,omitempty"`
+	AspectRatio        string                 `json:"aspect_ratio,omitempty"`
+	Resolution         string                 `json:"resolution,omitempty"`
+	Seed               *int64                 `json:"seed,omitempty"`
+	Duration           int                    `json:"duration,omitempty"`
+	Seconds            string                 `json:"seconds,omitempty"`
+	GenerateAudio      *bool                  `json:"generate_audio,omitempty"`
+	VideoURL           string                 `json:"video_url,omitempty"`
+	InputReference     string                 `json:"input_reference,omitempty"`
+	Metadata           map[string]interface{} `json:"metadata,omitempty"`
 }
 
 func (t *TaskSubmitReq) GetPrompt() string {
 	return t.Prompt
+}
+
+// RequestedDurationSeconds returns the normalized public video duration.
+// External callers may use either duration or seconds; request validation
+// keeps both aliases synchronized before vendor adaptors consume the value.
+func (t TaskSubmitReq) RequestedDurationSeconds() int {
+	if seconds, err := strconv.Atoi(strings.TrimSpace(t.Seconds)); err == nil && seconds != 0 {
+		return seconds
+	}
+	return t.Duration
 }
 
 func normalizeTaskSubmitImages(req *TaskSubmitReq) {
@@ -730,15 +754,19 @@ func (t *TaskSubmitReq) HasImage() bool {
 }
 
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
+	defer normalizeTaskSubmitImages(t)
+
 	var raw map[string]json.RawMessage
 	if err := common.Unmarshal(data, &raw); err != nil {
 		return err
 	}
 
+	imageRaw := raw["image"]
 	inputRefRaw := raw["input_reference"]
 	metadataRaw := raw["metadata"]
 	durationRaw := raw["duration"]
 	secondsRaw := raw["seconds"]
+	delete(raw, "image")
 	delete(raw, "input_reference")
 	delete(raw, "metadata")
 	delete(raw, "duration")
@@ -755,6 +783,16 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*t = TaskSubmitReq(alias)
+
+	if len(imageRaw) > 0 {
+		if refs, ok := unmarshalFlexibleStringSlice(imageRaw); ok {
+			if len(refs) == 1 {
+				t.Image = refs[0]
+			} else {
+				t.Images = append([]string(nil), refs...)
+			}
+		}
+	}
 
 	if len(durationRaw) > 0 {
 		if v, ok := unmarshalFlexibleInt(durationRaw); ok {
@@ -822,6 +860,26 @@ func unmarshalFlexibleStringSlice(raw json.RawMessage) ([]string, bool) {
 	var sliceVal []string
 	if err := common.Unmarshal(raw, &sliceVal); err == nil && len(sliceVal) > 0 {
 		return sliceVal, true
+	}
+	var objectVal struct {
+		URL string `json:"url"`
+	}
+	if err := common.Unmarshal(raw, &objectVal); err == nil && strings.TrimSpace(objectVal.URL) != "" {
+		return []string{objectVal.URL}, true
+	}
+	var objectSlice []struct {
+		URL string `json:"url"`
+	}
+	if err := common.Unmarshal(raw, &objectSlice); err == nil {
+		values := make([]string, 0, len(objectSlice))
+		for _, item := range objectSlice {
+			if value := strings.TrimSpace(item.URL); value != "" {
+				values = append(values, value)
+			}
+		}
+		if len(values) > 0 {
+			return values, true
+		}
 	}
 	return nil, false
 }

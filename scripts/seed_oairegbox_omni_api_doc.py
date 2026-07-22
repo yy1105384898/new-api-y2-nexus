@@ -29,8 +29,16 @@ V2V_PARAMS = [
     {"name": "prompt", "description": "必填，改风格/内容的描述。"},
     {"name": "aspect_ratio", "description": "16:9 或 9:16。"},
     {
-        "name": "video_url",
-        "description": "V2V 源视频公网 URL（≤5MB、1920×1080 内）；或 multipart 字段 input_video。",
+        "name": "reference_videos",
+        "description": "参考视频 URL 数组（最多 2 条，每条 ≤8MB、1920×1080 内）；单条也可传 video_url。",
+    },
+    {
+        "name": "reference_image_urls",
+        "description": "参考图 URL 数组（与视频混用时最多 2 张，每张 ≤8MB）。",
+    },
+    {
+        "name": "input_video / input_video2",
+        "description": "multipart 上传参考视频（最多 2 个文件，各 ≤8MB）；由服务端映射至上游。",
     },
 ]
 
@@ -40,7 +48,7 @@ QUERY_RESP = {"id": "task_abc123", "status": "completed", "data": [{"url": "/v1/
 DOCS: dict[str, dict] = {
     "oairegbox-omni-fast": {
         "intro": (
-            "OAIREGBox Omni 文生/图生视频（Gemini Veo）。固定 720p、约 10 秒，按次 ¥0.40。"
+            "Omni 文生/图生视频。固定 720p、约 10 秒，按次 ¥0.40。"
             "JSON 提交 aspect_ratio；单图 JSON image_url；多图 multipart input_reference 文件；"
             "首尾帧 JSON first_image_url / last_image_url。"
         ),
@@ -59,7 +67,7 @@ DOCS: dict[str, dict] = {
     },
     "oairegbox-omni-fast-no-water": {
         "intro": (
-            "OAIREGBox Omni 无水印版。固定 720p、约 10 秒，按次 ¥0.50。"
+            "Omni 无水印版。固定 720p、约 10 秒，按次 ¥0.50。"
             "出片经自动清洗，完成前可能多一个 processing 阶段。参数同 omni-fast。"
         ),
         "params": [
@@ -80,28 +88,33 @@ DOCS: dict[str, dict] = {
     },
     "oairegbox-omni-v2v": {
         "intro": (
-            "OAIREGBox Omni 视频转视频（V2V）。按次 ¥0.55。"
-            "JSON 传 video_url，或 multipart 上传 input_video（≤5MB）。固定 720p、约 10 秒。"
-            "客户端 model 传 omni-v2v（勿传上游名 omni-fast-v2v）。"
+            "Omni 视频转视频（V2V）。按次 ¥0.55。"
+            "公开契约：reference_videos（最多 2 条）与 reference_image_urls（混用时最多 2 张）；"
+            "单条视频/图片 ≤8MB。服务端自动映射至上游 videos / images 协议。"
+            "固定 720p、约 10 秒。请传 public 名 omni-v2v。"
         ),
         "params": V2V_PARAMS,
         "basic_request_json": {
             "model": "omni-v2v",
             "prompt": "将画面风格转换为赛博朋克风",
             "aspect_ratio": "16:9",
-            "video_url": "https://cdn.example.com/source.mp4",
+            "reference_videos": ["https://cdn.example.com/source.mp4"],
         },
         "request_json": {
             "model": "omni-v2v",
-            "prompt": "将画面风格转换为赛博朋克风",
+            "prompt": "融合两段素材的运动，转换为赛博朋克风",
             "aspect_ratio": "16:9",
-            "video_url": "https://cdn.example.com/source.mp4",
+            "reference_videos": [
+                "https://cdn.example.com/source-a.mp4",
+                "https://cdn.example.com/source-b.mp4",
+            ],
+            "reference_image_urls": ["https://cdn.example.com/ref.jpg"],
         },
     },
     "oairegbox-omni-v2v-no-water": {
         "intro": (
-            "OAIREGBox Omni V2V 无水印版。按次 ¥0.65。参数同 omni-v2v，出片经自动清洗。"
-            "客户端 model 传 omni-v2v-no-water（勿传上游名 omni-fast-v2v-no-water）。"
+            "Omni V2V 无水印版。按次 ¥0.65。参数同 omni-v2v，出片经自动清洗。"
+            "请传 public 名 omni-v2v-no-water。"
         ),
         "params": V2V_PARAMS,
         "basic_request_json": {
@@ -112,9 +125,12 @@ DOCS: dict[str, dict] = {
         },
         "request_json": {
             "model": "omni-v2v-no-water",
-            "prompt": "将画面风格转换为赛博朋克风",
+            "prompt": "融合两段素材的运动，转换为赛博朋克风",
             "aspect_ratio": "16:9",
-            "video_url": "https://cdn.example.com/source.mp4",
+            "reference_videos": [
+                "https://cdn.example.com/source-a.mp4",
+                "https://cdn.example.com/source-b.mp4",
+            ],
         },
     },
 }

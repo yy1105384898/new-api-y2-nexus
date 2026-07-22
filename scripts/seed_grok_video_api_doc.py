@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""写入 Grok 视频两模型的 models.api_doc（源站执行，对齐 video-generations 实测参数）。"""
+"""写入 Grok 视频两模型的 models.api_doc（源站执行，对齐统一 /v1/videos 协议）。"""
 
 from __future__ import annotations
 
@@ -7,8 +7,9 @@ import json
 import subprocess
 
 ENDPOINTS = [
-    {"method": "POST", "path": "{{base}}/video/generations", "description": "创建视频任务（application/json）。"},
-    {"method": "GET", "path": "{{base}}/video/generations/{task_id}", "description": "查询任务状态；成功时 data.result_url 为成片地址。"},
+    {"method": "POST", "path": "{{base}}/videos", "description": "通过统一视频任务接口创建任务（application/json 或 multipart/form-data）。"},
+    {"method": "GET", "path": "{{base}}/videos/{task_id}", "description": "通过统一视频任务接口查询状态和结果。"},
+    {"method": "GET", "path": "{{base}}/videos/{task_id}/content", "description": "下载已完成任务的成片。"},
 ]
 
 PROMPT_PARAM = {
@@ -27,21 +28,21 @@ CREATE_RESP = {
 }
 
 QUERY_RESP = {
-    "code": "success",
-    "data": {
-        "status": "SUCCESS",
-        "task_id": "task_xxx",
-        "progress": "100%",
-        "result_url": "https://example.com/generated-video.mp4",
-        "fail_reason": "",
-    },
+    "id": "task_xxx",
+    "object": "video",
+    "model": "{{model}}",
+    "status": "completed",
+    "progress": 100,
+    "created_at": 1780000000,
+    "seconds": "6",
+    "metadata": {"video_url": "{{base}}/videos/task_xxx/content"},
 }
 
 DOCS: dict[str, dict] = {
     "cy-gv1-grok-video": {
         "dispatch_mode": "async",
         "intro": (
-            "Grok 异步视频：POST /v1/video/generations 提交，GET 轮询至 SUCCESS。"
+            "Grok 异步视频：POST /v1/videos 提交，GET /v1/videos/{task_id} 轮询至 SUCCESS。"
             "支持文生、单图/多参考图生视频，以及 video_url 视频编辑（可不传 image_urls）。"
             "文生/单图最长 15 秒；多参考图最多 7 张且 seconds>10 时自动按 10 秒处理。"
         ),
@@ -99,7 +100,7 @@ DOCS: dict[str, dict] = {
     "cy-gv1-grok-video-1.5": {
         "dispatch_mode": "async",
         "intro": (
-            "Grok 1.5 单图生视频：POST /v1/video/generations 提交，GET 轮询至 SUCCESS。"
+            "Grok 1.5 单图生视频：POST /v1/videos 提交，GET /v1/videos/{task_id} 轮询至 SUCCESS。"
             "必须且只能 1 张图片参考（image_urls / image），不支持纯文生、不支持视频参考；"
             "画幅仅 16:9 / 9:16；清晰度 480p/720p。"
         ),

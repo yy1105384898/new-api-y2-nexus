@@ -4,7 +4,29 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/QuantumNous/new-api/setting/system_setting"
 )
+
+func TestResolveStoredVideoResultURLRecoversSelfReferentialProxy(t *testing.T) {
+	previous := system_setting.ServerAddress
+	system_setting.ServerAddress = "https://ai.cangyuansuanli.cn"
+	t.Cleanup(func() { system_setting.ServerAddress = previous })
+
+	stored := "https://ai.cangyuansuanli.cn/v1/videos/task_public/content"
+	body := []byte(`{"code":"success","data":{"task_id":"task_upstream","result_url":"https://vidgen.x.ai/video.mp4","data":{"video":{"url":"https://vidgen.x.ai/video.mp4"}}}}`)
+	if got := ResolveStoredVideoResultURL(stored, body); got != "https://vidgen.x.ai/video.mp4" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestResolveStoredVideoResultURLKeepsValidStoredURL(t *testing.T) {
+	stored := "https://tmp.cangyuansuanli.cn/gen-videos/1/task_public.mp4"
+	body := []byte(`{"result_url":"https://vidgen.x.ai/video.mp4"}`)
+	if got := ResolveStoredVideoResultURL(stored, body); got != stored {
+		t.Fatalf("got %q", got)
+	}
+}
 
 func TestVideoURLNeedsRehost(t *testing.T) {
 	t.Setenv("R2_ACCOUNT_ID", "acc")
@@ -48,6 +70,37 @@ func TestPatchVideoURLInTaskData(t *testing.T) {
 	}
 	if !strings.Contains(s, `"url":"https://tmp.cangyuansuanli.cn/gen-videos/1/task_x.mp4"`) {
 		t.Fatalf("nested url not patched: %s", s)
+	}
+}
+
+func TestPatchVideoUsageSecondsInTaskData(t *testing.T) {
+	in := []byte(`{"id":"video_1","status":"completed","video_url":"https://example.com/a.mp4"}`)
+	out, err := patchVideoUsageSecondsInTaskData(in, 15)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), `"usage":{"seconds":15}`) {
+		t.Fatalf("usage seconds not patched: %s", out)
+	}
+}
+
+func TestPatchVideoEnvelopeKeepsDataObject(t *testing.T) {
+	in := []byte(`{"code":"success","data":{"task_id":"task_x","status":"SUCCESS","result_url":"https://upstream.example/a.mp4"}}`)
+	cdn := "https://tmp.cangyuansuanli.cn/gen-videos/1/task_x.mp4"
+	out, err := patchVideoURLInTaskData(in, cdn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err = patchVideoUsageSecondsInTaskData(out, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(out)
+	if !strings.Contains(s, `"data":{"task_id"`) || !strings.Contains(s, `"result_url":"`+cdn+`"`) {
+		t.Fatalf("envelope data was corrupted: %s", s)
+	}
+	if !strings.Contains(s, `"usage":{"seconds":4}`) {
+		t.Fatalf("nested usage seconds not patched: %s", s)
 	}
 }
 

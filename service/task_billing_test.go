@@ -41,6 +41,7 @@ func TestMain(m *testing.M) {
 	common.RedisEnabled = false
 	common.BatchUpdateEnabled = false
 	common.LogConsumeEnabled = true
+	common.DataExportEnabled = true
 
 	if err := db.AutoMigrate(
 		&model.Task{},
@@ -63,6 +64,7 @@ func TestMain(m *testing.M) {
 
 func truncate(t *testing.T) {
 	t.Helper()
+	clearQuotaDataCache()
 	t.Cleanup(func() {
 		model.DB.Exec("DELETE FROM tasks")
 		model.DB.Exec("DELETE FROM users")
@@ -71,7 +73,26 @@ func truncate(t *testing.T) {
 		model.DB.Exec("DELETE FROM channels")
 		model.DB.Exec("DELETE FROM top_ups")
 		model.DB.Exec("DELETE FROM user_subscriptions")
+		clearQuotaDataCache()
 	})
+}
+
+func clearQuotaDataCache() {
+	model.CacheQuotaDataLock.Lock()
+	defer model.CacheQuotaDataLock.Unlock()
+	model.CacheQuotaData = make(map[string]*model.QuotaData)
+}
+
+func getCachedQuotaData(userID int, modelName string) *model.QuotaData {
+	model.CacheQuotaDataLock.Lock()
+	defer model.CacheQuotaDataLock.Unlock()
+	for _, item := range model.CacheQuotaData {
+		if item.UserID == userID && item.ModelName == modelName {
+			copy := *item
+			return &copy
+		}
+	}
+	return nil
 }
 
 func seedUser(t *testing.T, id int, quota int) {
@@ -193,6 +214,41 @@ func countLogs(t *testing.T) int64 {
 // ===========================================================================
 // RefundTaskQuota tests
 // ===========================================================================
+
+func TestRefundTaskQuota_RefundableSkipsDashboardQuota(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID = 20
+	const preConsumed = 3000
+
+	seedUser(t, userID, 10000)
+	task := makeTask(userID, 0, preConsumed, 0, BillingSourceWallet, 0)
+
+	RefundTaskQuota(ctx, task, "task failed: upstream error")
+
+	require.Eventually(t, func() bool {
+		return getCachedQuotaData(userID, "test-model") == nil
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestRefundTaskQuota_NonRefundableRecordsDashboardQuota(t *testing.T) {
+	truncate(t)
+	ctx := context.Background()
+
+	const userID = 21
+	const preConsumed = 3000
+
+	seedUser(t, userID, 10000)
+	task := makeTask(userID, 0, preConsumed, 0, BillingSourceWallet, 0)
+
+	RefundTaskQuota(ctx, task, "The generated images appear to be unsafe. Try modifying the prompts or the seeds.")
+
+	require.Eventually(t, func() bool {
+		qd := getCachedQuotaData(userID, "test-model")
+		return qd != nil && qd.Count == 1 && qd.Quota == preConsumed
+	}, time.Second, 10*time.Millisecond)
+}
 
 func TestRefundTaskQuota_Wallet(t *testing.T) {
 	truncate(t)
@@ -386,6 +442,12 @@ func TestRecalculate_ZeroDelta(t *testing.T) {
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeConsume, log.Type)
 	assert.Equal(t, preConsumed, log.Quota)
+
+	// Async image completion must remain visible in /api/data dashboard stats.
+	require.Eventually(t, func() bool {
+		quotaData := getCachedQuotaData(userID, "test-model")
+		return quotaData != nil && quotaData.Count == 1 && quotaData.Quota == preConsumed
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestRecalculate_ActualQuotaZero(t *testing.T) {
@@ -579,6 +641,7 @@ func TestCASGuardedSettle_Win(t *testing.T) {
 	var reloaded model.Task
 	require.NoError(t, model.DB.First(&reloaded, task.ID).Error)
 	assert.EqualValues(t, model.TaskStatusSuccess, reloaded.Status)
+	assert.Equal(t, actualQuota, reloaded.Quota)
 
 	// Settlement should refund the over-charge (5000 - 3000 = 2000 back to user)
 	assert.Equal(t, initQuota+(preConsumed-actualQuota), getUserQuota(t, userID))
@@ -664,6 +727,10 @@ func TestSettle_PerCallBilling_SkipsAdaptorAdjust(t *testing.T) {
 	assert.Equal(t, tokenRemain, getTokenRemainQuota(t, tokenID))
 	assert.Equal(t, preConsumed, task.Quota)
 	assert.Equal(t, int64(0), countLogs(t))
+	require.Eventually(t, func() bool {
+		qd := getCachedQuotaData(userID, "test-model")
+		return qd != nil && qd.Count == 1 && qd.Quota == preConsumed
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestSettle_PerCallBilling_SkipsTotalTokens(t *testing.T) {
@@ -802,6 +869,15 @@ func TestShouldRefundRelayError_UpstreamTimeout(t *testing.T) {
 	apiErr := types.NewError(fmt.Errorf("upstream timeout"), types.ErrorCodeDoRequestFailed, types.ErrOptionWithSkipRetry())
 
 	assert.True(t, ShouldRefundRelayError(nil, apiErr))
+}
+
+func TestShouldRefundRelayError_ImageRehostClientCancel(t *testing.T) {
+	apiErr := types.NewOpenAIError(
+		fmt.Errorf("rehost upstream image b64: r2 put object failed: %w", context.Canceled),
+		types.ErrorCodeBadResponse,
+		http.StatusBadGateway,
+	)
+	assert.False(t, ShouldRefundRelayError(nil, apiErr))
 }
 
 func TestRefundTaskQuota_UnsafeImageFailure(t *testing.T) {

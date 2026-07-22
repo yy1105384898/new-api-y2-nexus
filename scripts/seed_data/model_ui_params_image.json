@@ -26,6 +26,66 @@
     },
     "profiles": [
         {
+            "id": "image-tpl-nano-banana-tier-1k",
+            "api_mode": "images-json-async",
+            "match_mode": "exact",
+            "match": [
+                "adobe-firefly-nano-banana-1k"
+            ],
+            "params": {
+                "quality": {"enabled": false},
+                "aspectRatio": {
+                    "enabled": true,
+                    "options": [
+                        {"value": "1:1", "label": "1:1", "width": 1024, "height": 1024, "icon": "square"},
+                        {"value": "4:3", "label": "4:3", "width": 1152, "height": 864, "icon": "landscape"},
+                        {"value": "3:4", "label": "3:4", "width": 864, "height": 1152, "icon": "portrait"},
+                        {"value": "16:9", "label": "16:9", "width": 1024, "height": 576, "icon": "landscape"},
+                        {"value": "9:16", "label": "9:16", "width": 576, "height": 1024, "icon": "portrait"}
+                    ]
+                },
+                "customDimensions": {"enabled": false},
+                "count": {"enabled": true, "min": 1, "max": 1, "quickCount": 1},
+                "background": {"enabled": false},
+                "outputFormat": {"enabled": false},
+                "outputCompression": {"enabled": false},
+                "moderation": {"enabled": false}
+            },
+            "hints": [
+                {"text": "1K 固定档位；服务端会忽略 prompt 中的分辨率文字并固定发送 image_size=1K。"}
+            ]
+        },
+        {
+            "id": "image-tpl-nano-banana-tier-2k",
+            "api_mode": "images-json-async",
+            "match_mode": "exact",
+            "match": [
+                "adobe-firefly-nano-banana-2k"
+            ],
+            "params": {
+                "quality": {"enabled": false},
+                "aspectRatio": {
+                    "enabled": true,
+                    "options": [
+                        {"value": "1:1", "label": "1:1", "width": 2048, "height": 2048, "icon": "square"},
+                        {"value": "4:3", "label": "4:3", "width": 2304, "height": 1728, "icon": "landscape"},
+                        {"value": "3:4", "label": "3:4", "width": 1728, "height": 2304, "icon": "portrait"},
+                        {"value": "16:9", "label": "16:9", "width": 2048, "height": 1152, "icon": "landscape"},
+                        {"value": "9:16", "label": "9:16", "width": 1152, "height": 2048, "icon": "portrait"}
+                    ]
+                },
+                "customDimensions": {"enabled": false},
+                "count": {"enabled": true, "min": 1, "max": 1, "quickCount": 1},
+                "background": {"enabled": false},
+                "outputFormat": {"enabled": false},
+                "outputCompression": {"enabled": false},
+                "moderation": {"enabled": false}
+            },
+            "hints": [
+                {"text": "2K 固定档位；服务端固定发送 image_size=2K，错档结构化参数会在扣费前拒绝。"}
+            ]
+        },
+        {
             "id": "image-tpl-gulie-1k",
             "api_mode": "images-json-async",
             "match": [
@@ -95,7 +155,94 @@
             },
             "hints": [
                 {
-                    "text": "并发生成可能触发上游限流，建议控制单次张数与并发。"
+                    "text": "并发生成可能触发限流，建议控制单次张数与并发。"
+                }
+            ]
+        },
+        {
+            "id": "image-tpl-gulie-2k",
+            "api_mode": "images-json-async",
+            "match": [
+                "gpt-image-2-2k",
+                "cy-img2-gpt-image-2-2k"
+            ],
+            "params": {
+                "quality": {
+                    "enabled": false
+                },
+                "aspectRatio": {
+                    "enabled": true,
+                    "options": [
+                        {
+                            "value": "1:1",
+                            "label": "1:1",
+                            "size": "1024x1024",
+                            "width": 1024,
+                            "height": 1024,
+                            "icon": "square"
+                        },
+                        {
+                            "value": "3:2",
+                            "label": "3:2",
+                            "size": "1536x1024",
+                            "width": 1536,
+                            "height": 1024,
+                            "icon": "landscape"
+                        },
+                        {
+                            "value": "2:3",
+                            "label": "2:3",
+                            "size": "1024x1536",
+                            "width": 1024,
+                            "height": 1536,
+                            "icon": "portrait"
+                        },
+                        {
+                            "value": "auto",
+                            "label": "自动",
+                            "width": 0,
+                            "height": 0,
+                            "icon": "auto"
+                        }
+                    ]
+                },
+                "customDimensions": {
+                    "enabled": false
+                },
+                "count": {
+                    "enabled": true,
+                    "min": 1,
+                    "max": 10,
+                    "quickCount": 10
+                },
+                "background": {
+                    "enabled": false
+                },
+                "outputFormat": {
+                    "enabled": false
+                },
+                "outputCompression": {
+                    "enabled": false
+                },
+                "moderation": {
+                    "enabled": false
+                }
+            },
+            "hints": [
+                {
+                    "text": "2K 固定档位：size 仅传画幅比例（1:1、3:2、2:3、auto），勿传 quality、image_size、output_resolution 或像素尺寸。"
+                },
+                {
+                    "text": "连接参考图后，在提示词中用 @图片1 说明要改动的素材；参考图须 multipart POST /images/edits。"
+                },
+                {
+                    "text": "画幅选「自动」时，有参考图会按参考图比例出图。"
+                },
+                {
+                    "text": "异步出图请传 async:true 且 stream:false，GET 轮询取 data.url。"
+                },
+                {
+                    "text": "建议控制单次张数与并发，避免触发限流。"
                 }
             ]
         },
@@ -343,8 +490,7 @@
                 "gpt-image-2",
                 "gpt-image-1.5",
                 "gpt-image-1",
-                "gpt-image-2-1k",
-                "gpt-image-2-2k"
+                "gpt-image-2-1k"
             ],
             "params": {
                 "quality": {
@@ -539,22 +685,6 @@
                             "icon": "portrait"
                         },
                         {
-                            "value": "3:2",
-                            "label": "3:2",
-                            "size": "3:2",
-                            "width": 3,
-                            "height": 2,
-                            "icon": "landscape"
-                        },
-                        {
-                            "value": "2:3",
-                            "label": "2:3",
-                            "size": "2:3",
-                            "width": 2,
-                            "height": 3,
-                            "icon": "portrait"
-                        },
-                        {
                             "value": "4:3",
                             "label": "4:3",
                             "size": "4:3",
@@ -569,30 +699,6 @@
                             "width": 3,
                             "height": 4,
                             "icon": "portrait"
-                        },
-                        {
-                            "value": "4:5",
-                            "label": "4:5",
-                            "size": "4:5",
-                            "width": 4,
-                            "height": 5,
-                            "icon": "portrait"
-                        },
-                        {
-                            "value": "5:4",
-                            "label": "5:4",
-                            "size": "5:4",
-                            "width": 5,
-                            "height": 4,
-                            "icon": "landscape"
-                        },
-                        {
-                            "value": "21:9",
-                            "label": "21:9",
-                            "size": "21:9",
-                            "width": 21,
-                            "height": 9,
-                            "icon": "landscape"
                         },
                         {
                             "value": "auto",
@@ -631,6 +737,12 @@
                 },
                 {
                     "text": "画幅选「自动」时，有参考图会按参考图比例出图。"
+                },
+                {
+                    "text": "API 推荐显式传 aspect_ratio 与 output_resolution（1K/2K/4K）；image_size 是兼容别名，若同时传需与 output_resolution 一致。"
+                },
+                {
+                    "text": "画质别名：low=1K、medium=2K、high=4K；画布会把 4K 转成 output_resolution:\"4K\"。"
                 },
                 {
                     "when": {
@@ -1243,6 +1355,290 @@
                     "text": "全参数"
                 }
             ]
+        },
+        {
+            "id": "image-tpl-nano-banana-tier-4k",
+            "api_mode": "images-json-async",
+            "match_mode": "exact",
+            "match": [
+                "adobe-firefly-nano-banana-4k"
+            ],
+            "params": {
+                "quality": {
+                    "enabled": false
+                },
+                "aspectRatio": {
+                    "enabled": true,
+                    "options": [
+                        {
+                            "value": "1:1",
+                            "label": "1:1",
+                            "width": 4096,
+                            "height": 4096,
+                            "icon": "square"
+                        },
+                        {
+                            "value": "4:3",
+                            "label": "4:3",
+                            "width": 4096,
+                            "height": 3072,
+                            "icon": "landscape"
+                        },
+                        {
+                            "value": "3:4",
+                            "label": "3:4",
+                            "width": 3072,
+                            "height": 4096,
+                            "icon": "portrait"
+                        },
+                        {
+                            "value": "16:9",
+                            "label": "16:9",
+                            "width": 3840,
+                            "height": 2160,
+                            "icon": "landscape"
+                        },
+                        {
+                            "value": "9:16",
+                            "label": "9:16",
+                            "width": 2160,
+                            "height": 3840,
+                            "icon": "portrait"
+                        }
+                    ]
+                },
+                "customDimensions": {
+                    "enabled": false
+                },
+                "count": {
+                    "enabled": true,
+                    "min": 1,
+                    "max": 1,
+                    "quickCount": 1
+                },
+                "background": {
+                    "enabled": false
+                },
+                "outputFormat": {
+                    "enabled": false
+                },
+                "outputCompression": {
+                    "enabled": false
+                },
+                "moderation": {
+                    "enabled": false
+                }
+            },
+            "hints": [
+                {
+                    "text": "4K 固定档位；服务端固定发送 image_size=4K，错档结构化参数会在扣费前拒绝。"
+                },
+                {
+                    "text": "输出固定为 PNG；格式、压缩、背景和审核参数不开放。"
+                }
+            ]
+        },
+        {
+            "id": "image-tpl-nano-banana-pro-1k",
+            "api_mode": "images-json-async",
+            "match_mode": "exact",
+            "match": ["adobe-firefly-nano-banana-pro-1k"],
+            "params": {
+                "quality": {"enabled": false},
+                "aspectRatio": {"enabled": true, "options": [
+                    {"value": "1:1", "label": "1:1", "width": 1024, "height": 1024},
+                    {"value": "5:4", "label": "5:4", "width": 1120, "height": 896},
+                    {"value": "9:16", "label": "9:16", "width": 768, "height": 1360},
+                    {"value": "21:9", "label": "21:9", "width": 1456, "height": 624},
+                    {"value": "16:9", "label": "16:9", "width": 1360, "height": 768},
+                    {"value": "3:2", "label": "3:2", "width": 1248, "height": 832},
+                    {"value": "4:3", "label": "4:3", "width": 1152, "height": 864},
+                    {"value": "4:5", "label": "4:5", "width": 896, "height": 1120},
+                    {"value": "3:4", "label": "3:4", "width": 864, "height": 1152},
+                    {"value": "2:3", "label": "2:3", "width": 832, "height": 1248}
+                ]},
+                "customDimensions": {"enabled": false}, "count": {"enabled": true, "min": 1, "max": 1, "quickCount": 1},
+                "background": {"enabled": false}, "outputFormat": {"enabled": false},
+                "outputCompression": {"enabled": false}, "moderation": {"enabled": false}
+            },
+            "hints": [{"text": "Nano Banana Pro 1K 固定档位；API 支持任意正整数 W:H，画幅比例不会改变 1K 计费和分辨率档位。"}]
+        },
+        {
+            "id": "image-tpl-nano-banana-pro-2k",
+            "api_mode": "images-json-async",
+            "match_mode": "exact",
+            "match": ["adobe-firefly-nano-banana-pro-2k"],
+            "params": {
+                "quality": {"enabled": false},
+                "aspectRatio": {"enabled": true, "options": [
+                    {"value": "1:1", "label": "1:1", "width": 2048, "height": 2048},
+                    {"value": "5:4", "label": "5:4", "width": 2240, "height": 1792},
+                    {"value": "9:16", "label": "9:16", "width": 1536, "height": 2752},
+                    {"value": "21:9", "label": "21:9", "width": 2912, "height": 1248},
+                    {"value": "16:9", "label": "16:9", "width": 2752, "height": 1536},
+                    {"value": "3:2", "label": "3:2", "width": 2496, "height": 1664},
+                    {"value": "4:3", "label": "4:3", "width": 2048, "height": 1536},
+                    {"value": "4:5", "label": "4:5", "width": 1792, "height": 2240},
+                    {"value": "3:4", "label": "3:4", "width": 1536, "height": 2048},
+                    {"value": "2:3", "label": "2:3", "width": 1664, "height": 2496}
+                ]},
+                "customDimensions": {"enabled": false}, "count": {"enabled": true, "min": 1, "max": 1, "quickCount": 1},
+                "background": {"enabled": false}, "outputFormat": {"enabled": false},
+                "outputCompression": {"enabled": false}, "moderation": {"enabled": false}
+            },
+            "hints": [{"text": "Nano Banana Pro 2K 固定档位；API 支持任意正整数 W:H，画幅比例不会改变 2K 计费和分辨率档位。"}]
+        },
+        {
+            "id": "image-tpl-nano-banana-pro-4k",
+            "api_mode": "images-json-async",
+            "match_mode": "exact",
+            "match": ["adobe-firefly-nano-banana-pro-4k"],
+            "params": {
+                "quality": {"enabled": false},
+                "aspectRatio": {"enabled": true, "options": [
+                    {"value": "1:1", "label": "1:1", "width": 4096, "height": 4096},
+                    {"value": "5:4", "label": "5:4", "width": 4480, "height": 3584},
+                    {"value": "9:16", "label": "9:16", "width": 3072, "height": 5504},
+                    {"value": "21:9", "label": "21:9", "width": 5824, "height": 2496},
+                    {"value": "16:9", "label": "16:9", "width": 5504, "height": 3072},
+                    {"value": "3:2", "label": "3:2", "width": 4992, "height": 3328},
+                    {"value": "4:3", "label": "4:3", "width": 4096, "height": 3072},
+                    {"value": "4:5", "label": "4:5", "width": 3584, "height": 4480},
+                    {"value": "3:4", "label": "3:4", "width": 3072, "height": 4096},
+                    {"value": "2:3", "label": "2:3", "width": 3328, "height": 4992}
+                ]},
+                "customDimensions": {"enabled": false}, "count": {"enabled": true, "min": 1, "max": 1, "quickCount": 1},
+                "background": {"enabled": false}, "outputFormat": {"enabled": false},
+                "outputCompression": {"enabled": false}, "moderation": {"enabled": false}
+            },
+            "hints": [{"text": "Nano Banana Pro 4K 固定档位；API 支持任意正整数 W:H，画幅比例不会改变 4K 计费和分辨率档位。"}]
+        },
+        {
+            "id": "image-tpl-nano-banana2-1k",
+            "api_mode": "images-json-async",
+            "match_mode": "exact",
+            "match": ["adobe-firefly-nano-banana2-1k"],
+            "params": {
+                "quality": {"enabled": false},
+                "aspectRatio": {"enabled": true, "options": [
+                    {"value": "1:1", "label": "1:1"}, {"value": "4:3", "label": "4:3"},
+                    {"value": "3:4", "label": "3:4"}, {"value": "16:9", "label": "16:9"},
+                    {"value": "9:16", "label": "9:16"}, {"value": "1:8", "label": "1:8"},
+                    {"value": "1:4", "label": "1:4"}, {"value": "4:1", "label": "4:1"},
+                    {"value": "8:1", "label": "8:1"}
+                ]},
+                "customDimensions": {"enabled": false}, "count": {"enabled": true, "min": 1, "max": 1, "quickCount": 1},
+                "background": {"enabled": false}, "outputFormat": {"enabled": false},
+                "outputCompression": {"enabled": false}, "moderation": {"enabled": false}
+            },
+            "hints": [{"text": "Nano Banana 2 1K 固定档位；API 支持任意正整数 W:H，列出的画幅仅为常用预设。"}]
+        },
+        {
+            "id": "image-tpl-nano-banana2-2k",
+            "api_mode": "images-json-async", "match_mode": "exact",
+            "match": ["adobe-firefly-nano-banana2-2k"],
+            "params": {
+                "quality": {"enabled": false},
+                "aspectRatio": {"enabled": true, "options": [
+                    {"value": "1:1", "label": "1:1"}, {"value": "4:3", "label": "4:3"},
+                    {"value": "3:4", "label": "3:4"}, {"value": "16:9", "label": "16:9"},
+                    {"value": "9:16", "label": "9:16"}, {"value": "1:8", "label": "1:8"},
+                    {"value": "1:4", "label": "1:4"}, {"value": "4:1", "label": "4:1"},
+                    {"value": "8:1", "label": "8:1"}
+                ]},
+                "customDimensions": {"enabled": false}, "count": {"enabled": true, "min": 1, "max": 1, "quickCount": 1},
+                "background": {"enabled": false}, "outputFormat": {"enabled": false},
+                "outputCompression": {"enabled": false}, "moderation": {"enabled": false}
+            },
+            "hints": [{"text": "Nano Banana 2 2K 固定档位；API 支持任意正整数 W:H，列出的画幅仅为常用预设。"}]
+        },
+        {
+            "id": "image-tpl-nano-banana2-4k",
+            "api_mode": "images-json-async", "match_mode": "exact",
+            "match": ["adobe-firefly-nano-banana2-4k"],
+            "params": {
+                "quality": {"enabled": false},
+                "aspectRatio": {"enabled": true, "options": [
+                    {"value": "1:1", "label": "1:1"}, {"value": "4:3", "label": "4:3"},
+                    {"value": "3:4", "label": "3:4"}, {"value": "16:9", "label": "16:9"},
+                    {"value": "9:16", "label": "9:16"}, {"value": "1:8", "label": "1:8"},
+                    {"value": "1:4", "label": "1:4"}, {"value": "4:1", "label": "4:1"},
+                    {"value": "8:1", "label": "8:1"}
+                ]},
+                "customDimensions": {"enabled": false}, "count": {"enabled": true, "min": 1, "max": 1, "quickCount": 1},
+                "background": {"enabled": false}, "outputFormat": {"enabled": false},
+                "outputCompression": {"enabled": false}, "moderation": {"enabled": false}
+            },
+            "hints": [{"text": "Nano Banana 2 4K 固定档位；API 支持任意正整数 W:H，列出的画幅仅为常用预设。"}]
+        },
+        {
+            "id": "image-tpl-gpt-image-2-1k",
+            "api_mode": "images-json-async", "match_mode": "exact",
+            "match": ["adobe-firefly-gpt-image-2-1k"],
+            "params": {
+                "quality": {"enabled": true, "options": [
+                    {"value": "medium", "label": "中（默认）"},
+                    {"value": "low", "label": "低"},
+                    {"value": "high", "label": "高"}
+                ]},
+                "aspectRatio": {"enabled": true, "options": [
+                    {"value": "1:1", "label": "1:1"}, {"value": "5:4", "label": "5:4"}, {"value": "7:6", "label": "7:6"},
+                    {"value": "9:16", "label": "9:16"}, {"value": "21:9", "label": "21:9"},
+                    {"value": "16:9", "label": "16:9"}, {"value": "3:2", "label": "3:2"},
+                    {"value": "4:3", "label": "4:3"}, {"value": "4:5", "label": "4:5"},
+                    {"value": "3:4", "label": "3:4"}, {"value": "2:3", "label": "2:3"}
+                ]},
+                "customDimensions": {"enabled": true}, "count": {"enabled": true, "min": 1, "max": 1, "quickCount": 1},
+                "background": {"enabled": false}, "outputFormat": {"enabled": false},
+                "outputCompression": {"enabled": false}, "moderation": {"enabled": false}
+            },
+            "hints": [{"text": "GPT Image 2 1K 固定计费档位；quality 默认 medium，可选 low / medium / high 且不改变计费。精确 size 原样发送：16px 对齐、最长边不超过 3840px、比例不超过 3:1、总像素 655360–1048576；比例输入按 1K 预算计算。"}]
+        },
+        {
+            "id": "image-tpl-gpt-image-2-2k",
+            "api_mode": "images-json-async", "match_mode": "exact",
+            "match": ["adobe-firefly-gpt-image-2-2k"],
+            "params": {
+                "quality": {"enabled": true, "options": [
+                    {"value": "medium", "label": "中（默认）"},
+                    {"value": "low", "label": "低"},
+                    {"value": "high", "label": "高"}
+                ]},
+                "aspectRatio": {"enabled": true, "options": [
+                    {"value": "1:1", "label": "1:1"}, {"value": "5:4", "label": "5:4"}, {"value": "7:6", "label": "7:6"},
+                    {"value": "9:16", "label": "9:16"}, {"value": "21:9", "label": "21:9"},
+                    {"value": "16:9", "label": "16:9"}, {"value": "3:2", "label": "3:2"},
+                    {"value": "4:3", "label": "4:3"}, {"value": "4:5", "label": "4:5"},
+                    {"value": "3:4", "label": "3:4"}, {"value": "2:3", "label": "2:3"}
+                ]},
+                "customDimensions": {"enabled": true}, "count": {"enabled": true, "min": 1, "max": 1, "quickCount": 1},
+                "background": {"enabled": false}, "outputFormat": {"enabled": false},
+                "outputCompression": {"enabled": false}, "moderation": {"enabled": false}
+            },
+            "hints": [{"text": "GPT Image 2 2K 固定计费档位；quality 默认 medium，可选 low / medium / high 且不改变计费。精确 size 原样发送：16px 对齐、最长边不超过 3840px、比例不超过 3:1、总像素 655360–4194304；比例输入按 2K 预算计算。"}]
+        },
+        {
+            "id": "image-tpl-gpt-image-2-4k",
+            "api_mode": "images-json-async", "match_mode": "exact",
+            "match": ["adobe-firefly-gpt-image-2-4k"],
+            "params": {
+                "quality": {"enabled": true, "options": [
+                    {"value": "medium", "label": "中（默认）"},
+                    {"value": "low", "label": "低"},
+                    {"value": "high", "label": "高"}
+                ]},
+                "aspectRatio": {"enabled": true, "options": [
+                    {"value": "1:1", "label": "1:1"}, {"value": "5:4", "label": "5:4"}, {"value": "7:6", "label": "7:6"},
+                    {"value": "9:16", "label": "9:16"}, {"value": "21:9", "label": "21:9"},
+                    {"value": "16:9", "label": "16:9"}, {"value": "3:2", "label": "3:2"},
+                    {"value": "4:3", "label": "4:3"}, {"value": "4:5", "label": "4:5"},
+                    {"value": "3:4", "label": "3:4"}, {"value": "2:3", "label": "2:3"}
+                ]},
+                "customDimensions": {"enabled": true}, "count": {"enabled": true, "min": 1, "max": 1, "quickCount": 1},
+                "background": {"enabled": false}, "outputFormat": {"enabled": false},
+                "outputCompression": {"enabled": false}, "moderation": {"enabled": false}
+            },
+            "hints": [{"text": "GPT Image 2 4K 固定计费档位；quality 默认 medium，可选 low / medium / high 且不改变计费。精确 size 原样发送：16px 对齐、最长边不超过 3840px、比例不超过 3:1、总像素 655360–8294400；比例输入按 4K 预算计算。"}]
         },
         {
             "id": "image-tpl-square-4k-single",

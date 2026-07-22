@@ -336,11 +336,19 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	if err != nil {
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
-	if common.DataExportEnabled {
+	if common.DataExportEnabled && !isTaskConsumeLog(params.Other) {
 		gopool.Go(func() {
 			LogQuotaData(userId, username, params.ModelName, params.Quota, common.GetTimestamp(), params.PromptTokens+params.CompletionTokens)
 		})
 	}
+}
+
+func isTaskConsumeLog(other map[string]interface{}) bool {
+	if other == nil {
+		return false
+	}
+	isTask, ok := other["is_task"].(bool)
+	return ok && isTask
 }
 
 type RecordTaskBillingLogParams struct {

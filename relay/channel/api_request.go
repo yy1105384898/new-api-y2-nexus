@@ -50,7 +50,9 @@ func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Hea
 	} else {
 		// Multipart image edits are converted to JSON upstream bodies; keep client
 		// Content-Type (multipart/form-data) only when the outbound body was not marshaled.
-		if info != nil && info.UpstreamRequestBodySize > 0 {
+		if info != nil && info.UpstreamRequestContentType != "" {
+			req.Set("Content-Type", info.UpstreamRequestContentType)
+		} else if info != nil && info.UpstreamRequestBodySize > 0 {
 			req.Set("Content-Type", "application/json")
 		} else {
 			req.Set("Content-Type", c.Request.Header.Get("Content-Type"))

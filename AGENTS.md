@@ -119,6 +119,7 @@ Each [`Descriptor`](relay/imagevendor/descriptor.go) defines:
 | `Name` | Debug / documentation identifier |
 | `Match(originModel)` | Model prefix/suffix identity |
 | `Rehost` | R2 rehost policy (`AcceptUpstreamURL`, `PreferUpstreamB64JSON`, `AsyncPreferURLResponse`) |
+| `Rehost.TrustPublicURL` | Optional strict predicate for owned HTTPS object URLs that may bypass a second R2 upload |
 | `PatchRequest` | Optional: mutate `dto.ImageRequest` before upstream (strip fields, resize, prompt hints); may no-op inside for subset of matches |
 
 **When to use what:**
@@ -169,6 +170,14 @@ Each [`Descriptor`](relay/imagevendor/descriptor.go) defines:
 
 Do not duplicate model-prefix checks, `ResolveInternalModelName`, or upload logic in relay handlers; extend `imagevendor`, `service/client_facing_model.go`, and `service/image_r2_rehost` instead.
 
+### Rule 4d: Unified video-task boundary
+
+- Public video clients use only `POST /v1/videos`, `GET /v1/videos/{id}`, and `GET /v1/videos/{id}/content`.
+- `relay/common.TaskSubmitReq` owns public alias normalization. Business adaptors consume normalized values and must not re-parse `duration` / `seconds` independently.
+- Upstream paths, request fields, multipart conversion, SSE/JSON parsing, and result URL extraction belong in `relay/channel/task/oaivideo/vendors/`.
+- Frontends and model UI profiles must not select upstream protocols such as `chat/completions` or `video/generations`; `api_mode` for video is the unified async task mode.
+- Add a vendor or extend an existing vendor through `oaivideo/registry`; do not add model-specific branching in controllers or frontend handlers.
+
 ### Rule 5: Protected Project Information — DO NOT Modify or Delete
 
 The following project-related information is **strictly protected** and MUST NOT be modified, deleted, replaced, or removed under any circumstances:
@@ -211,6 +220,8 @@ When creating a pull request:
 
 When the user invokes `/git-close-loop` or asks for a closed-loop commit, read and follow **`.agents/skills/git-close-loop/SKILL.md`** (same content as `~/.agents/skills/git-close-loop`).
 
+When the user asks to onboard a new channel/model (渠道入库、渠道适配、migrate_*_ssh、seed_*_api_doc), read and follow **`.agents/skills/new-channel-onboarding/SKILL.md`** (project-local only).
+
 For coordinated changes with **`infinite-canvas/`** in this workspace: use the **same branch name** and **same feature commit header** in both repos; mention `配合：infinite-canvas …` in the commit body.
 
 ### 文档影响面
@@ -219,6 +230,7 @@ For coordinated changes with **`infinite-canvas/`** in this workspace: use the *
 |--------|------|
 | Frontend feature / fix | `web/default/AGENTS.md` conventions; commit body lists doc paths or `文档：无` |
 | Backend relay / billing | `pkg/billingexpr/expr.md` and related pkg docs when contracts change |
+| Video task routing / oaivideo | `docs/video-task-routing.md`, `relay/channel/task/README.md` |
 | i18n user strings | `web/default/src/i18n/locales/*.json` |
 
 ### verify（合并 main 前）

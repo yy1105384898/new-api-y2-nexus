@@ -16,17 +16,9 @@
         "cy-sd4-seedance"
     ],
     "poll": {
-        "videos-form": {
-            "delayMs": 2500,
-            "maxAttempts": 120
-        },
         "videos-json-async": {
             "delayMs": 5000,
             "maxAttempts": 120
-        },
-        "video-generations": {
-            "delayMs": 5000,
-            "maxAttempts": 60
         }
     },
     "profiles": [
@@ -36,7 +28,8 @@
                 "video-grok",
                 "video-omni-flash"
             ],
-            "apiMode": "videos-form",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "openai-form",
             "referenceLimits": {
                 "images": 7,
                 "videos": 0,
@@ -132,7 +125,8 @@
             "match": [
                 "video-veo"
             ],
-            "apiMode": "videos-form",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "openai-form",
             "referenceLimits": {
                 "images": 3,
                 "videos": 0,
@@ -173,11 +167,20 @@
                     "enabled": true,
                     "numericOptions": [
                         4,
+                        5,
                         6,
-                        8
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15
                     ],
                     "min": 4,
-                    "max": 8
+                    "max": 15
                 },
                 "generateAudio": {
                     "enabled": false
@@ -207,7 +210,8 @@
             "match": [
                 "video-seedance"
             ],
-            "apiMode": "videos-form",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "openai-form",
             "referenceLimits": {
                 "images": 9,
                 "videos": 3,
@@ -311,7 +315,8 @@
             "match": [
                 "video-sora"
             ],
-            "apiMode": "videos-form",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "openai-form",
             "referenceLimits": {
                 "images": 1,
                 "videos": 0,
@@ -401,7 +406,8 @@
             "match": [
                 "video-kling"
             ],
-            "apiMode": "videos-form",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "openai-form",
             "referenceLimits": {
                 "images": 4,
                 "videos": 0,
@@ -474,7 +480,8 @@
             "match": [
                 "video-wan"
             ],
-            "apiMode": "videos-form",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "openai-form",
             "requiresReferenceMedia": true,
             "referenceLimits": {
                 "images": 1,
@@ -541,7 +548,8 @@
         },
         {
             "id": "video-tpl-chat-i2v-ref1",
-            "apiMode": "chat-completions",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "chat-video",
             "match": [
                 "wan-i2v-2.6",
                 "wan-i2v-2.5"
@@ -585,8 +593,244 @@
             ]
         },
         {
+            "id": "video-tpl-adobe-sora2-json-async",
+            "apiMode": "videos-json-async",
+            "match": [
+                "sora2",
+                "sora2-pro"
+            ],
+            "referenceLimits": {
+                "images": 1,
+                "videos": 0,
+                "audios": 0
+            },
+            "params": {
+                "resolution": {
+                    "enabled": false
+                },
+                "ratio": {
+                    "enabled": true,
+                    "options": [
+                        {
+                            "value": "16:9",
+                            "label": "横屏"
+                        },
+                        {
+                            "value": "9:16",
+                            "label": "竖屏"
+                        }
+                    ]
+                },
+                "duration": {
+                    "enabled": true,
+                    "min": 4,
+                    "max": 12,
+                    "numericOptions": [4, 8, 12]
+                },
+                "generateAudio": {
+                    "enabled": true
+                },
+                "watermark": {
+                    "enabled": false
+                },
+                "seed": {
+                    "enabled": false
+                },
+                "widthHeight": {
+                    "enabled": false
+                },
+                "frameInputs": {
+                    "enabled": false
+                }
+            },
+            "hints": [
+                {
+                    "text": "Sora2/Sora2 Pro：支持 4/8/12 秒、16:9/9:16、单张帧参考图、negative_prompt 与声音开关。"
+                }
+            ]
+        },
+        {
+            "id": "video-tpl-adobe-veo31-json-async",
+            "apiMode": "videos-json-async",
+            "match": [
+                "veo31",
+                "veo31-fast"
+            ],
+            "referenceLimits": {
+                "images": 2,
+                "videos": 0,
+                "audios": 0
+            },
+            "params": {
+                "resolution": {
+                    "enabled": true,
+                    "options": [
+                        {
+                            "value": "720p",
+                            "label": "720p"
+                        },
+                        {
+                            "value": "1080p",
+                            "label": "1080p"
+                        }
+                    ]
+                },
+                "ratio": {
+                    "enabled": true,
+                    "options": [
+                        {
+                            "value": "16:9",
+                            "label": "横屏"
+                        },
+                        {
+                            "value": "9:16",
+                            "label": "竖屏"
+                        }
+                    ]
+                },
+                "duration": {
+                    "enabled": true,
+                    "min": 4,
+                    "max": 8,
+                    "numericOptions": [4, 6, 8]
+                },
+                "generateAudio": {
+                    "enabled": true
+                },
+                "watermark": {
+                    "enabled": false
+                },
+                "seed": {
+                    "enabled": false
+                },
+                "widthHeight": {
+                    "enabled": false
+                },
+                "frameInputs": {
+                    "enabled": false
+                }
+            },
+            "hints": [
+                {
+                    "text": "Veo 3.1 标准版/Fast：reference_mode=frame，最多 2 张首尾帧参考图；支持 4/6/8 秒、16:9/9:16、720p/1080p。"
+                }
+            ]
+        },
+        {
+            "id": "video-tpl-adobe-veo31-ref-json-async",
+            "apiMode": "videos-json-async",
+            "match": [
+                "veo31-ref"
+            ],
+            "referenceLimits": {
+                "images": 3,
+                "videos": 0,
+                "audios": 0
+            },
+            "params": {
+                "resolution": {
+                    "enabled": true,
+                    "options": [
+                        {
+                            "value": "720p",
+                            "label": "720p"
+                        },
+                        {
+                            "value": "1080p",
+                            "label": "1080p"
+                        }
+                    ]
+                },
+                "ratio": {
+                    "enabled": true,
+                    "options": [
+                        {
+                            "value": "16:9",
+                            "label": "横屏"
+                        },
+                        {
+                            "value": "9:16",
+                            "label": "竖屏"
+                        }
+                    ]
+                },
+                "duration": {
+                    "enabled": true,
+                    "min": 4,
+                    "max": 8,
+                    "numericOptions": [4, 6, 8]
+                },
+                "generateAudio": {
+                    "enabled": true
+                },
+                "watermark": {
+                    "enabled": false
+                },
+                "seed": {
+                    "enabled": false
+                },
+                "widthHeight": {
+                    "enabled": false
+                },
+                "frameInputs": {
+                    "enabled": false
+                }
+            },
+            "hints": [
+                {
+                    "text": "Veo 3.1 Ref：reference_mode=image，最多 3 张主体或素材参考图，不表示首尾帧；支持 4/6/8 秒、16:9/9:16、720p/1080p。"
+                }
+            ]
+        },
+        {
+            "id": "video-tpl-manju-sora-async",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "manju-sora",
+            "match": [
+                "manju-openai-sora2",
+                "manju-openai-sora"
+            ],
+            "referenceLimits": {
+                "images": 1,
+                "videos": 0,
+                "audios": 0
+            },
+            "params": {
+                "resolution": {
+                    "enabled": false
+                },
+                "ratio": {
+                    "enabled": false
+                },
+                "duration": {
+                    "enabled": false
+                },
+                "generateAudio": {
+                    "enabled": false
+                },
+                "watermark": {
+                    "enabled": false
+                },
+                "seed": {
+                    "enabled": false
+                },
+                "widthHeight": {
+                    "enabled": false
+                },
+                "frameInputs": {
+                    "enabled": false
+                }
+            },
+            "hints": [
+                {
+                    "text": "OpenAI Sora2 异步视频：POST /v1/videos 创建，GET /v1/videos/{id} 轮询取片；支持 1 张参考图。"
+                }
+            ]
+        },
+        {
             "id": "video-tpl-chat-no-params",
-            "apiMode": "chat-completions",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "chat-video",
             "match": [
                 "sora-2-pro",
                 "sora-2",
@@ -635,7 +879,8 @@
         },
         {
             "id": "video-tpl-chat-fixed-4s",
-            "apiMode": "chat-completions",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "chat-video",
             "match": [
                 "gemini-omni-flash-portrait-4s",
                 "gemini-omni-flash-landscape-4s"
@@ -679,7 +924,8 @@
         },
         {
             "id": "video-tpl-chat-fixed-6s",
-            "apiMode": "chat-completions",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "chat-video",
             "match": [
                 "gemini-omni-flash-portrait-6s"
             ],
@@ -722,7 +968,8 @@
         },
         {
             "id": "video-tpl-chat-fixed-10s",
-            "apiMode": "chat-completions",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "chat-video",
             "match": [
                 "gemini-omni-flash-landscape-10s"
             ],
@@ -765,7 +1012,8 @@
         },
         {
             "id": "video-tpl-gen-ratio-ref7",
-            "apiMode": "video-generations",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "grok-generations",
             "validationKey": "grok-generations-ref7",
             "match": [
                 "grok-video",
@@ -860,7 +1108,8 @@
         },
         {
             "id": "video-tpl-gen-ratio-ref1",
-            "apiMode": "video-generations",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "grok-generations",
             "validationKey": "grok-generations-ref1",
             "match": [
                 "grok-video-1.5"
@@ -1089,15 +1338,15 @@
         {
             "id": "video-tpl-async-v2v-ref1",
             "apiMode": "videos-json-async",
-            "payloadBuilder": "omni-v2v",
+            "payloadBuilder": "seedance-flat",
             "validationKey": "omni-v2v",
             "match": [
                 "omni-v2v",
                 "omni-v2v-no-water"
             ],
             "referenceLimits": {
-                "images": 0,
-                "videos": 1,
+                "images": 2,
+                "videos": 2,
                 "audios": 0
             },
             "params": {
@@ -1136,12 +1385,12 @@
                 },
                 "frameInputs": {
                     "enabled": false,
-                    "hint": "需上传源视频（5MB、1080P 以内）"
+                    "hint": "最多 2 条参考视频 + 2 张参考图（各 ≤8MB、1080P 以内）"
                 }
             },
             "hints": [
                 {
-                    "text": "视频转视频：上传源视频后按提示词改风格或内容；源视频请控制在 5MB、1080P 以内。"
+                    "text": "视频转视频：支持最多 2 条参考视频，可与最多 2 张参考图混用；单条视频/图片请控制在 8MB、1080P 以内。"
                 }
             ]
         },
@@ -1192,7 +1441,8 @@
         },
         {
             "id": "video-tpl-chat-ref7",
-            "apiMode": "chat-completions",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "chat-video",
             "validationKey": "grok-generations-chat-ref7",
             "match": [
                 "grok-imagine-video"
@@ -1699,6 +1949,124 @@
             ]
         },
         {
+            "id": "video-tpl-cy-sd2-seedance-async",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "seedance-flat",
+            "match": [
+                "cy-sd2-seedance"
+            ],
+            "referenceLimits": {
+                "images": 9,
+                "videos": 3,
+                "audios": 3,
+                "imageMaxBytes": 31457280,
+                "videoMaxBytes": 52428800,
+                "audioMaxBytes": 15728640,
+                "video": {
+                    "minDurationMs": 2000,
+                    "maxDurationMs": 15000,
+                    "totalMaxDurationMs": 15000,
+                    "minWidth": 300,
+                    "maxWidth": 6000,
+                    "minHeight": 300,
+                    "maxHeight": 6000,
+                    "minAspectRatio": 0.4,
+                    "maxAspectRatio": 2.5
+                },
+                "fullReferenceMode": {
+                    "label": "全能参考",
+                    "descriptionWithImages": "933：图 + 可选视频/音频"
+                },
+                "validationHint": "参考视频需为 mp4/mov，H.264/H.265，FPS 24-60。",
+                "showTempMediaHint": true,
+                "prependReferenceGuide": true
+            },
+            "params": {
+                "resolution": {
+                    "enabled": true,
+                    "options": [
+                        {
+                            "value": "480p",
+                            "label": "480p"
+                        },
+                        {
+                            "value": "720p",
+                            "label": "720p"
+                        }
+                    ]
+                },
+                "ratio": {
+                    "enabled": true,
+                    "options": [
+                        {
+                            "value": "16:9",
+                            "label": "横屏"
+                        },
+                        {
+                            "value": "9:16",
+                            "label": "竖屏"
+                        },
+                        {
+                            "value": "1:1",
+                            "label": "方形"
+                        },
+                        {
+                            "value": "21:9",
+                            "label": "宽银幕"
+                        },
+                        {
+                            "value": "3:4",
+                            "label": "3:4"
+                        },
+                        {
+                            "value": "4:3",
+                            "label": "4:3"
+                        }
+                    ]
+                },
+                "duration": {
+                    "enabled": true,
+                    "numericOptions": [
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15
+                    ],
+                    "min": 4,
+                    "max": 15
+                },
+                "generateAudio": {
+                    "enabled": false
+                },
+                "watermark": {
+                    "enabled": false
+                },
+                "seed": {
+                    "enabled": false
+                },
+                "widthHeight": {
+                    "enabled": false
+                },
+                "frameInputs": {
+                    "enabled": true,
+                    "hint": "首尾帧与 933 参考互斥；成对指定 first + last"
+                }
+            },
+            "hints": [
+                {
+                    "text": "Seedance 2.0 特惠：480p/720p、4–15 秒；933 全能参考与首尾帧。"
+                }
+            ]
+        },
+        {
             "id": "video-tpl-seedance-1080p-async",
             "apiMode": "videos-json-async",
             "payloadBuilder": "seedance-flat",
@@ -1929,7 +2297,7 @@
             ]
         },
         {
-            "id": "video-tpl-cy-sd4-seedance-async",
+            "id": "video-tpl-seedance-subscription-async",
             "apiMode": "videos-json-async",
             "payloadBuilder": "seedance-flat",
             "match": [
@@ -2049,7 +2417,113 @@
             ]
         },
         {
+            "id": "video-tpl-seedance-fullref-async",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "seedance-flat",
+            "match": [
+                "cy-sd5-seedance"
+            ],
+            "referenceLimits": {
+                "images": 9,
+                "videos": 3,
+                "audios": 3,
+                "total": 12,
+                "imageMaxBytes": 31457280,
+                "videoMaxBytes": 52428800,
+                "audioMaxBytes": 15728640,
+                "video": {
+                    "minDurationMs": 1000,
+                    "maxDurationMs": 15000,
+                    "totalMaxDurationMs": 45000
+                },
+                "audio": {
+                    "maxDurationMs": 15000
+                },
+                "fullReferenceMode": {
+                    "label": "全能参考",
+                    "descriptionWithImages": "最多 9 图 / 3 视频 / 3 音频，三类合计不超过 12"
+                },
+                "validationHint": "全能参考最多 9 图、3 视频、3 音频，三类合计不超过 12；首尾帧与全能参考互斥。",
+                "showTempMediaHint": true,
+                "prependReferenceGuide": true
+            },
+            "params": {
+                "resolution": {
+                    "enabled": true,
+                    "options": [
+                        {
+                            "value": "480p",
+                            "label": "480p"
+                        },
+                        {
+                            "value": "720p",
+                            "label": "720p"
+                        }
+                    ]
+                },
+                "ratio": {
+                    "enabled": true,
+                    "options": [
+                        {
+                            "value": "16:9",
+                            "label": "横屏"
+                        },
+                        {
+                            "value": "9:16",
+                            "label": "竖屏"
+                        }
+                    ]
+                },
+                "duration": {
+                    "enabled": true,
+                    "numericOptions": [
+                        4,
+                        5,
+                        6,
+                        7,
+                        8,
+                        9,
+                        10,
+                        11,
+                        12,
+                        13,
+                        14,
+                        15
+                    ],
+                    "min": 4,
+                    "max": 15
+                },
+                "generateAudio": {
+                    "enabled": true,
+                    "hint": "是否生成原生音频，默认开启"
+                },
+                "watermark": {
+                    "enabled": false
+                },
+                "seed": {
+                    "enabled": true,
+                    "min": 0,
+                    "max": 2147483647,
+                    "hint": "可选整数种子；相同输入可用于复现，显式 0 也会透传。"
+                },
+                "widthHeight": {
+                    "enabled": false
+                },
+                "frameInputs": {
+                    "enabled": true,
+                    "hint": "首尾帧与 9/3/3 全能参考互斥；成对指定 first + last"
+                }
+            },
+            "hints": [
+                {
+                    "text": "Seedance 2.0：480p / 720p、4–15 秒任意整数、可选整数 seed；支持 9 图 / 3 视频 / 3 音频且合计不超过 12，也支持首尾帧。"
+                }
+            ]
+        },
+        {
             "id": "default-video",
+            "apiMode": "videos-json-async",
+            "payloadBuilder": "openai-form",
             "match": [],
             "referenceLimits": {
                 "images": 7,

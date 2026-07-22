@@ -3,7 +3,8 @@ package openai
 // Manju Gemini Banana 适配层（对齐 Manju OpenAI 兼容 API 文档）。
 //
 // 文生图：buildManjuBananaImageBody → 上游 POST /v1/images/generations（model=UpstreamModelName）
-// 图生图（edits / 带参考图）同样通过 Image API 发送；当前沧元文档不再使用 chat/completions。
+// 图生图（edits / 带参考图）：buildManjuBananaChatImageBody → POST /v1/chat/completions
+//   （顶层 aspect_ratio / output_resolution + messages[].content[].image_url，见 Manju Apifox）
 //
 // Legacy chat 响应（含 async poll）：
 //   manjuBananaAdaptIfNeeded → AdaptManjuBananaChatCompletionResponse
@@ -49,18 +50,15 @@ func BuildManjuBananaImageGenerationBody(originModel string, request dto.ImageRe
 	return body
 }
 
-// ManjuBananaUsesChatCompletionsUpstream 保留旧接口以兼容调用方。
-// 沧元当前 Banana 文档规定文生图和图生图都走 Image API；参考图也不能再改走 chat/completions。
-func ManjuBananaUsesChatCompletionsUpstream(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) bool {
-	_ = c
-	_ = info
-	_ = request
+// ManjuBananaUsesChatCompletionsUpstream is retained for callers that support
+// legacy routes. The current Manju image contract accepts references on the
+// Image API, so generations and edits must stay on that endpoint.
+func ManjuBananaUsesChatCompletionsUpstream(_ *gin.Context, _ *relaycommon.RelayInfo, _ dto.ImageRequest) bool {
 	return false
 }
 
-// ManjuBananaUsesChatCompletionsUpstreamFromInfo 与请求路由保持一致。
+// ManjuBananaUsesChatCompletionsUpstreamFromInfo 供 GetRequestURL / DoResponse 等无完整 request 副本时使用。
 func ManjuBananaUsesChatCompletionsUpstreamFromInfo(info *relaycommon.RelayInfo) bool {
-	_ = info
 	return false
 }
 
@@ -106,17 +104,17 @@ func buildManjuBananaImageBody(c *gin.Context, info *relaycommon.RelayInfo, requ
 		"model":  resolveManjuBananaUpstreamModel(info, request),
 		"prompt": request.Prompt,
 	}
-	if err := applyManjuBananaReferenceFields(body, c, request); err != nil {
-		return nil, err
-	}
 	if aspect := resolveManjuBananaAspectRatio(request.Size); aspect != "" {
 		body["aspect_ratio"] = aspect
 	}
-	if resolution := resolveManjuBananaOutputResolution(originModel, request.Quality); resolution != "" {
+	if resolution := resolveManjuBananaOutputResolution(originModel, request); resolution != "" {
 		body["output_resolution"] = resolution
 	}
 	if request.N != nil && *request.N > 0 {
 		body["n"] = *request.N
+	}
+	if err := applyManjuBananaReferenceFields(body, c, request); err != nil {
+		return nil, err
 	}
 	body["stream"] = false
 	return body, nil
@@ -144,7 +142,7 @@ func buildManjuBananaChatImageBody(c *gin.Context, info *relaycommon.RelayInfo, 
 	if aspect := resolveManjuBananaAspectRatio(request.Size); aspect != "" {
 		body["aspect_ratio"] = aspect
 	}
-	if resolution := resolveManjuBananaOutputResolution(originModel, request.Quality); resolution != "" {
+	if resolution := resolveManjuBananaOutputResolution(originModel, request); resolution != "" {
 		body["output_resolution"] = resolution
 	}
 	return body, nil
@@ -222,7 +220,7 @@ func resolveManjuBananaAspectRatio(size string) string {
 	}
 }
 
-func resolveManjuBananaOutputResolution(originModel, quality string) string {
+func resolveManjuBananaOutputResolution(originModel string, request dto.ImageRequest) string {
 	name := strings.ToLower(strings.TrimSpace(originModel))
 	switch {
 	case strings.HasSuffix(name, "-4k"):
@@ -230,7 +228,12 @@ func resolveManjuBananaOutputResolution(originModel, quality string) string {
 	case strings.Contains(name, "flash-lite"):
 		return "1K"
 	}
-	value := strings.ToLower(strings.TrimSpace(quality))
+	for _, key := range []string{"output_resolution", "image_size", "resolution"} {
+		if value := adobe2APIImageOptionString(request, key, camelizeSnakeKey(key)); value != "" {
+			return normalizeAdobe2APIImageSize(value)
+		}
+	}
+	value := strings.ToLower(strings.TrimSpace(request.Quality))
 	switch value {
 	case "high", "hd", "4k":
 		return "4K"

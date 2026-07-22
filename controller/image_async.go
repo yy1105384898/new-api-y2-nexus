@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -8,11 +9,13 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	openai "github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
-	openai "github.com/QuantumNous/new-api/relay/channel/openai"
-	"github.com/QuantumNous/new-api/relay/image"
 	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relay/image"
+	"github.com/QuantumNous/new-api/relay/imagevendor"
+	adobevideo "github.com/QuantumNous/new-api/relay/video/adobe"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/types"
@@ -24,6 +27,10 @@ func RelayOpenAIImageGenerations(c *gin.Context) {
 		RelayImageTaskSubmit(c)
 		return
 	}
+	if shouldRunSyncImageViaQueue(c) {
+		relaySyncImageViaQueue(c)
+		return
+	}
 	Relay(c, types.RelayFormatOpenAIImage)
 }
 
@@ -32,10 +39,25 @@ func RelayOpenAIImageEdits(c *gin.Context) {
 		RelayImageTaskSubmit(c)
 		return
 	}
+	if shouldRunSyncImageViaQueue(c) {
+		relaySyncImageViaQueue(c)
+		return
+	}
 	Relay(c, types.RelayFormatOpenAIImage)
 }
 
 func RelayOpenAIChatCompletions(c *gin.Context) {
+	if adobevideo.IsDeprecatedChatRequest(c) {
+		adobevideo.SetDeprecatedChatHeaders(c)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": gin.H{
+				"message": "Adobe 视频模型请使用 POST /v1/videos 提交任务，并通过 GET /v1/videos/{task_id} 轮询结果。",
+				"type":    "invalid_request_error",
+				"code":    "adobe_video_use_videos_api",
+			},
+		})
+		return
+	}
 	if openai.IsAsyncChatImageRequest(c) {
 		openai.SetChatImageDeprecationHeaders(c)
 		c.Set("relay_mode", relayconstant.RelayModeChatCompletions)
@@ -101,6 +123,12 @@ func RelayImageTaskSubmit(c *gin.Context) {
 		return
 	}
 	relayInfo.RelayMode = relayMode
+	if imageRequest, ok := request.(*dto.ImageRequest); ok {
+		if err := imagevendor.ValidateFixedResolutionSKU(c, relayInfo.OriginModelName, imageRequest); err != nil {
+			respondTaskError(c, service.TaskErrorWrapper(err, "invalid_request", http.StatusBadRequest))
+			return
+		}
+	}
 	publicTaskID := model.GenerateTaskID()
 	action := constant.TaskActionImageGenerate
 	if relayMode == relayconstant.RelayModeImagesEdits {
@@ -155,6 +183,16 @@ func RelayImageTaskSubmit(c *gin.Context) {
 			taskErr = service.TaskErrorWrapperLocal(mapErr, "model_mapping_failed", http.StatusBadRequest)
 			break
 		}
+		if imageReq, ok := request.(*dto.ImageRequest); ok {
+			if validateErr := openai.ValidateAdobe2APIImageInputs(c, relayInfo, *imageReq); validateErr != nil {
+				taskErr = service.TaskErrorWrapperLocal(validateErr, "invalid_request", http.StatusBadRequest)
+				break
+			}
+		}
+		if admissionErr := enforceImageTaskAdmission(c, userId, channel.Id); admissionErr != nil {
+			taskErr = admissionErr
+			break
+		}
 
 		priceData, err := helper.ModelPriceHelperPerCall(c, relayInfo)
 		if err != nil {
@@ -177,7 +215,7 @@ func RelayImageTaskSubmit(c *gin.Context) {
 			}
 		}
 
-		snapshot, requestPath, snapErr := snapshotAsyncImageRequest(c, relayMode)
+		snapshot, requestPath, snapErr := snapshotAsyncImageRequest(c, relayMode, publicTaskID)
 		if snapErr != nil {
 			taskErr = service.TaskErrorWrapper(snapErr, "snapshot_request_failed", http.StatusBadRequest)
 			break
@@ -186,11 +224,15 @@ func RelayImageTaskSubmit(c *gin.Context) {
 		task := model.InitTask(constant.TaskPlatformImage, relayInfo)
 		task.TaskID = publicTaskID
 		task.Action = action
-		task.Status = model.TaskStatusSubmitted
-		task.Progress = "10%"
+		task.Status = model.TaskStatusQueued
+		task.Progress = "20%"
+		if c.GetBool("image_sync_wait") {
+			task.Priority = 100
+		}
 		task.Quota = relayInfo.PriceData.Quota
 		task.Properties.TaskKind = constant.TaskKindImage
 		task.Properties.Input = relaycommon.PromptInputFromContext(c)
+		task.PrivateData.Key = relayInfo.ApiKey
 		task.PrivateData.RequestPath = requestPath
 		task.PrivateData.RequestSnapshot = snapshot
 		task.PrivateData.BillingSource = relayInfo.BillingSource
@@ -206,11 +248,12 @@ func RelayImageTaskSubmit(c *gin.Context) {
 		}
 
 		if insertErr := task.Insert(); insertErr != nil {
+			_ = image.CleanupEditSnapshotInputs(snapshot)
 			taskErr = service.TaskErrorWrapper(insertErr, "insert_task_failed", http.StatusInternalServerError)
 			break
 		}
 
-		image.EnqueueTask(task.TaskID)
+		image.EnqueueTaskForChannel(task.TaskID, task.ChannelId)
 		job := task.ToOpenAIImageJob(image.JobObjectForPath(requestPath))
 		if public := service.ClientFacingModelFromTask(task); public != "" {
 			job.Model = public
@@ -224,9 +267,43 @@ func RelayImageTaskSubmit(c *gin.Context) {
 	}
 }
 
-func snapshotAsyncImageRequest(c *gin.Context, relayMode int) ([]byte, string, error) {
+func enforceImageTaskAdmission(c *gin.Context, userID int, channelID int) *dto.TaskError {
+	adobeChannelIDs := image.AdobeDirectChannelIDs()
+	isAdobeLane := image.IsAdobeDirectChannel(channelID)
+	global, perUser, err := model.CountActiveImageTasksForChannels(userID, adobeChannelIDs, isAdobeLane)
+	if err != nil {
+		return service.TaskErrorWrapper(err, "image_queue_status_failed", http.StatusInternalServerError)
+	}
+	globalLimit := int64(common.GetEnvOrDefault("IMAGE_ASYNC_MAX_QUEUED_GLOBAL", 2000))
+	perUserLimit := int64(common.GetEnvOrDefault("IMAGE_ASYNC_MAX_QUEUED_PER_USER", 200))
+	if isAdobeLane {
+		globalLimit = int64(common.GetEnvOrDefault("IMAGE_ASYNC_ADOBE_MAX_QUEUED_GLOBAL", 500))
+		perUserLimit = int64(common.GetEnvOrDefault("IMAGE_ASYNC_ADOBE_MAX_QUEUED_PER_USER", 100))
+	}
+	if c.GetBool("image_sync_wait") {
+		if isAdobeLane {
+			globalLimit = int64(common.GetEnvOrDefault("IMAGE_SYNC_ADOBE_MAX_BACKLOG", 32))
+		} else {
+			globalLimit = int64(common.GetEnvOrDefault("IMAGE_SYNC_MAX_BACKLOG", 64))
+		}
+	}
+	if (globalLimit > 0 && global >= globalLimit) || (perUserLimit > 0 && perUser >= perUserLimit) {
+		c.Header("Retry-After", "5")
+		if isAdobeLane {
+			c.Header("X-Image-Queue-Lane", "adobe")
+		}
+		return service.TaskErrorWrapperLocal(
+			fmt.Errorf("image queue is at capacity; retry later"),
+			"image_queue_full",
+			http.StatusTooManyRequests,
+		)
+	}
+	return nil
+}
+
+func snapshotAsyncImageRequest(c *gin.Context, relayMode int, taskID string) ([]byte, string, error) {
 	if relayMode == relayconstant.RelayModeImagesEdits {
-		body, err := image.SnapshotEditRequest(c)
+		body, err := image.SnapshotEditRequest(c, taskID)
 		return body, "/v1/images/edits", err
 	}
 	if relayMode == relayconstant.RelayModeChatCompletions {
@@ -238,7 +315,8 @@ func snapshotAsyncImageRequest(c *gin.Context, relayMode int) ([]byte, string, e
 		if err != nil {
 			return nil, "", err
 		}
-		return body, "/v1/chat/completions", nil
+		snapshot, err := image.NewJSONRequestSnapshot(image.RequestSnapshotLegacyChatJSON, "/v1/chat/completions", body)
+		return snapshot, "/v1/chat/completions", err
 	}
 	storage, err := common.GetBodyStorage(c)
 	if err != nil {
@@ -248,5 +326,6 @@ func snapshotAsyncImageRequest(c *gin.Context, relayMode int) ([]byte, string, e
 	if err != nil {
 		return nil, "", err
 	}
-	return body, "/v1/images/generations", nil
+	snapshot, err := image.NewJSONRequestSnapshot(image.RequestSnapshotGenerationJSON, "/v1/images/generations", body)
+	return snapshot, "/v1/images/generations", err
 }

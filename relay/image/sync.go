@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	openai "github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relay/imagevendor"
@@ -44,6 +45,9 @@ func Helper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.New
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
+	if imagevendor.IsGulie2KImageModel(info.OriginModelName) {
+		syncGulie2KImageForm(c, request)
+	}
 	applySyncImageUpstreamB64Override(c, info, request)
 	syncImageRequestStreamToForm(c, request)
 
@@ -55,7 +59,8 @@ func Helper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.New
 
 	var requestBody io.Reader
 
-	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
+	passThroughEnabled := model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled
+	if passThroughEnabled && !openai.IsAdobe2APIImageRelay(info) {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -70,7 +75,18 @@ func Helper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.New
 
 		switch convertedRequest.(type) {
 		case *bytes.Buffer:
-			requestBody = convertedRequest.(io.Reader)
+			buffer := convertedRequest.(*bytes.Buffer)
+			body, size, closer, err := relaycommon.NewOutboundBody(buffer.Bytes())
+			if err != nil {
+				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
+			}
+			defer closer.Close()
+			info.UpstreamRequestBodySize = size
+			info.UpstreamRequestContentType = c.Request.Header.Get("Content-Type")
+			requestBody = body
+			// Drop the rebuilt multipart heap buffer before waiting for upstream.
+			buffer = nil
+			convertedRequest = nil
 		default:
 			jsonData, err := common.Marshal(convertedRequest)
 			if err != nil {
@@ -124,9 +140,17 @@ func Helper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.New
 	if newAPIError != nil {
 		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+		if usage != nil && service.IsBillableImageRehostClientCancel(newAPIError) {
+			postSyncImageConsumeQuota(c, info, request, imagePatch, usage.(*dto.Usage), true)
+		}
 		return newAPIError
 	}
 
+	postSyncImageConsumeQuota(c, info, request, imagePatch, usage.(*dto.Usage), false)
+	return nil
+}
+
+func postSyncImageConsumeQuota(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ImageRequest, imagePatch imagevendor.RequestPatchResult, usage *dto.Usage, clientCanceled bool) {
 	imageN := uint(1)
 	if request.N != nil {
 		imageN = *request.N
@@ -142,11 +166,11 @@ func Helper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.New
 		}
 	}
 
-	if usage.(*dto.Usage).TotalTokens == 0 {
-		usage.(*dto.Usage).TotalTokens = 1
+	if usage.TotalTokens == 0 {
+		usage.TotalTokens = 1
 	}
-	if usage.(*dto.Usage).PromptTokens == 0 {
-		usage.(*dto.Usage).PromptTokens = 1
+	if usage.PromptTokens == 0 {
+		usage.PromptTokens = 1
 	}
 
 	quality := request.Quality
@@ -169,12 +193,15 @@ func Helper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.New
 	if imageN > 0 {
 		logContent = append(logContent, fmt.Sprintf("生成数量 %d", imageN))
 	}
+	if clientCanceled {
+		logContent = append(logContent, "客户取消连接，上游已生图")
+	}
+	logContent = append(logContent, service.ImageRehostLogContent(info.RehostedImageURLs)...)
 
-	service.PostTextConsumeQuota(c, info, usage.(*dto.Usage), logContent)
-	return nil
+	service.PostTextConsumeQuota(c, info, usage, logContent)
 }
 
-// applySyncImageUpstreamB64Override：Gulie 类模型客户要 url 时，对内请求上游 b64_json，响应再转 R2 公网 url。
+// applySyncImageUpstreamB64Override：仅兼容无法可靠下载上游 URL 的渠道。
 func applySyncImageUpstreamB64Override(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ImageRequest) {
 	if request == nil || info == nil {
 		return
@@ -182,10 +209,10 @@ func applySyncImageUpstreamB64Override(c *gin.Context, info *relaycommon.RelayIn
 	if !strings.EqualFold(strings.TrimSpace(request.ResponseFormat), "url") {
 		return
 	}
+	info.ImageClientWantsURL = true
 	if !imagevendor.ImageSyncPreferUpstreamB64JSON(info.OriginModelName) {
 		return
 	}
-	info.ImageClientWantsURL = true
 	request.ResponseFormat = "b64_json"
 	syncImageResponseFormatToForm(c, "b64_json")
 }
@@ -215,4 +242,39 @@ func syncImageRequestStreamToForm(c *gin.Context, request *dto.ImageRequest) {
 		c.Request.PostForm = url.Values{}
 	}
 	c.Request.PostForm.Set("stream", streamValue)
+}
+
+func syncImageSizeToForm(c *gin.Context, size string) {
+	if c == nil || c.Request == nil || strings.TrimSpace(size) == "" {
+		return
+	}
+	if c.Request.MultipartForm != nil {
+		c.Request.MultipartForm.Value["size"] = []string{size}
+	}
+	if c.Request.PostForm == nil {
+		c.Request.PostForm = url.Values{}
+	}
+	c.Request.PostForm.Set("size", size)
+}
+
+func syncGulie2KImageForm(c *gin.Context, request *dto.ImageRequest) {
+	if request == nil {
+		return
+	}
+	syncImageSizeToForm(c, request.Size)
+	for _, key := range imagevendor.Gulie2KUpstreamFormStripKeys() {
+		deleteImageFormField(c, key)
+	}
+}
+
+func deleteImageFormField(c *gin.Context, key string) {
+	if c == nil || c.Request == nil {
+		return
+	}
+	if c.Request.MultipartForm != nil && c.Request.MultipartForm.Value != nil {
+		delete(c.Request.MultipartForm.Value, key)
+	}
+	if c.Request.PostForm != nil {
+		c.Request.PostForm.Del(key)
+	}
 }

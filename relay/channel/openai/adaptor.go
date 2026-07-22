@@ -166,6 +166,14 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return url, nil
 	default:
 		if (info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) &&
+			IsAdobe2APIImageRelay(info) {
+			path := "/v1/images/generations"
+			if info.RelayMode == relayconstant.RelayModeImagesEdits && info.Adobe2APIImageEditMultipart {
+				path = "/v1/images/edits"
+			}
+			return relaycommon.GetFullRequestURL(info.ChannelBaseUrl, path, info.ChannelType), nil
+		}
+		if (info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) &&
 			imagevendor.IsManjuBananaOriginModel(info.OriginModelName) {
 			if ManjuBananaUsesChatCompletionsUpstreamFromInfo(info) {
 				return chatImageGetRequestURL(info)
@@ -227,6 +235,9 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *
 		if !hasAuthOverride {
 			header.Set("Authorization", "Bearer "+info.ApiKey)
 		}
+	}
+	if IsAdobe2APIImageRelay(info) || IsAdobe2APIVideoChatRelay(info) {
+		header.Set("X-API-Key", info.ApiKey)
 	}
 	if info.ChannelType == constant.ChannelTypeOpenRouter {
 		if header.Get("HTTP-Referer") == "" {
@@ -361,6 +372,13 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		}
 	}
 
+	if IsManjuSora2OriginModel(info.OriginModelName) {
+		return convertManjuSora2OpenAIChatRequest(request, info)
+	}
+	if IsAdobe2APIVideoChatRelay(info) {
+		return ConvertAdobe2APIOpenAIChatRequest(c, request, info)
+	}
+
 	return request, nil
 }
 
@@ -439,17 +457,20 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	if IsAdobe2APIImageRelay(info) &&
+		(info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) {
+		return ConvertAdobe2APIImageRequest(c, info, request)
+	}
+	if imagevendor.IsManjuBananaOriginModel(info.OriginModelName) &&
+		(info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) {
+		return ConvertManjuBananaImageRequest(c, info, request)
+	}
 	upstreamModelName := request.Model
 	if info != nil && info.ChannelMeta != nil && info.UpstreamModelName != "" {
 		upstreamModelName = info.UpstreamModelName
 	}
 	if shouldRouteImageRequestViaChat(upstreamModelName) {
 		return convertImageRequestToChatCompletion(info, request)
-	}
-
-	if imagevendor.IsManjuBananaOriginModel(info.OriginModelName) &&
-		(info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) {
-		return ConvertManjuBananaImageRequest(c, info, request)
 	}
 	if IsChatImageModel(info.OriginModelName) {
 		return ConvertImageRequestForChatImage(c, info, request)
@@ -483,6 +504,9 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 					continue
 				}
 				for _, value := range values {
+					if isImageEditHTTPSReference(key, value) {
+						continue
+					}
 					writer.WriteField(key, value)
 				}
 			}
@@ -506,8 +530,9 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 						}
 					}
 
-					// If no image fields found at all
-					if !foundArrayImages && (len(imageFiles) == 0) {
+					// URL-only edits are downloaded by this Worker and streamed
+					// straight into the upstream multipart request without R2.
+					if !foundArrayImages && len(imageFiles) == 0 && len(imageEditHTTPSReferences(mf, "image")) == 0 {
 						return nil, errors.New("image is required")
 					}
 				}
@@ -546,6 +571,16 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 				// 复制完立即关闭，避免在循环内使用 defer 占用资源
 				_ = file.Close()
 			}
+			imageURLs := imageEditHTTPSReferences(mf, "image")
+			for i, imageURL := range imageURLs {
+				fieldName := "image"
+				if len(imageFiles)+len(imageURLs) > 1 {
+					fieldName = "image[]"
+				}
+				if err := writeImageEditURLPart(writer, fieldName, imageURL, i); err != nil {
+					return nil, err
+				}
+			}
 
 			// Handle mask file if present
 			if maskFiles, exists := mf.File["mask"]; exists && len(maskFiles) > 0 {
@@ -572,6 +607,10 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 					return nil, errors.New("copy mask file failed")
 				}
 				_ = maskFile.Close()
+			} else if maskURLs := imageEditHTTPSReferences(mf, "mask"); len(maskURLs) > 0 {
+				if err := writeImageEditURLPart(writer, "mask", maskURLs[0], 0); err != nil {
+					return nil, err
+				}
 			}
 		} else {
 			return nil, errors.New("no multipart form data found")
@@ -584,6 +623,74 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 
 	default:
 		return request, nil
+	}
+}
+
+func isImageEditHTTPSReference(field, value string) bool {
+	field = strings.TrimSuffix(strings.TrimSpace(field), "[]")
+	return (field == "image" || field == "mask") && strings.HasPrefix(strings.ToLower(strings.TrimSpace(value)), "https://")
+}
+
+func imageEditHTTPSReferences(form *multipart.Form, field string) []string {
+	if form == nil {
+		return nil
+	}
+	values := append([]string(nil), form.Value[field]...)
+	values = append(values, form.Value[field+"[]"]...)
+	urls := values[:0]
+	for _, value := range values {
+		if isImageEditHTTPSReference(field, value) {
+			urls = append(urls, strings.TrimSpace(value))
+		}
+	}
+	return urls
+}
+
+func writeImageEditURLPart(writer *multipart.Writer, field, rawURL string, index int) error {
+	response, err := service.DoDownloadRequest(rawURL, "stream image edit reference to upstream")
+	if err != nil {
+		return fmt.Errorf("download image edit reference %d: %w", index, err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("download image edit reference %d: HTTP %d", index, response.StatusCode)
+	}
+	contentType := strings.TrimSpace(response.Header.Get("Content-Type"))
+	if !strings.HasPrefix(strings.ToLower(contentType), "image/") {
+		return fmt.Errorf("image edit reference %d has invalid content type %q", index, contentType)
+	}
+	const maxImageEditReferenceBytes = int64(20 << 20)
+	if response.ContentLength > maxImageEditReferenceBytes {
+		return fmt.Errorf("image edit reference %d exceeds 20 MiB", index)
+	}
+	filename := fmt.Sprintf("reference-%d%s", index+1, imageExtensionForContentType(contentType))
+	header := make(textproto.MIMEHeader)
+	header.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, field, filename))
+	header.Set("Content-Type", contentType)
+	part, err := writer.CreatePart(header)
+	if err != nil {
+		return err
+	}
+	written, err := io.Copy(part, io.LimitReader(response.Body, maxImageEditReferenceBytes+1))
+	if err != nil {
+		return err
+	}
+	if written > maxImageEditReferenceBytes {
+		return fmt.Errorf("image edit reference %d exceeds 20 MiB", index)
+	}
+	return nil
+}
+
+func imageExtensionForContentType(contentType string) string {
+	switch strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0])) {
+	case "image/jpeg":
+		return ".jpg"
+	case "image/webp":
+		return ".webp"
+	case "image/gif":
+		return ".gif"
+	default:
+		return ".png"
 	}
 }
 
@@ -634,6 +741,12 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
+	if IsAdobe2APIImageRelay(info) {
+		if info.Adobe2APIImageEditMultipart {
+			return channel.DoFormRequest(a, c, info, requestBody)
+		}
+		return channel.DoApiRequest(a, c, info, requestBody)
+	}
 	if imagevendor.IsManjuBananaOriginModel(info.OriginModelName) &&
 		(info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) {
 		return channel.DoApiRequest(a, c, info, requestBody)
@@ -664,6 +777,14 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	case relayconstant.RelayModeAudioTranscription:
 		err, usage = OpenaiSTTHandler(c, resp, info, a.ResponseFormat)
 	case relayconstant.RelayModeImagesGenerations, relayconstant.RelayModeImagesEdits:
+		if IsAdobe2APIImageRelay(info) {
+			if info.IsStream {
+				usage, err = OpenaiImageStreamHandler(c, info, resp)
+			} else {
+				usage, err = OpenaiImageHandler(c, info, resp)
+			}
+			break
+		}
 		if imagevendor.IsManjuBananaOriginModel(info.OriginModelName) &&
 			ManjuBananaUsesChatCompletionsUpstreamFromInfo(info) {
 			if info.IsStream {
@@ -695,7 +816,10 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	case relayconstant.RelayModeResponsesCompact:
 		usage, err = OaiResponsesCompactionHandler(c, resp)
 	default:
-		if info.IsStream {
+		// Manju Sora2 上游固定 stream:false，返回 JSON task 而非 SSE；走 OaiStreamHandler 会得到空 lastStreamData。
+		if info.IsStream && IsManjuSora2OriginModel(info.OriginModelName) {
+			usage, err = OpenaiHandler(c, info, resp)
+		} else if info.IsStream {
 			usage, err = OaiStreamHandler(c, info, resp)
 		} else {
 			usage, err = OpenaiHandler(c, info, resp)

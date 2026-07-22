@@ -5,38 +5,38 @@ import (
 )
 
 // VideoGenerations
-// @Summary 生成视频
-// @Description 调用视频生成接口生成视频
-// @Description 支持多种视频生成服务：
-// @Description - 可灵AI (Kling): https://app.klingai.com/cn/dev/document-api/apiReference/commonInfo
-// @Description - 即梦 (Jimeng): https://www.volcengine.com/docs/85621/1538636
-// @Tags Video
-// @Accept json
+// @Summary 创建统一视频任务
+// @Description 所有视频模型统一通过本接口提交；上游协议、路径和响应差异由服务端 vendor 适配。
+// @Description duration 与 seconds 均表示整数秒；同时传入时必须一致。
+// @Description JSON 可传 image/images/image_urls/reference_image_urls；multipart 可传 input_reference 文件。
+// @Tags Video/Unified
+// @Accept json,mpfd
 // @Produce json
 // @Param Authorization header string true "用户认证令牌 (Aeess-Token: sk-xxxx)"
 // @Param request body dto.VideoRequest true "视频生成请求参数"
+// @Success 200 {object} dto.OpenAIVideo "统一视频任务"
 // @Failure 400 {object} dto.OpenAIError "请求参数错误"
 // @Failure 401 {object} dto.OpenAIError "未授权"
 // @Failure 403 {object} dto.OpenAIError "无权限"
 // @Failure 500 {object} dto.OpenAIError "服务器内部错误"
-// @Router /v1/video/generations [post]
+// @Router /v1/videos [post]
 func VideoGenerations(c *gin.Context) {
 }
 
 // VideoGenerationsTaskId
-// @Summary 查询视频
-// @Description 根据任务ID查询视频生成任务的状态和结果
-// @Tags Video
+// @Summary 查询统一视频任务
+// @Description 根据任务 ID 查询状态和结果；终态为 completed 或 failed。
+// @Tags Video/Unified
 // @Accept json
 // @Produce json
 // @Security BearerAuth
 // @Param task_id path string true "Task ID"
-// @Success 200 {object} dto.VideoTaskResponse "任务状态和结果"
+// @Success 200 {object} dto.OpenAIVideo "任务状态和结果"
 // @Failure 400 {object} dto.OpenAIError "请求参数错误"
 // @Failure 401 {object} dto.OpenAIError "未授权"
 // @Failure 403 {object} dto.OpenAIError "无权限"
 // @Failure 500 {object} dto.OpenAIError "服务器内部错误"
-// @Router /v1/video/generations/{task_id} [get]
+// @Router /v1/videos/{task_id} [get]
 func VideoGenerationsTaskId(c *gin.Context) {
 }
 

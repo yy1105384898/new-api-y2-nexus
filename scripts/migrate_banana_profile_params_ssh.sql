@@ -11,13 +11,8 @@ SET params = '{
     {"value": "1:1", "label": "1:1", "size": "1:1", "width": 1, "height": 1, "icon": "square"},
     {"value": "16:9", "label": "16:9", "size": "16:9", "width": 16, "height": 9, "icon": "landscape"},
     {"value": "9:16", "label": "9:16", "size": "9:16", "width": 9, "height": 16, "icon": "portrait"},
-    {"value": "3:2", "label": "3:2", "size": "3:2", "width": 3, "height": 2, "icon": "landscape"},
-    {"value": "2:3", "label": "2:3", "size": "2:3", "width": 2, "height": 3, "icon": "portrait"},
     {"value": "4:3", "label": "4:3", "size": "4:3", "width": 4, "height": 3, "icon": "landscape"},
     {"value": "3:4", "label": "3:4", "size": "3:4", "width": 3, "height": 4, "icon": "portrait"},
-    {"value": "4:5", "label": "4:5", "size": "4:5", "width": 4, "height": 5, "icon": "portrait"},
-    {"value": "5:4", "label": "5:4", "size": "5:4", "width": 5, "height": 4, "icon": "landscape"},
-    {"value": "21:9", "label": "21:9", "size": "21:9", "width": 21, "height": 9, "icon": "landscape"},
     {"value": "auto", "label": "自动", "width": 0, "height": 0, "icon": "auto"}
   ]},
   "customDimensions": {"enabled": false},
@@ -30,6 +25,8 @@ SET params = '{
     hints = '[
   {"text": "连接参考图后，在提示词中用 @图片1 说明要改动的素材。"},
   {"text": "画幅选「自动」时，有参考图会按参考图比例出图。"},
+  {"text": "API 推荐显式传 aspect_ratio 与 output_resolution（1K/2K/4K）；image_size 是兼容别名，若同时传需与 output_resolution 一致。"},
+  {"text": "画质别名：low=1K、medium=2K、high=4K；画布会把 4K 转成 output_resolution:\"4K\"。"},
   {"when": {"modelIncludes": "4k"}, "text": "本模型支持最高 4K 画质，可在参数面板选择。"},
   {"when": {"modelExcludes": "4k"}, "text": "本模型最高支持 2K 画质；名称带 4k 的型号才支持 4K。"}
 ]'::jsonb::text,

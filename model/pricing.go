@@ -218,6 +218,15 @@ func updatePricing() {
 		modelSupportEndpointsStr[ability.Model] = endpoints
 	}
 
+	// A video profile defines the public capability boundary. Channel type may
+	// still be OpenAI because its upstream uses chat/completions, but clients
+	// must see and call the unified OpenAI Video task endpoint.
+	for modelName, meta := range metaMap {
+		if strings.TrimSpace(meta.VideoProfileId) != "" {
+			modelSupportEndpointsStr[modelName] = []string{string(constant.EndpointTypeOpenAIVideo)}
+		}
+	}
+
 	// 再补充模型自定义端点：若配置有效则替换默认端点，不做合并
 	for modelName, meta := range metaMap {
 		if strings.TrimSpace(meta.Endpoints) == "" {

@@ -545,16 +545,31 @@
     },
     "/v1/videos": {
       "post": {
-        "summary": "创建视频 ",
+        "summary": "创建统一视频任务",
         "deprecated": false,
-        "description": "OpenAI 兼容的视频生成接口。\n\n参考文档: https://platform.openai.com/docs/api-reference/videos/create\n",
+        "description": "所有视频模型统一通过本接口提交。支持 application/json 与 multipart/form-data；上游协议、路径、字段和响应差异由服务端 vendor 层适配。duration 与 seconds 均表示整数秒，同时传入时必须一致。\n",
         "operationId": "createVideo",
         "tags": [
-          "视频生成/Sora兼容格式"
+          "视频生成/统一任务格式"
         ],
         "parameters": [],
         "requestBody": {
           "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VideoRequest"
+              },
+              "example": {
+                "model": "grok-video",
+                "prompt": "一辆跑车穿过雨夜城市",
+                "duration": 6,
+                "aspect_ratio": "9:16",
+                "resolution": "720p",
+                "image_urls": [
+                  "https://example.com/reference.png"
+                ]
+              }
+            },
             "multipart/form-data": {
               "schema": {
                 "type": "object",
@@ -574,17 +589,39 @@
                     "example": "8",
                     "type": "string"
                   },
+                  "duration": {
+                    "description": "生成秒数；与 seconds 等价，同时传入时必须一致",
+                    "example": "8",
+                    "type": "string"
+                  },
+                  "aspect_ratio": {
+                    "description": "画幅比例",
+                    "example": "16:9",
+                    "type": "string"
+                  },
+                  "resolution": {
+                    "description": "分辨率",
+                    "example": "720p",
+                    "type": "string"
+                  },
+                  "generate_audio": {
+                    "description": "是否生成音频",
+                    "type": "boolean"
+                  },
                   "input_reference": {
-                    "format": "binary",
-                    "type": "string",
-                    "description": "参考图片文件",
-                    "example": ""
+                    "description": "参考素材文件；多文件能力取决于模型 profile",
+                    "type": "array",
+                    "items": {
+                      "format": "binary",
+                      "type": "string"
+                    }
                   }
                 }
               },
               "examples": {}
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -592,67 +629,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string",
-                      "description": "视频 ID"
-                    },
-                    "object": {
-                      "type": "string",
-                      "description": "对象类型"
-                    },
-                    "model": {
-                      "type": "string",
-                      "description": "使用的模型"
-                    },
-                    "status": {
-                      "type": "string",
-                      "description": "任务状态"
-                    },
-                    "progress": {
-                      "type": "integer",
-                      "description": "进度百分比"
-                    },
-                    "created_at": {
-                      "type": "integer",
-                      "description": "创建时间戳"
-                    },
-                    "seconds": {
-                      "type": "string",
-                      "description": "视频时长"
-                    },
-                    "completed_at": {
-                      "type": "integer",
-                      "description": "完成时间戳"
-                    },
-                    "expires_at": {
-                      "type": "integer",
-                      "description": "过期时间戳"
-                    },
-                    "size": {
-                      "type": "string",
-                      "description": "视频尺寸"
-                    },
-                    "error": {
-                      "$ref": "#/components/schemas/OpenAIVideoError"
-                    },
-                    "metadata": {
-                      "type": "object",
-                      "description": "额外元数据",
-                      "additionalProperties": true,
-                      "properties": {}
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "object",
-                    "model",
-                    "status",
-                    "progress",
-                    "created_at",
-                    "seconds"
-                  ]
+                  "$ref": "#/components/schemas/OpenAIVideo"
                 },
                 "example": {
                   "id": "sora-2-123456",
@@ -688,12 +665,12 @@
     },
     "/v1/videos/{task_id}": {
       "get": {
-        "summary": "获取视频任务状态 ",
+        "summary": "查询统一视频任务",
         "deprecated": false,
-        "description": "OpenAI 兼容的视频任务状态查询接口。\n\n返回视频任务的详细状态信息。\n",
+        "description": "返回统一视频任务对象。状态为 queued、in_progress、completed 或 failed；失败时读取 error.message。\n",
         "operationId": "getVideo",
         "tags": [
-          "视频生成/Sora兼容格式"
+          "视频生成/统一任务格式"
         ],
         "parameters": [
           {
@@ -713,39 +690,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "object": {
-                      "type": "string"
-                    },
-                    "model": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "string"
-                    },
-                    "progress": {
-                      "type": "integer"
-                    },
-                    "created_at": {
-                      "type": "integer"
-                    },
-                    "seconds": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "object",
-                    "model",
-                    "status",
-                    "progress",
-                    "created_at",
-                    "seconds"
-                  ]
+                  "$ref": "#/components/schemas/OpenAIVideo"
                 },
                 "example": {
                   "id": "sora-2-123456",
@@ -786,7 +731,7 @@
         "description": "获取已完成视频任务的视频文件内容。\n\n此接口会代理返回视频文件流。\n",
         "operationId": "getVideoContent",
         "tags": [
-          "视频生成/Sora兼容格式"
+          "视频生成/统一任务格式"
         ],
         "parameters": [
           {
@@ -1146,116 +1091,6 @@
           },
           "400": {
             "description": "请求参数错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ]
-      }
-    },
-    "/v1/video/generations": {
-      "post": {
-        "summary": "创建视频生成任务",
-        "deprecated": false,
-        "description": "提交视频生成任务，支持文生视频和图生视频。\n\n返回任务 ID，可通过 GET 接口查询任务状态。\n",
-        "operationId": "createVideoGeneration",
-        "tags": [
-          "视频生成"
-        ],
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VideoRequest"
-              },
-              "example": {
-                "model": "kling-v1",
-                "prompt": "宇航员在月球上漫步",
-                "duration": 5,
-                "width": 1280,
-                "height": 720
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "成功创建视频生成任务",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VideoResponse"
-                }
-              }
-            },
-            "headers": {}
-          },
-          "400": {
-            "description": "请求参数错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ]
-      }
-    },
-    "/v1/video/generations/{task_id}": {
-      "get": {
-        "summary": "获取视频生成任务状态",
-        "deprecated": false,
-        "description": "查询视频生成任务的状态和结果。\n\n任务状态：\n- `queued`: 排队中\n- `in_progress`: 生成中\n- `completed`: 已完成\n- `failed`: 失败\n",
-        "operationId": "getVideoGeneration",
-        "tags": [
-          "视频生成"
-        ],
-        "parameters": [
-          {
-            "name": "task_id",
-            "in": "path",
-            "description": "任务 ID",
-            "required": true,
-            "example": "abcd1234efgh",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "成功获取任务状态",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VideoTaskResponse"
-                }
-              }
-            },
-            "headers": {}
-          },
-          "404": {
-            "description": "任务不存在",
             "content": {
               "application/json": {
                 "schema": {
@@ -4167,12 +4002,12 @@
       },
       "VideoRequest": {
         "type": "object",
-        "description": "视频生成请求",
+        "description": "统一视频任务创建请求。模型能力和参考素材上限以 /api/pricing 返回的 video_ui_params 为准。",
         "properties": {
           "model": {
             "type": "string",
-            "description": "模型/风格 ID",
-            "example": "kling-v1"
+            "description": "模型广场展示的 public 模型名",
+            "example": "grok-video"
           },
           "prompt": {
             "type": "string",
@@ -4181,56 +4016,100 @@
           },
           "image": {
             "type": "string",
-            "description": "图片输入 (URL 或 Base64)",
+            "description": "单张参考图（HTTPS URL 或 data URL）",
             "example": "https://example.com/image.jpg"
           },
+          "images": {
+            "type": "array",
+            "description": "参考图数组",
+            "items": {
+              "type": "string"
+            }
+          },
+          "image_urls": {
+            "type": "array",
+            "description": "参考图 URL 数组；与 images 等价",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reference_image_urls": {
+            "type": "array",
+            "description": "参考图 URL 数组；与 images 等价",
+            "items": {
+              "type": "string"
+            }
+          },
+          "input_reference": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "JSON 请求中的参考素材 URL；multipart 请求使用同名文件字段"
+          },
           "duration": {
-            "type": "number",
-            "description": "视频时长（秒）",
-            "example": 5
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]+$"
+              }
+            ],
+            "description": "视频时长（整数秒）；与 seconds 等价",
+            "example": 6
           },
-          "width": {
-            "type": "integer",
-            "description": "视频宽度",
-            "example": 1280
+          "seconds": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string",
+                "pattern": "^[0-9]+$"
+              }
+            ],
+            "description": "视频时长（整数秒）；与 duration 等价，同时传入时必须一致",
+            "example": 6
           },
-          "height": {
-            "type": "integer",
-            "description": "视频高度",
-            "example": 720
-          },
-          "fps": {
-            "type": "integer",
-            "description": "视频帧率",
-            "example": 30
-          },
-          "seed": {
-            "type": "integer",
-            "description": "随机种子",
-            "example": 20231234
-          },
-          "n": {
-            "type": "integer",
-            "description": "生成视频数量",
-            "example": 1
-          },
-          "response_format": {
+          "size": {
             "type": "string",
-            "description": "响应格式",
-            "example": "url"
+            "description": "OpenAI Video 尺寸，如 1280x720",
+            "example": "1280x720"
           },
-          "user": {
+          "aspect_ratio": {
             "type": "string",
-            "description": "用户标识",
-            "example": "user-1234"
+            "description": "画幅比例",
+            "example": "16:9"
+          },
+          "resolution": {
+            "type": "string",
+            "description": "分辨率，取值由模型 profile 决定",
+            "example": "720p"
+          },
+          "generate_audio": {
+            "type": "boolean",
+            "description": "是否生成音频，取决于模型能力"
           },
           "metadata": {
             "type": "object",
-            "description": "扩展参数 (如 negative_prompt, style, quality_level 等)",
+            "description": "已登记 vendor 的扩展参数；不得用于选择上游协议或路径",
             "additionalProperties": true,
             "properties": {}
           }
-        }
+        },
+        "required": [
+          "model",
+          "prompt"
+        ]
       },
       "VideoResponse": {
         "type": "object",

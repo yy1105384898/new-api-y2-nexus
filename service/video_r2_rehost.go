@@ -5,14 +5,17 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
 
@@ -87,6 +90,45 @@ func isVideoProxyURL(rawURL string) bool {
 		return false
 	}
 	return strings.HasPrefix(rawURL, server+"/v1/videos/") && strings.HasSuffix(rawURL, "/content")
+}
+
+// ResolveStoredVideoResultURL recovers historical tasks whose result_url was
+// accidentally persisted as their own /content proxy URL. New tasks and valid
+// CDN/upstream URLs pass through unchanged.
+func ResolveStoredVideoResultURL(storedURL string, taskData []byte) string {
+	storedURL = strings.TrimSpace(storedURL)
+	if !isVideoProxyURL(storedURL) || len(taskData) == 0 {
+		return storedURL
+	}
+	candidate := ExtractVideoResultURL(taskData)
+	if candidate != "" && !isVideoProxyURL(candidate) {
+		return candidate
+	}
+	return storedURL
+}
+
+// ExtractVideoResultURL reads the common result locations used by normalized
+// video tasks and by upstream NewAPI envelopes.
+func ExtractVideoResultURL(taskData []byte) string {
+	for _, path := range []string{
+		"data.result_url",
+		"result_url",
+		"data.video_url",
+		"video_url",
+		"data.url",
+		"url",
+		"data.data.video.url",
+		"data.video.url",
+		"video.url",
+		"data.0.url",
+		"data.0.video_url",
+	} {
+		candidate := strings.TrimSpace(gjson.GetBytes(taskData, path).String())
+		if strings.HasPrefix(candidate, "https://") || strings.HasPrefix(candidate, "http://") {
+			return candidate
+		}
+	}
+	return ""
 }
 
 // VideoURLNeedsRehost reports whether an upstream mp4 URL should be copied to R2_USER_BUCKET.
@@ -174,16 +216,28 @@ func UploadGeneratedVideoFromURL(ctx context.Context, userID int, taskID, videoU
 	if mimeType == "" || mimeType == "application/octet-stream" {
 		mimeType = "video/mp4"
 	}
-	return UploadGeneratedVideoBytes(ctx, userID, taskID, data, mimeType, videoURL)
+	uploaded, err := UploadGeneratedVideoBytes(ctx, userID, taskID, data, mimeType, videoURL)
+	if err != nil {
+		return nil, err
+	}
+	ext := extensionForVideoMime(mimeType, videoURL)
+	if duration, probeErr := common.GetAudioDuration(ctx, bytes.NewReader(data), ext); probeErr == nil && duration > 0 {
+		uploaded.DurationSeconds = int(math.Round(duration))
+	}
+	return uploaded, nil
 }
 
 func patchVideoURLInTaskData(data []byte, publicURL string) ([]byte, error) {
 	if len(data) == 0 || strings.TrimSpace(publicURL) == "" {
 		return data, nil
 	}
+	prefix := ""
+	if gjson.GetBytes(data, "data").IsObject() {
+		prefix = "data."
+	}
 	out := data
 	var err error
-	for _, path := range []string{"video_url", "data.0.url", "data.0.video_url"} {
+	for _, path := range []string{prefix + "video_url", prefix + "result_url", prefix + "data.0.url", prefix + "data.0.video_url"} {
 		out, err = sjson.SetBytes(out, path, publicURL)
 		if err != nil {
 			return data, err
@@ -192,8 +246,19 @@ func patchVideoURLInTaskData(data []byte, publicURL string) ([]byte, error) {
 	return out, nil
 }
 
+func patchVideoUsageSecondsInTaskData(data []byte, seconds int) ([]byte, error) {
+	if len(data) == 0 || seconds <= 0 {
+		return data, nil
+	}
+	prefix := ""
+	if gjson.GetBytes(data, "data").IsObject() {
+		prefix = "data."
+	}
+	return sjson.SetBytes(data, prefix+"usage.seconds", seconds)
+}
+
 // RehostVideoTaskResult copies upstream video to R2 and returns CDN URL plus patched task data.
-func RehostVideoTaskResult(ctx context.Context, userID int, taskID, upstreamURL string, taskData []byte) (string, []byte, error) {
+func RehostVideoTaskResult(ctx context.Context, userID int, channelID int, taskID, upstreamURL string, taskData []byte) (string, []byte, error) {
 	if !VideoURLNeedsRehost(upstreamURL) {
 		return upstreamURL, taskData, nil
 	}
@@ -202,6 +267,10 @@ func RehostVideoTaskResult(ctx context.Context, userID int, taskID, upstreamURL 
 		return upstreamURL, taskData, err
 	}
 	patched, err := patchVideoURLInTaskData(taskData, uploaded.PublicURL)
+	if err != nil {
+		return uploaded.PublicURL, taskData, err
+	}
+	patched, err = patchVideoUsageSecondsInTaskData(patched, uploaded.DurationSeconds)
 	if err != nil {
 		return uploaded.PublicURL, taskData, err
 	}

@@ -57,7 +57,7 @@ func Distribute() func(c *gin.Context) {
 			// Select a channel for the user
 			// check token model mapping
 			modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
-			if modelLimitEnable {
+			if modelLimitEnable && shouldSelectChannel {
 				s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
 				if !ok {
 					// token model limit is empty, all models are not allowed
@@ -159,7 +159,11 @@ func Distribute() func(c *gin.Context) {
 			}
 		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
-		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		if channel != nil {
+			SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		} else {
+			c.Set("original_model", modelRequest.Model)
+		}
 		c.Next()
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
 			service.RecordChannelAffinity(c, channel.Id)
@@ -302,23 +306,6 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			modelRequest.Model = getTaskOriginModelName(c)
 		}
 		c.Set("relay_mode", relayMode)
-	} else if strings.Contains(c.Request.URL.Path, "/v1/video/generations") {
-		relayMode := relayconstant.RelayModeUnknown
-		if c.Request.Method == http.MethodPost {
-			req, err := getModelFromRequest(c)
-			if err != nil {
-				return nil, false, err
-			}
-			modelRequest.Model = req.Model
-			relayMode = relayconstant.RelayModeVideoSubmit
-		} else if c.Request.Method == http.MethodGet {
-			relayMode = relayconstant.RelayModeVideoFetchByID
-			shouldSelectChannel = false
-			modelRequest.Model = getTaskOriginModelName(c)
-		}
-		if _, ok := c.Get("relay_mode"); !ok {
-			c.Set("relay_mode", relayMode)
-		}
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/images/edits/") && c.Request.Method == http.MethodGet {
 		c.Set("relay_mode", relayconstant.RelayModeImageEditsFetchByID)
 		shouldSelectChannel = false
@@ -406,10 +393,8 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	return &modelRequest, shouldSelectChannel, nil
 }
 
-// 修复 #4834: GET /v1/video/generations/:task_id && /v1/video/:task_id 此前不解析 model，
-// 当 token 启用「可用模型限制」时，下游 modelLimitEnable 校验会因
-// modelRequest.Model 为空而误报 "This token has no access to model"。
-// 从已存储的任务记录中回填 OriginModelName 即可让校验走在正确的模型上。
+// 修复 #4834: 异步任务查询（shouldSelectChannel=false）不再走 token 模型限制校验；
+// 此处从任务记录回填 OriginModelName，供 original_model 等上下文使用。
 func getTaskOriginModelName(c *gin.Context) string {
 	if !common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled) {
 		return ""

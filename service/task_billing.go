@@ -49,8 +49,7 @@ func ShouldTaskPerCallBilling(modelName string, usePrice bool, otherRatios map[s
 	return true
 }
 
-// LogTaskConsumption 记录任务消费日志和统计信息（仅记录，不涉及实际扣费）。
-// 实际扣费已由 BillingSession（PreConsumeBilling + SettleBilling）完成。
+// LogTaskConsumption 记录任务消费日志（提交时审计），数据看板在任务终态由 recordTaskTerminalQuotaData 写入。
 func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	tokenName := c.GetString("token_name")
 	logContent := fmt.Sprintf("操作 %s", info.Action)
@@ -405,6 +404,9 @@ func ShouldRefundRelayError(c *gin.Context, apiErr *types.NewAPIError) bool {
 	if apiErr.GetErrorCode() == types.ErrorCodeSensitiveWordsDetected {
 		return true
 	}
+	if IsBillableImageRehostClientCancel(apiErr) {
+		return false
+	}
 	oai := apiErr.ToOpenAIError()
 	reason := strings.TrimSpace(oai.Message)
 	if reason == "" {
@@ -518,6 +520,21 @@ func recordTaskBillingConsumeLog(ctx context.Context, task *model.Task, quota in
 	})
 	model.UpdateUserUsedQuotaAndRequestCount(task.UserId, quota)
 	model.UpdateChannelUsedQuota(task.ChannelId, quota)
+	recordTaskTerminalQuotaData(task, quota)
+}
+
+// recordTaskTerminalQuotaData 在异步任务终态写入数据看板。
+// 异步任务提交时不写 quota_data，仅在成功扣费或不可退款失败时记一笔。
+func recordTaskTerminalQuotaData(task *model.Task, actualQuota int) {
+	if actualQuota <= 0 || !common.DataExportEnabled {
+		return
+	}
+	username, _ := model.GetUsernameById(task.UserId, false)
+	createdAt := task.CreatedAt
+	if createdAt <= 0 {
+		createdAt = common.GetTimestamp()
+	}
+	model.LogQuotaData(task.UserId, username, taskModelName(task), actualQuota, createdAt, 0)
 }
 
 // RecalculateTaskQuota 通用的异步差额结算。
@@ -531,6 +548,11 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	quotaDelta := actualQuota - preConsumedQuota
 
 	if quotaDelta == 0 {
+		if task.ID > 0 {
+			if err := task.UpdateQuota(actualQuota); err != nil {
+				logger.LogError(ctx, fmt.Sprintf("任务 %s 持久化最终额度失败: %v", task.TaskID, err))
+			}
+		}
 		logger.LogInfo(ctx, fmt.Sprintf("任务 %s 预扣费准确（%s，%s）",
 			task.TaskID, logger.LogQuota(actualQuota), reason))
 		recordTaskBillingConsumeLog(ctx, task, actualQuota, reason, preConsumedQuota)
@@ -555,6 +577,11 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	taskAdjustTokenQuota(ctx, task, quotaDelta)
 
 	task.Quota = actualQuota
+	if task.ID > 0 {
+		if err := task.UpdateQuota(actualQuota); err != nil {
+			logger.LogError(ctx, fmt.Sprintf("任务 %s 持久化最终额度失败: %v", task.TaskID, err))
+		}
+	}
 
 	var logType int
 	var logQuota int
@@ -582,6 +609,7 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		Group:     task.Group,
 		Other:     other,
 	})
+	recordTaskTerminalQuotaData(task, actualQuota)
 }
 
 // RecalculateTaskQuotaByTokens 根据实际 token 消耗重新计费（异步差额结算）。

@@ -141,9 +141,38 @@ func TestResolveManjuBananaOutputResolutionDefault1K(t *testing.T) {
 		"manju-gemini-banana-pro-1/2k",
 		"manju-gemini-banana-2.0-1/2k",
 	} {
-		if got := resolveManjuBananaOutputResolution(model, ""); got != "1K" {
+		if got := resolveManjuBananaOutputResolution(model, dto.ImageRequest{}); got != "1K" {
 			t.Fatalf("%s: output_resolution = %q, want 1K", model, got)
 		}
+	}
+}
+
+func TestResolveManjuBananaOutputResolutionReadsOutputResolution(t *testing.T) {
+	request := dto.ImageRequest{
+		Quality: "low",
+		Extra: map[string]json.RawMessage{
+			"output_resolution": json.RawMessage(`"2K"`),
+		},
+	}
+	if got := resolveManjuBananaOutputResolution("manju-gemini-banana-pro-1/2k", request); got != "2K" {
+		t.Fatalf("output_resolution = %q, want 2K", got)
+	}
+}
+
+func TestBuildManjuBananaImageGenerationBodyReadsImageSizeAlias(t *testing.T) {
+	body := BuildManjuBananaImageGenerationBody("manju-gemini-banana-pro-1/2k", dto.ImageRequest{
+		Model:  "gemini-banana-pro-1/2k",
+		Prompt: "a clean poster",
+		Size:   "16:9",
+		Extra: map[string]json.RawMessage{
+			"image_size": json.RawMessage(`"2K"`),
+		},
+	})
+	if body["output_resolution"] != "2K" {
+		t.Fatalf("output_resolution = %v, want 2K", body["output_resolution"])
+	}
+	if body["aspect_ratio"] != "16:9" {
+		t.Fatalf("aspect_ratio = %v, want 16:9", body["aspect_ratio"])
 	}
 }
 
@@ -151,13 +180,6 @@ func TestManjuBananaUsesImageAPIForEdits(t *testing.T) {
 	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesEdits}
 	if ManjuBananaUsesChatCompletionsUpstream(nil, info, dto.ImageRequest{Prompt: "x"}) {
 		t.Fatal("edits should use the Image API")
-	}
-}
-
-func TestManjuBananaUsesImageAPIForReferenceImages(t *testing.T) {
-	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesGenerations}
-	if ManjuBananaUsesChatCompletionsUpstream(nil, info, dto.ImageRequest{Prompt: "x", Image: json.RawMessage(`"https://example.com/ref.png"`)}) {
-		t.Fatal("reference images should use the Image API")
 	}
 }
 

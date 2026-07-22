@@ -21,6 +21,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relay/image"
+	"github.com/QuantumNous/new-api/relay/imagevendor"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -123,6 +124,12 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeGenRelayInfoFailed)
 		return
+	}
+	if imageRequest, ok := request.(*dto.ImageRequest); ok {
+		if err := imagevendor.ValidateFixedResolutionSKU(c, relayInfo.OriginModelName, imageRequest); err != nil {
+			newAPIError = types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+			return
+		}
 	}
 
 	needSensitiveCheck := setting.ShouldCheckPromptSensitiveForUser(c.GetInt("id"))
@@ -587,22 +594,28 @@ func RelayTask(c *gin.Context) {
 		service.LogTaskConsumption(c, relayInfo)
 
 		task := model.InitTask(result.Platform, relayInfo)
+		task.PrivateData.Key = relayInfo.ApiKey
+		task.PrivateData.RequestPath = "/v1/videos"
 		task.PrivateData.UpstreamTaskID = result.UpstreamTaskID
 		task.PrivateData.BillingSource = relayInfo.BillingSource
 		task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 		task.PrivateData.TokenId = relayInfo.TokenId
 		task.PrivateData.BillingContext = &model.TaskBillingContext{
-			ModelPrice:      relayInfo.PriceData.ModelPrice,
-			GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
-			ModelRatio:      relayInfo.PriceData.ModelRatio,
-			OtherRatios:     relayInfo.PriceData.OtherRatios,
-			OriginModelName: relayInfo.OriginModelName,
-			PerCallBilling:  service.ShouldTaskPerCallBilling(relayInfo.OriginModelName, relayInfo.PriceData.UsePrice, relayInfo.PriceData.OtherRatios),
+			ModelPrice:        relayInfo.PriceData.ModelPrice,
+			GroupRatio:        relayInfo.PriceData.GroupRatioInfo.GroupRatio,
+			ModelRatio:        relayInfo.PriceData.ModelRatio,
+			OtherRatios:       relayInfo.PriceData.OtherRatios,
+			OriginModelName:   relayInfo.OriginModelName,
+			UpstreamModelName: relayInfo.UpstreamModelName,
+			PerCallBilling:    service.ShouldTaskPerCallBilling(relayInfo.OriginModelName, relayInfo.PriceData.UsePrice, relayInfo.PriceData.OtherRatios),
 		}
 		task.Quota = result.Quota
 		task.Data = result.TaskData
 		task.Action = relayInfo.Action
 		task.Properties.Input = relaycommon.PromptInputFromContext(c)
+		if result.Platform != constant.TaskPlatformSuno && result.Platform != constant.TaskPlatformImage {
+			model.ApplySubmittedStatusFromUpstreamData(task, result.TaskData)
+		}
 		if insertErr := task.Insert(); insertErr != nil {
 			common.SysError("insert task error: " + insertErr.Error())
 		}

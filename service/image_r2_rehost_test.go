@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -26,6 +27,22 @@ func TestRehostSyncImageResponseBodySkipsInternalPrefixModel(t *testing.T) {
 	}
 	if string(out) != string(body) {
 		t.Fatalf("internal prefixed model should passthrough body unchanged")
+	}
+}
+
+func TestRehostSyncImageResponseBodyNeverPublishesGeneratedUpstreamURL(t *testing.T) {
+	body := []byte(`{"created":1,"data":[{"url":"https://public.example.com/generated/a.png"}]}`)
+	_, err := RehostSyncImageResponseBody(context.Background(), 1, "cy-img2-gpt-image-2-4k", "http://45.67.221.45:6001", body, false)
+	if err == nil || !strings.Contains(err.Error(), "R2 not configured") {
+		t.Fatalf("expected mandatory R2 rehost, got %v", err)
+	}
+}
+
+func TestRehostImageDataURLsRequiresR2ForGeneratedURL(t *testing.T) {
+	images := []dto.ImageData{{Url: "https://public.example.com/generated/a.png"}}
+	_, err := RehostImageDataURLs(context.Background(), 1, "task_test", "http://45.67.221.45:6001", "cy-img2-gpt-image-2-4k", images)
+	if err == nil || !strings.Contains(err.Error(), "R2 not configured") {
+		t.Fatalf("expected mandatory R2 rehost, got %v", err)
 	}
 }
 
@@ -68,6 +85,23 @@ func TestDecodeImageDataItemDataURI(t *testing.T) {
 	}
 }
 
+func TestRehostImageDataForClientDecodesDataURIBeforeUpload(t *testing.T) {
+	t.Setenv("R2_ACCOUNT_ID", "test-account")
+	t.Setenv("R2_ACCESS_KEY_ID", "test-key")
+	t.Setenv("R2_SECRET_ACCESS_KEY", "test-secret")
+	t.Setenv("R2_USER_BUCKET", "test-bucket")
+	t.Setenv("R2_USER_PUBLIC_BASE_URL", "https://example.com")
+
+	images := []dto.ImageData{{Url: "data:image/png;base64,%%%"}}
+	_, err := RehostImageDataForClient(context.Background(), 1, "task_test", "https://api.example.com", "cy-img2-gpt-image-2-4k", images, false)
+	if err == nil || !strings.Contains(err.Error(), "decode upstream image data uri") {
+		t.Fatalf("expected data URI decode error, got %v", err)
+	}
+	if strings.Contains(err.Error(), "unsupported protocol scheme") {
+		t.Fatalf("data URI must not be passed to HTTP downloader: %v", err)
+	}
+}
+
 func TestRehostTaskImageResultURLsRejectsUpstreamURLWithoutPolicy(t *testing.T) {
 	images := []dto.ImageData{{Url: "https://upstream.example/a.png"}}
 	_, err := RehostTaskImageResultURLs(context.Background(), 1, "task_test", "https://api.example.com", "go2api-gpt-image-2-1k", images)
@@ -89,5 +123,97 @@ func TestRehostTaskImageResultURLsRequiresR2ForAcceptedURL(t *testing.T) {
 	_, err := RehostTaskImageResultURLs(context.Background(), 1, "task_test", "https://api.example.com", "manju-gemini-banana-pro-1/2k", images)
 	if err == nil || !strings.Contains(err.Error(), "R2 not configured") {
 		t.Fatalf("expected R2 not configured error, got %v", err)
+	}
+}
+
+func TestRehostTaskImageResultURLsNeverPublishesGeneratedUpstreamURL(t *testing.T) {
+	images := []dto.ImageData{{Url: "https://public.example.com/generated/a.png"}}
+	_, err := RehostTaskImageResultURLs(context.Background(), 1, "task_test", "http://45.67.221.45:6001", "cy-img2-gpt-image-2-4k", images)
+	if err == nil || !strings.Contains(err.Error(), "R2 not configured") {
+		t.Fatalf("expected mandatory R2 rehost, got %v", err)
+	}
+}
+
+func TestAdobeGeneratedURLsAlwaysRequireR2(t *testing.T) {
+	for _, rawURL := range []string{
+		"https://eu-ai.cangyuansuanli.cn/generated/result.png",
+		"https://bks-epo.example.adobe.io/result.png?sig=test",
+		"http://eu-ai.cangyuansuanli.cn/generated/a.png",
+		"https://eu-ai.cangyuansuanli.cn.evil.test/generated/a.png",
+		"https://eu-ai.cangyuansuanli.cn:443/generated/a.png",
+		"https://eu-ai.cangyuansuanli.cn/not-generated/a.png",
+		"https://eu-ai.cangyuansuanli.cn/generated/",
+	} {
+		images := []dto.ImageData{{Url: rawURL}}
+		_, err := RehostTaskImageResultURLs(context.Background(), 1, "task_test", "http://45.67.221.45:6001", "adobe-firefly-gpt-image-2-1k", images)
+		if err == nil || !strings.Contains(err.Error(), "R2 not configured") {
+			t.Fatalf("Adobe URL %q bypassed R2: %v", rawURL, err)
+		}
+	}
+}
+
+func TestIsBillableImageRehostClientCancel(t *testing.T) {
+	rehostErr := fmt.Errorf("rehost upstream image b64: r2 put object failed: %w", context.Canceled)
+	if !IsBillableImageRehostClientCancel(rehostErr) {
+		t.Fatal("expected billable client cancel for rehost context canceled")
+	}
+	deliveredErr := fmt.Errorf("rehost upstream image delivered: %w", context.Canceled)
+	if !IsBillableImageRehostClientCancel(deliveredErr) {
+		t.Fatal("expected billable client cancel after rehost delivered")
+	}
+	if IsBillableImageRehostClientCancel(fmt.Errorf("download image failed: %w", context.Canceled)) {
+		t.Fatal("expected non-billable for non-rehost cancel")
+	}
+	if IsBillableImageRehostClientCancel(fmt.Errorf("rehost upstream image url: r2 put object failed: access denied")) {
+		t.Fatal("expected non-billable for real r2 failure")
+	}
+}
+
+func TestCollectRehostedImageURLs(t *testing.T) {
+	images := []dto.ImageData{
+		{Url: "https://tmp.example.com/gen-images/1/a/0.png"},
+		{B64Json: "abc"},
+		{Url: "ftp://ignored.example/a.png"},
+	}
+	got := CollectRehostedImageURLs(images)
+	if len(got) != 1 || got[0] != "https://tmp.example.com/gen-images/1/a/0.png" {
+		t.Fatalf("urls = %#v", got)
+	}
+}
+
+func TestImageRehostLogContent(t *testing.T) {
+	single := ImageRehostLogContent([]string{"https://tmp.example.com/a.png"})
+	if len(single) != 1 || single[0] != "图片链接 https://tmp.example.com/a.png" {
+		t.Fatalf("single = %#v", single)
+	}
+	multi := ImageRehostLogContent([]string{"https://tmp.example.com/a.png", "https://tmp.example.com/b.png"})
+	if len(multi) != 2 || multi[1] != "图片链接 2 https://tmp.example.com/b.png" {
+		t.Fatalf("multi = %#v", multi)
+	}
+}
+
+func TestImageRehostAPIErrorKeepsUsageOnClientCancel(t *testing.T) {
+	usage := &dto.Usage{TotalTokens: 10, PromptTokens: 5, CompletionTokens: 5}
+	err := fmt.Errorf("rehost upstream image b64: %w", context.Canceled)
+	gotUsage, apiErr := ImageRehostAPIError(usage, err)
+	if apiErr == nil || gotUsage == nil {
+		t.Fatalf("expected usage and apiErr, got usage=%v err=%v", gotUsage, apiErr)
+	}
+	if gotUsage.TotalTokens != 10 {
+		t.Fatalf("usage = %+v", gotUsage)
+	}
+	if apiErr.StatusCode != 502 {
+		t.Fatalf("status = %d", apiErr.StatusCode)
+	}
+}
+
+func TestImageRehostAPIErrorDropsUsageOnRealFailure(t *testing.T) {
+	usage := &dto.Usage{TotalTokens: 1}
+	gotUsage, apiErr := ImageRehostAPIError(usage, fmt.Errorf("rehost upstream image b64: r2 put object failed: access denied"))
+	if apiErr == nil {
+		t.Fatal("expected apiErr")
+	}
+	if gotUsage != nil {
+		t.Fatal("expected nil usage for real failure")
 	}
 }

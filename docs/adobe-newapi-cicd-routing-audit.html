@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Adobe2API × NewAPI CI/CD 与模型路由审计</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#f5f3ee; --paper:#fffdf8; --ink:#24231f; --muted:#6d6960; --line:#d9d4c9; --red:#a3362f; --amber:#996515; --green:#2e704d; --blue:#356a8a; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.65 ui-sans-serif,system-ui,-apple-system,"PingFang SC",sans-serif; }
+    main { max-width:1120px; margin:0 auto; padding:48px 24px 72px; }
+    header { border-bottom:1px solid var(--line); padding-bottom:28px; }
+    h1 { margin:0 0 8px; font:700 clamp(28px,4vw,46px)/1.14 ui-serif,Georgia,"Songti SC",serif; letter-spacing:-.02em; }
+    h2 { margin:42px 0 16px; font-size:22px; }
+    h3 { margin:0 0 8px; font-size:16px; }
+    p { max-width:78ch; }
+    code { background:rgba(100,90,70,.10); padding:.12em .35em; border-radius:4px; }
+    .tldr { max-width:none; margin:20px 0 0; padding:18px 20px; border-left:5px solid var(--red); background:color-mix(in srgb,var(--paper) 88%,var(--red)); font-size:17px; }
+    .status { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin:28px 0; }
+    .card { border:1px solid var(--line); background:var(--paper); padding:18px; border-radius:10px; }
+    .card strong { display:block; font-size:24px; margin:3px 0 6px; }
+    .bad { color:var(--red); } .warn { color:var(--amber); } .good { color:var(--green); }
+    table { width:100%; border-collapse:collapse; background:var(--paper); border:1px solid var(--line); }
+    th,td { padding:12px 14px; text-align:left; vertical-align:top; border-bottom:1px solid var(--line); }
+    th { font-size:12px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); }
+    .sev { display:inline-block; min-width:66px; padding:2px 8px; border-radius:999px; color:white; font-size:12px; text-align:center; }
+    .sev.block { background:var(--red); } .sev.high { background:var(--amber); } .sev.ok { background:var(--green); }
+    .flow { display:grid; grid-template-columns:1fr 34px 1fr 34px 1fr; align-items:stretch; gap:8px; }
+    .arrow { display:grid; place-items:center; color:var(--muted); font-size:24px; }
+    .split { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+    .name { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; overflow-wrap:anywhere; }
+    .callout { margin:18px 0; padding:16px 18px; border:1px solid var(--line); border-radius:8px; background:var(--paper); }
+    .steps { counter-reset:step; display:grid; gap:12px; padding:0; }
+    .steps li { list-style:none; position:relative; padding:14px 16px 14px 58px; border:1px solid var(--line); background:var(--paper); border-radius:8px; }
+    .steps li:before { counter-increment:step; content:counter(step); position:absolute; left:16px; top:13px; width:28px; height:28px; display:grid; place-items:center; border-radius:50%; background:var(--ink); color:var(--paper); font-weight:700; }
+    details { border:1px solid var(--line); background:var(--paper); border-radius:8px; padding:12px 16px; margin:10px 0; }
+    summary { cursor:pointer; font-weight:650; }
+    footer { margin-top:48px; padding-top:20px; border-top:1px solid var(--line); color:var(--muted); }
+    @media (prefers-color-scheme:dark) { :root { --bg:#171714; --paper:#201f1b; --ink:#ebe7dd; --muted:#aaa398; --line:#3c3932; } }
+    @media (max-width:760px) { .status,.split { grid-template-columns:1fr; } .flow { grid-template-columns:1fr; } .arrow { transform:rotate(90deg); } table { display:block; overflow-x:auto; } }
+  </style>
+</head>
+<body><main>
+  <header>
+    <h1>Adobe2API × NewAPI<br>最终发布与路由审计</h1>
+    <p>生产复核时间：2026-07-11（Asia/Shanghai）。范围覆盖镜像、号池、模型命名、固定档位、同步/异步生图、计费和客户 API 文档。</p>
+    <div class="tldr"><strong>目标环境已经具备开放条件。</strong> Adobe2API 生产运行 <code>a13763e</code>；NewAPI 运行 <code>5d556d8e</code>。当前开放 GPT Image 2 与 Nano Banana 2 两个系列、共 6 个独立 1K/2K/4K SKU，真实同步 6/6、最终异步 6/6 通过。客户文档只展示 Image API，不再展示 chat 出图。</div>
+  </header>
+
+  <section class="status">
+    <div class="card"><span class="good">Adobe2API</span><strong>a13763e</strong><span>6001 生产容器健康；清理后 19 个 active token，零个 0 额度账号。</span></div>
+    <div class="card"><span class="good">NewAPI</span><strong>5d556d8e</strong><span>渠道 75 健康；6 个公开 SKU、18 条用户组 ability 已启用。</span></div>
+    <div class="card"><span class="good">真实矩阵</span><strong>12 / 12</strong><span>同步 6/6；清理号池后异步 6/6，均返回一张图片。</span></div>
+  </section>
+
+  <h2>1. 当前生产链路</h2>
+  <div class="flow">
+    <div class="card"><h3>客户公共名</h3><span class="name">firefly-…-{1k|2k|4k}</span><p>管理员现有 Adobe 联调 token 从 <code>/v1/models</code> 可枚举 6 个公共名。</p></div>
+    <div class="arrow">→</div>
+    <div class="card"><h3>NewAPI internal</h3><span class="name">adobe-firefly-…-{1k|2k|4k}</span><p>public → internal 只在入口发生；按 IMAGE / 全模型 / 对接专用组选择渠道 75。</p></div>
+    <div class="arrow">→</div>
+    <div class="card"><h3>Adobe2API upstream</h3><span class="name">gpt-image<br>nano-banana2</span><p>adapter 固定写入 SKU 对应的 <code>image_size</code>，上游只接收标准图像接口。</p></div>
+  </div>
+
+  <h2>2. 已开放模型与价格</h2>
+  <table>
+    <thead><tr><th>客户模型</th><th>上游模型</th><th>固定档位</th><th>单次价格</th><th>同步</th><th>异步</th></tr></thead>
+    <tbody>
+      <tr><td class="name">firefly-gpt-image-2-1k</td><td>gpt-image</td><td>1K</td><td>$0.025</td><td><span class="sev ok">通过</span></td><td><span class="sev ok">通过</span></td></tr>
+      <tr><td class="name">firefly-gpt-image-2-2k</td><td>gpt-image</td><td>2K</td><td>$0.05</td><td><span class="sev ok">通过</span></td><td><span class="sev ok">通过</span></td></tr>
+      <tr><td class="name">firefly-gpt-image-2-4k</td><td>gpt-image</td><td>4K</td><td>$0.08</td><td><span class="sev ok">通过</span></td><td><span class="sev ok">通过</span></td></tr>
+      <tr><td class="name">firefly-nano-banana2-1k</td><td>nano-banana2</td><td>1K</td><td>$0.059</td><td><span class="sev ok">通过</span></td><td><span class="sev ok">通过</span></td></tr>
+      <tr><td class="name">firefly-nano-banana2-2k</td><td>nano-banana2</td><td>2K</td><td>$0.08</td><td><span class="sev ok">通过</span></td><td><span class="sev ok">通过</span></td></tr>
+      <tr><td class="name">firefly-nano-banana2-4k</td><td>nano-banana2</td><td>4K</td><td>$0.149</td><td><span class="sev ok">通过</span></td><td><span class="sev ok">通过</span></td></tr>
+    </tbody>
+  </table>
+  <div class="callout"><strong>未开放：</strong><code>nano-banana</code> 与 <code>nano-banana-pro</code> 的 6 个 staged SKU 保持 <code>status=0</code>、abilities disabled。激活脚本已收紧，不会因重复执行而误开放。</div>
+
+  <h2>3. 固定档位与越权防护</h2>
+  <table>
+    <thead><tr><th>验证请求</th><th>生产结果</th><th>计费边界</th></tr></thead>
+    <tbody>
+      <tr><td>1K SKU 的 prompt 写“render in 4K”，结构参数仍传 1K</td><td>成功，日志按 1K SKU 与 $0.025 记录</td><td><span class="sev ok">不可绕过</span></td></tr>
+      <tr><td>1K SKU 结构化传 <code>image_size=4K</code></td><td>HTTP 400：fixed 1K SKU</td><td>渠道选择和扣费前拒绝</td></tr>
+      <tr><td>4K SKU 传 <code>quality=low</code></td><td>HTTP 400：quality requests 1K</td><td>渠道选择和扣费前拒绝</td></tr>
+      <tr><td>任一 Adobe SKU 传 <code>n=2</code></td><td>HTTP 400：only supports n=1</td><td>渠道选择和扣费前拒绝</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4. 503 根因与号池处置</h2>
+  <div class="split">
+    <div class="card"><h3 class="bad">观察到的故障</h3><p>首批并发 GPT 异步任务中，2 个返回“Upstream is temporarily unavailable”。Adobe 日志同时出现多次 <code>403 access_error=quota_exhausted</code>，轮换后部分请求仍成功。</p></div>
+    <div class="card"><h3 class="good">处置结果</h3><p>对 21 个 token 执行额度刷新，21/21 刷新成功；删除 2 个真实 <code>credits_available=0</code> 的账号。剩余 19 个均 active、总余额 43140，健康接口返回 <code>pool_size=19</code>。</p></div>
+  </div>
+  <p>清理后重新观察的 GPT 1K/2K/4K 异步任务全部完成。因此大批量 503 的主要原因是号池混入耗尽账号，不是 NewAPI 固定选择了错误子号；高并发时耗尽账号放大了轮换重试压力。</p>
+
+  <h2>5. 客户 API 文档</h2>
+  <table>
+    <thead><tr><th>检查项</th><th>结果</th></tr></thead>
+    <tbody>
+      <tr><td>同步生图入口</td><td><code>POST /v1/images/generations</code>、<code>POST /v1/images/edits</code></td></tr>
+      <tr><td>异步生图入口</td><td>同一提交路径传 <code>async=true</code>，轮询 <code>GET /v1/images/generations/{task_id}</code></td></tr>
+      <tr><td>Adobe 视频入口</td><td><code>POST /v1/videos</code>，固定异步；Adobe 仅为标准视频 vendor</td></tr>
+      <tr><td>启用图像模型含 chat 文档</td><td><strong>0</strong></td></tr>
+      <tr><td>Adobe 6 SKU 文档完整性</td><td>6/6 含 generations、edits、async、固定档位参数；6/6 不含 chat</td></tr>
+    </tbody>
+  </table>
+
+  <h2>6. 发布与回滚证据</h2>
+  <ol class="steps">
+    <li><strong>数据库已备份。</strong> 文档更新前备份位于 <code>/opt/backups/newapi/20260711-123954/</code>；激活前备份位于 <code>/opt/backups/newapi/20260711-124430/</code>。</li>
+    <li><strong>文档 seed 已幂等执行。</strong> Manju 使用 <code>--docs-only</code>，没有覆盖 ModelPrice；0lll0 profile 与文档已更新。</li>
+    <li><strong>Adobe ability 已显式激活。</strong> 6 个 SKU × 3 个用户组 = 18 条 enabled ability；迁移不会由镜像启动自动执行。</li>
+    <li><strong>客户出站名称已验证。</strong> 最终异步任务保存并返回 public/internal/upstream 三层名称，任务 6/6 为 SUCCESS / 100%。</li>
+  </ol>
+
+  <h2>7. 仍需注意的入口拓扑</h2>
+  <details open><summary>为什么本次矩阵使用 direct-api？</summary><p><code>direct-api.cangyuansuanli.cn</code> 当前解析到目标 NewAPI 主机并使用本次目标数据库。<code>ai.cangyuansuanli.cn</code> 当前解析到另一台主机，旧 token 在该入口会 401，未展示本次新增 Firefly SKU。若最终客户必须经 <code>ai</code> 同源入口调用，还需确认该前置节点的反代/数据库切换；这不影响目标环境本身的 12/12 结果。</p></details>
+  <details><summary>为什么不把旧 Nano/Pro 一起开放？</summary><p>元数据可预创建，但生产应只开放已经完成真实路由与价格验证的系列。当前激活集合明确限定为 GPT Image 2 与 Nano Banana 2，避免把“Adobe2API 代码声明支持”误当成“当前账号池与售价已经验收”。</p></details>
+
+  <footer>证据来源：两仓 main 提交与生产容器、NewAPI models/abilities/options/tasks/logs、Adobe2API health/token credits/runtime logs，以及经目标公网入口执行的同步与异步请求。最后更新：2026-07-11。</footer>
+</main></body>
+</html>
