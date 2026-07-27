@@ -217,6 +217,10 @@ func AsBool(v interface{}) bool {
 func CollectStringList(raw interface{}) []string {
 	out := make([]string, 0)
 	switch v := raw.(type) {
+	case map[string]interface{}:
+		if s := extractRefURL(v); s != "" {
+			out = append(out, s)
+		}
 	case []interface{}:
 		for _, item := range v {
 			if s := extractRefURL(item); s != "" {

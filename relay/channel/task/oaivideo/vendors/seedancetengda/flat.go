@@ -2,17 +2,13 @@ package seedancetengda
 
 import (
 	"strings"
-
-	oaivideo "github.com/QuantumNous/new-api/relay/channel/task/oaivideo/shared"
 )
 
 const (
-	flatKeyReferenceImageURLs = "reference_image_urls"
-	flatKeyReferenceImages    = "reference_images"
-	flatKeyReferenceVideos    = "reference_videos"
-	flatKeyReferenceAudios    = "reference_audios"
-	flatKeyFirstImageURL      = "first_image_url"
-	flatKeyLastImageURL       = "last_image_url"
+	flatKeyReferenceVideos = "reference_videos"
+	flatKeyReferenceAudios = "reference_audios"
+	flatKeyFirstImageURL   = "first_image_url"
+	flatKeyLastImageURL    = "last_image_url"
 )
 
 func hasFlatSeedanceFields(body map[string]interface{}) bool {
@@ -20,8 +16,6 @@ func hasFlatSeedanceFields(body map[string]interface{}) bool {
 		return false
 	}
 	for _, key := range []string{
-		flatKeyReferenceImageURLs,
-		flatKeyReferenceImages,
 		flatKeyReferenceVideos,
 		flatKeyReferenceAudios,
 		flatKeyFirstImageURL,
@@ -32,40 +26,6 @@ func hasFlatSeedanceFields(body map[string]interface{}) bool {
 		}
 	}
 	return false
-}
-
-func collectReferenceImageURLs(body map[string]interface{}) []string {
-	if body == nil {
-		return nil
-	}
-	seen := map[string]struct{}{}
-	out := make([]string, 0, 9)
-	add := func(url string) {
-		url = strings.TrimSpace(url)
-		if url == "" {
-			return
-		}
-		if _, ok := seen[url]; ok {
-			return
-		}
-		seen[url] = struct{}{}
-		out = append(out, url)
-	}
-	for _, url := range oaivideo.CollectStringList(body[flatKeyReferenceImageURLs]) {
-		add(url)
-	}
-	switch refs := body[flatKeyReferenceImages].(type) {
-	case []interface{}:
-		for _, item := range refs {
-			switch v := item.(type) {
-			case string:
-				add(v)
-			case map[string]interface{}:
-				add(oaivideo.AsString(v["url"]))
-			}
-		}
-	}
-	return out
 }
 
 func mergeFlatDuration(out map[string]interface{}, body map[string]interface{}, taskDuration int) {

@@ -30,7 +30,7 @@ func TestConvertBody_NativePassthrough(t *testing.T) {
 			},
 		},
 	}
-	out, err := convertBody(in, "manxue-2.0")
+	out, err := convertBody(in, "manxue-2.0", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestConvertBody_AudioWithoutImage(t *testing.T) {
 		"prompt":           "test",
 		"reference_audios": []interface{}{"https://example.com/a.mp3"},
 	}
-	out, err := convertBody(in, "manxue-2.0")
+	out, err := convertBody(in, "manxue-2.0", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestConvertBody_FlatConversion(t *testing.T) {
 			"https://example.com/a.jpg",
 		},
 	}
-	out, err := convertBody(in, "manxue-2.0")
+	out, err := convertBody(in, "manxue-2.0", []string{"https://example.com/a.jpg"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -80,5 +80,18 @@ func TestConvertBody_FlatConversion(t *testing.T) {
 	content, ok := out["content"].([]map[string]interface{})
 	if !ok || len(content) < 2 {
 		t.Fatalf("expected converted content, got %v", out["content"])
+	}
+}
+
+func TestConvertBody_NormalizedImageReference(t *testing.T) {
+	out, err := convertBody(map[string]interface{}{
+		"prompt": "ocean waves",
+	}, "manxue-2.0", []string{"https://example.com/reference.jpg"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	content, ok := out["content"].([]map[string]interface{})
+	if !ok || len(content) != 2 || content[1]["role"] != "reference_image" {
+		t.Fatalf("expected image_url reference content, got %v", out["content"])
 	}
 }

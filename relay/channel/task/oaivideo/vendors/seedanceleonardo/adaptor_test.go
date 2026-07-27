@@ -59,7 +59,10 @@ func TestBuildUpstreamBody_CanonicalOnly(t *testing.T) {
 		},
 		"generate_audio": true,
 	}
-	out := buildUpstreamBody(in, "seedance-2.0", 5)
+	out := buildUpstreamBody(in, "seedance-2.0", 5, []string{
+		"https://example.com/a.jpg",
+		"https://example.com/b.jpg",
+	})
 	raw, err := json.Marshal(out)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
@@ -73,6 +76,16 @@ func TestBuildUpstreamBody_CanonicalOnly(t *testing.T) {
 	refs, ok := out["reference_image_urls"].([]interface{})
 	if !ok || len(refs) != 2 {
 		t.Fatalf("expected two reference images, got %v", out["reference_image_urls"])
+	}
+}
+
+func TestBuildUpstreamBody_UsesNormalizedReferenceImages(t *testing.T) {
+	out := buildUpstreamBody(map[string]interface{}{
+		"prompt": "test",
+	}, "seedance-2.0-fast", 8, []string{"https://example.com/reference.jpg"})
+	refs, ok := out["reference_image_urls"].([]interface{})
+	if !ok || len(refs) != 1 || refs[0] != "https://example.com/reference.jpg" {
+		t.Fatalf("expected normalized input to become a reference image, got %v", out["reference_image_urls"])
 	}
 }
 

@@ -8,46 +8,11 @@ import (
 
 const (
 	flatKeyReferenceImageURLs = "reference_image_urls"
-	flatKeyReferenceImages    = "reference_images"
 	flatKeyReferenceVideos    = "reference_videos"
 	flatKeyReferenceAudios    = "reference_audios"
 	flatKeyFirstImageURL      = "first_image_url"
 	flatKeyLastImageURL       = "last_image_url"
 )
-
-func collectReferenceImageURLs(body map[string]interface{}) []string {
-	if body == nil {
-		return nil
-	}
-	seen := map[string]struct{}{}
-	out := make([]string, 0, 9)
-	add := func(url string) {
-		url = strings.TrimSpace(url)
-		if url == "" {
-			return
-		}
-		if _, ok := seen[url]; ok {
-			return
-		}
-		seen[url] = struct{}{}
-		out = append(out, url)
-	}
-	for _, url := range oaivideo.CollectStringList(body[flatKeyReferenceImageURLs]) {
-		add(url)
-	}
-	switch refs := body[flatKeyReferenceImages].(type) {
-	case []interface{}:
-		for _, item := range refs {
-			switch v := item.(type) {
-			case string:
-				add(v)
-			case map[string]interface{}:
-				add(oaivideo.AsString(v["url"]))
-			}
-		}
-	}
-	return out
-}
 
 func referenceImageURLsField(urls []string) interface{} {
 	if len(urls) == 0 {
