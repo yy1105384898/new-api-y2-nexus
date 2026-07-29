@@ -1,6 +1,9 @@
 package model
 
 import (
+	"context"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -150,6 +153,93 @@ func TestCountActiveImageTasks(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(2), global)
 	require.Equal(t, int64(1), perUser)
+}
+
+func TestInsertImageTaskWithAdmissionEnforcesGlobalLimit(t *testing.T) {
+	truncateTables(t)
+	insertTask(t, newQueuedImageTask("task_image_existing"))
+	candidate := newQueuedImageTask("task_image_rejected_global")
+
+	err := InsertImageTaskWithAdmission(candidate, 1, 0)
+	require.ErrorIs(t, err, ErrImageTaskQueueFull)
+	var count int64
+	require.NoError(t, DB.Model(&Task{}).Where("task_id = ?", candidate.TaskID).Count(&count).Error)
+	require.Zero(t, count)
+}
+
+func TestInsertImageTaskWithAdmissionEnforcesPerUserLimit(t *testing.T) {
+	truncateTables(t)
+	existing := newQueuedImageTask("task_image_existing_user")
+	existing.UserId = 7
+	insertTask(t, existing)
+	candidate := newQueuedImageTask("task_image_rejected_user")
+	candidate.UserId = 7
+
+	err := InsertImageTaskWithAdmission(candidate, 10, 1)
+	require.ErrorIs(t, err, ErrImageTaskQueueFull)
+}
+
+func TestInsertImageTaskWithAdmissionAcceptsWithinLimits(t *testing.T) {
+	truncateTables(t)
+	candidate := newQueuedImageTask("task_image_accepted")
+	candidate.UserId = 7
+
+	require.NoError(t, InsertImageTaskWithAdmission(candidate, 10, 2))
+	var count int64
+	require.NoError(t, DB.Model(&Task{}).Where("task_id = ?", candidate.TaskID).Count(&count).Error)
+	require.Equal(t, int64(1), count)
+}
+
+func TestInsertImageTaskWithAdmissionConcurrentLimit(t *testing.T) {
+	truncateTables(t)
+	const (
+		attempts = 50
+		limit    = 10
+	)
+	var wg sync.WaitGroup
+	errs := make(chan error, attempts)
+	for i := 0; i < attempts; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			task := newQueuedImageTask(fmt.Sprintf("task_image_concurrent_%d", i))
+			task.UserId = 7
+			errs <- InsertImageTaskWithAdmission(task, limit, limit)
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+
+	accepted := 0
+	for err := range errs {
+		if err == nil {
+			accepted++
+			continue
+		}
+		require.ErrorIs(t, err, ErrImageTaskQueueFull)
+	}
+	require.Equal(t, limit, accepted)
+	var count int64
+	require.NoError(t, DB.Model(&Task{}).Where("user_id = ?", 7).Count(&count).Error)
+	require.Equal(t, int64(limit), count)
+}
+
+func TestImageTaskDispatchLeadershipSingleLocalLeader(t *testing.T) {
+	leader, acquired, err := TryAcquireImageTaskDispatchLeadership(context.Background())
+	require.NoError(t, err)
+	require.True(t, acquired)
+	require.NoError(t, leader.Check(context.Background()))
+
+	second, acquired, err := TryAcquireImageTaskDispatchLeadership(context.Background())
+	require.NoError(t, err)
+	require.False(t, acquired)
+	require.Nil(t, second)
+
+	leader.Release()
+	replacement, acquired, err := TryAcquireImageTaskDispatchLeadership(context.Background())
+	require.NoError(t, err)
+	require.True(t, acquired)
+	replacement.Release()
 }
 
 func TestGetImageTaskStatusLoadsOnlyStatusFields(t *testing.T) {
