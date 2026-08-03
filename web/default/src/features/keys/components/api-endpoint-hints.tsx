@@ -18,16 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 import { CopyButton } from '@/components/copy-button'
-import { useStatus } from '@/hooks/use-status'
-import { isEuDeployment } from '@/i18n/region'
 
-const DEFAULT_API_ENDPOINT = 'https://yynewapi.yangyangnj.top/v1'
-
-function normalizeApiEndpoint(value?: string) {
-  const endpoint = value?.trim().replace(/\/$/, '')
-  if (!endpoint) return ''
-  return endpoint.endsWith('/v1') ? endpoint : `${endpoint}/v1`
-}
+const OVERSEAS_API_ENDPOINT = 'https://yynewapi.yangyangnj.pw/v1'
+const MAINLAND_API_ENDPOINT = 'https://yynewapi.yangyangnj.top/v1'
 
 function EndpointBlock(props: {
   url: string
@@ -80,17 +73,6 @@ function EndpointBlock(props: {
 
 export function ApiEndpointHints() {
   const { t } = useTranslation()
-  const { status } = useStatus()
-  const euDeployment = isEuDeployment()
-
-  const apiEndpoint = (() => {
-    const fromStatus = normalizeApiEndpoint(
-      typeof status?.server_address === 'string'
-        ? status.server_address
-        : undefined
-    )
-    return fromStatus || DEFAULT_API_ENDPOINT
-  })()
 
   return (
     <div className='text-muted-foreground w-full space-y-3 text-xs sm:text-sm'>
@@ -102,20 +84,47 @@ export function ApiEndpointHints() {
 
       <div className='space-y-2'>
         <p className='text-foreground/80 font-medium'>
-          {euDeployment ? t('European API access') : t('API base URL (OpenAI-compatible)')}
+          {t('Overseas API access')}
+        </p>
+        <p className='text-muted-foreground text-[11px] leading-relaxed sm:text-xs'>
+          {t(
+            'For servers and integrations outside mainland China. Prefer direct origin for sustained high-volume traffic; use the VIP acceleration node as an alternative.'
+          )}
         </p>
         <ul className='space-y-2'>
           <EndpointBlock
-            url={apiEndpoint}
-            audience={t('Primary API endpoint')}
+            url={OVERSEAS_API_ENDPOINT}
+            audience={t('Origin direct access')}
             description={t(
-              'OpenAI-compatible HTTPS endpoint for this site. Use it as the base URL in API clients and integrations.'
+              'Direct connection to NewAPI; same API key and billing as the main site. Recommended for overseas batch jobs and sustained high-volume integrations.'
             )}
             whenToUse={t(
-              'You are using an API key from this console — this is the recommended base URL for this deployment.'
+              'Your workloads run overseas and send batch or sustained heavy traffic — use this as the primary base URL for large-scale integrations.'
             )}
             copyLabel={t('Copy API base URL')}
             recommended
+          />
+        </ul>
+      </div>
+
+      <div className='space-y-2'>
+        <p className='text-foreground/80 font-medium'>
+          {t('Mainland network access')}
+        </p>
+        <p className='text-muted-foreground text-[11px] leading-relaxed sm:text-xs'>
+          {t('For customers and integrations running inside mainland China.')}
+        </p>
+        <ul className='space-y-2'>
+          <EndpointBlock
+            url={MAINLAND_API_ENDPOINT}
+            audience={t('Mainland direct access')}
+            description={t(
+              'Main site HTTPS entry via CDN and edge protection. Stable for everyday API calls in the domestic network environment.'
+            )}
+            whenToUse={t(
+              'Your clients or servers are in mainland China — choose this for routine integrations and general API usage.'
+            )}
+            copyLabel={t('Copy API base URL')}
           />
         </ul>
       </div>
