@@ -33,16 +33,9 @@ import {
 } from '../../../../common/ui/RenderUtils';
 import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
 
-function renderQuotaType(type, t, record) {
+function renderQuotaType(type, t) {
   switch (type) {
     case 1:
-      if (record?.billing_mode === 'per_second') {
-        return (
-          <Tag color='cyan' shape='circle'>
-            {t('按秒计费')}
-          </Tag>
-        );
-      }
       return (
         <Tag color='teal' shape='circle'>
           {t('按次计费')}
@@ -167,7 +160,7 @@ export const getPricingTableColumns = ({
     title: t('计费类型'),
     dataIndex: 'quota_type',
     render: (text, record, index) => {
-      return renderQuotaType(parseInt(text), t, record);
+      return renderQuotaType(parseInt(text), t);
     },
     sorter: (a, b) => a.quota_type - b.quota_type,
   };

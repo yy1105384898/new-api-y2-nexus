@@ -100,13 +100,10 @@ function getNameFirstSegment(modelName: string): string | null {
 
 export function isModelFamilyFirstSegment(segment: string): boolean {
   const normalized = segment.toLowerCase()
-  if (
+  return (
     MODEL_FAMILY_FIRST_SEGMENTS.has(normalized) ||
     PUBLIC_MODEL_PREFIX_FIRST_SEGMENTS.has(normalized)
-  ) return true
-
-  // Versioned official families such as qwen3.7-plus must remain intact.
-  return /^qwen\d+(?:\.\d+)?$/.test(normalized)
+  )
 }
 
 /** 是否带有渠道注册前缀（首段不是官方模型族名）。 */

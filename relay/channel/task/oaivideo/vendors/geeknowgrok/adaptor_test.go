@@ -108,43 +108,6 @@ func TestBuildRequestURLUsesChannelBaseURL(t *testing.T) {
 	}
 }
 
-func TestBuildRequestBodyUsesGrok2APIContractForChannel192(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
-	c.Set("task_request", relaycommon.TaskSubmitReq{
-		Model: "grok-imagine-video", Prompt: "animate", Duration: 8,
-		AspectRatio: "16:9", Resolution: "720p",
-		Images: []string{"https://example.com/a.png", "https://example.com/b.png"},
-	})
-	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
-		ChannelId: 192, ChannelBaseUrl: "http://grok2api:8000", UpstreamModelName: upstreamImagineVideo,
-	}}
-	reader, err := (&TaskAdaptor{}).BuildRequestBody(c, info)
-	if err != nil {
-		t.Fatal(err)
-	}
-	body, _ := io.ReadAll(reader)
-	var got map[string]any
-	if err := json.Unmarshal(body, &got); err != nil {
-		t.Fatal(err)
-	}
-	if got["duration"] != "8" || got["resolution"] != "720p" {
-		t.Fatalf("unexpected body: %#v", got)
-	}
-	image, ok := got["image"].(map[string]any)
-	if !ok || image["url"] != "https://example.com/a.png" {
-		t.Fatalf("image = %#v", got["image"])
-	}
-	if _, ok := got["seconds"]; ok {
-		t.Fatalf("seconds leaked: %#v", got)
-	}
-	url, err := (&TaskAdaptor{}).BuildRequestURL(info)
-	if err != nil || url != "http://grok2api:8000/v1/videos/generations" {
-		t.Fatalf("url=%q err=%v", url, err)
-	}
-}
-
 func TestFetchTaskUsesOpenAIVideosPath(t *testing.T) {
 	service.InitHttpClient()
 

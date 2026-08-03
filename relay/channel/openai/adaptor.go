@@ -465,13 +465,6 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		(info.RelayMode == relayconstant.RelayModeImagesGenerations || info.RelayMode == relayconstant.RelayModeImagesEdits) {
 		return ConvertManjuBananaImageRequest(c, info, request)
 	}
-	upstreamModelName := request.Model
-	if info != nil && info.ChannelMeta != nil && info.UpstreamModelName != "" {
-		upstreamModelName = info.UpstreamModelName
-	}
-	if shouldRouteImageRequestViaChat(upstreamModelName) {
-		return convertImageRequestToChatCompletion(info, request)
-	}
 	if IsChatImageModel(info.OriginModelName) {
 		return ConvertImageRequestForChatImage(c, info, request)
 	}

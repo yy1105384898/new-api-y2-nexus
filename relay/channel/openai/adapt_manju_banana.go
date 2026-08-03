@@ -23,6 +23,7 @@ import (
 
 	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/imagevendor"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
@@ -50,16 +51,35 @@ func BuildManjuBananaImageGenerationBody(originModel string, request dto.ImageRe
 	return body
 }
 
-// ManjuBananaUsesChatCompletionsUpstream is retained for callers that support
-// legacy routes. The current Manju image contract accepts references on the
-// Image API, so generations and edits must stay on that endpoint.
-func ManjuBananaUsesChatCompletionsUpstream(_ *gin.Context, _ *relaycommon.RelayInfo, _ dto.ImageRequest) bool {
+// ManjuBananaUsesChatCompletionsUpstream 判断 Manju 图生图是否应走 chat/completions + image_url。
+func ManjuBananaUsesChatCompletionsUpstream(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) bool {
+	if info != nil && info.RelayMode == constant.RelayModeImagesEdits {
+		return true
+	}
+	if hasManjuBananaReferenceInputFromRequest(request) {
+		return true
+	}
+	if c != nil && c.Request != nil && !isJSONRequest(c) {
+		if err := ensureMultipartFormParsed(c); err == nil && hasManjuBananaMultipartReference(c) {
+			return true
+		}
+	}
 	return false
 }
 
 // ManjuBananaUsesChatCompletionsUpstreamFromInfo 供 GetRequestURL / DoResponse 等无完整 request 副本时使用。
 func ManjuBananaUsesChatCompletionsUpstreamFromInfo(info *relaycommon.RelayInfo) bool {
-	return false
+	if info == nil {
+		return false
+	}
+	if info.RelayMode == constant.RelayModeImagesEdits {
+		return true
+	}
+	req, ok := info.Request.(*dto.ImageRequest)
+	if !ok || req == nil {
+		return false
+	}
+	return hasManjuBananaReferenceInputFromRequest(*req)
 }
 
 func hasManjuBananaReferenceInputFromRequest(request dto.ImageRequest) bool {
@@ -112,9 +132,6 @@ func buildManjuBananaImageBody(c *gin.Context, info *relaycommon.RelayInfo, requ
 	}
 	if request.N != nil && *request.N > 0 {
 		body["n"] = *request.N
-	}
-	if err := applyManjuBananaReferenceFields(body, c, request); err != nil {
-		return nil, err
 	}
 	body["stream"] = false
 	return body, nil

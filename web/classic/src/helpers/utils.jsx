@@ -748,14 +748,12 @@ export const calculateModelPrice = ({
   }
 
   if (record.quota_type === 1) {
-    // 固定价计费，单位由 billing_mode/request_unit 决定。
+    // 按次计费
     const priceUSD = parseFloat(record.model_price) * usedGroupRatio;
     const displayVal = displayPrice(priceUSD);
 
     return {
       price: displayVal,
-      billingMode: record.billing_mode,
-      requestUnit: record.request_unit,
       isPerToken: false,
       isTokensDisplay: false,
       usedGroup,
@@ -888,25 +886,12 @@ export const getModelPriceItems = (
     ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
   }
 
-  let requestUnit = t('次');
-  if (priceData.billingMode === 'per_second') {
-    requestUnit = t('秒');
-  } else if (priceData.requestUnit === 'generation') {
-    requestUnit = t('条');
-  } else if (priceData.requestUnit === 'image') {
-    requestUnit = t('张');
-  } else if (priceData.requestUnit === 'task') {
-    requestUnit = t('任务');
-  } else if (priceData.requestUnit === 'call') {
-    requestUnit = t('次');
-  }
-
   return [
     {
       key: 'fixed',
       label: t('模型价格'),
       value: priceData.price,
-      suffix: ` / ${requestUnit}`,
+      suffix: ` / ${t('次')}`,
     },
   ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
 };

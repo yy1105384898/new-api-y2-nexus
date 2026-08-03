@@ -100,19 +100,28 @@ func TestConvertManjuBananaMultipartEditsMarshalsUpstreamModel(t *testing.T) {
 		t.Fatalf("marshaled model = %s", got)
 	}
 
-	imageRaw, ok := payload["image"]
+	messagesRaw, ok := payload["messages"]
 	if !ok {
-		t.Fatalf("missing image field: %s", string(jsonData))
+		t.Fatalf("missing messages: %s", string(jsonData))
 	}
-	var image string
-	if err := json.Unmarshal(imageRaw, &image); err != nil {
-		t.Fatalf("image: %v", err)
+	var messages []struct {
+		Role    string `json:"role"`
+		Content []struct {
+			Type     string `json:"type"`
+			Text     string `json:"text,omitempty"`
+			ImageURL *struct {
+				URL string `json:"url"`
+			} `json:"image_url,omitempty"`
+		} `json:"content"`
 	}
-	if len(image) < len("data:image/") || image[:len("data:image/")] != "data:image/" {
-		t.Fatalf("expected image data URI, got %q", image)
+	if err := json.Unmarshal(messagesRaw, &messages); err != nil {
+		t.Fatalf("messages: %v", err)
 	}
-	if _, ok := payload["messages"]; ok {
-		t.Fatalf("Image API payload must not contain chat messages: %s", string(jsonData))
+	if len(messages) != 1 || len(messages[0].Content) < 2 {
+		t.Fatalf("messages = %s", string(messagesRaw))
+	}
+	if messages[0].Content[1].Type != "image_url" || messages[0].Content[1].ImageURL == nil {
+		t.Fatalf("expected image_url part, got %+v", messages[0].Content[1])
 	}
 
 	// body must stay replayable after conversion path touched multipart

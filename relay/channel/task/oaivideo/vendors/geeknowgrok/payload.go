@@ -30,40 +30,6 @@ func buildGeeknowGrokBody(req relaycommon.TaskSubmitReq, upstreamModel, originMo
 	return out
 }
 
-func buildGrok2APIBody(req relaycommon.TaskSubmitReq, upstreamModel string) map[string]any {
-	modelName := strings.TrimSpace(upstreamModel)
-	if modelName == "" {
-		modelName = strings.TrimSpace(req.Model)
-	}
-	out := map[string]any{"model": modelName, "prompt": strings.TrimSpace(req.Prompt)}
-	if seconds := req.RequestedDurationSeconds(); seconds > 0 {
-		out["duration"] = strconv.Itoa(seconds)
-	}
-	if ratio := strings.TrimSpace(req.AspectRatio); ratio != "" {
-		out["aspect_ratio"] = ratio
-	}
-	if resolution := normalizeResolution(req.Resolution); resolution != "" {
-		out["resolution"] = strings.ToLower(resolution)
-	}
-	refs := make([]string, 0, len(req.Images))
-	for _, image := range req.Images {
-		if image = strings.TrimSpace(image); image != "" {
-			refs = append(refs, image)
-		}
-	}
-	if len(refs) > 0 {
-		out["image"] = map[string]string{"url": refs[0]}
-	}
-	if len(refs) > 1 {
-		more := make([]map[string]string, 0, len(refs)-1)
-		for _, image := range refs[1:] {
-			more = append(more, map[string]string{"url": image})
-		}
-		out["reference_images"] = more
-	}
-	return out
-}
-
 func attachReferenceImages(out map[string]any, images []string, singleImageOnly bool) {
 	refs := make([]string, 0, len(images))
 	for _, image := range images {

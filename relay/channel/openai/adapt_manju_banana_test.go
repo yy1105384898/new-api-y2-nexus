@@ -176,10 +176,10 @@ func TestBuildManjuBananaImageGenerationBodyReadsImageSizeAlias(t *testing.T) {
 	}
 }
 
-func TestManjuBananaUsesImageAPIForEdits(t *testing.T) {
+func TestManjuBananaUsesChatCompletionsUpstreamForEdits(t *testing.T) {
 	info := &relaycommon.RelayInfo{RelayMode: relayconstant.RelayModeImagesEdits}
-	if ManjuBananaUsesChatCompletionsUpstream(nil, info, dto.ImageRequest{Prompt: "x"}) {
-		t.Fatal("edits should use the Image API")
+	if !ManjuBananaUsesChatCompletionsUpstream(nil, info, dto.ImageRequest{Prompt: "x"}) {
+		t.Fatal("edits should use chat/completions")
 	}
 }
 

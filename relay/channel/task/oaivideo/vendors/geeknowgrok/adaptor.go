@@ -61,9 +61,6 @@ func (a *TaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, erro
 	if info == nil || strings.TrimSpace(info.ChannelBaseUrl) == "" {
 		return "", fmt.Errorf("Geeknow Grok video base url is empty")
 	}
-	if isGrok2API(info) {
-		return strings.TrimRight(info.ChannelBaseUrl, "/") + "/v1/videos/generations", nil
-	}
 	return strings.TrimRight(info.ChannelBaseUrl, "/") + "/v1/videos", nil
 }
 
@@ -81,24 +78,12 @@ func (a *TaskAdaptor) BuildRequestBody(c *gin.Context, info *relaycommon.RelayIn
 	if err != nil {
 		return nil, err
 	}
-	var payload map[string]any
-	if isGrok2API(info) {
-		payload = buildGrok2APIBody(req, info.UpstreamModelName)
-	} else {
-		payload = buildGeeknowGrokBody(req, info.UpstreamModelName, info.OriginModelName)
-	}
-	body, err := common.Marshal(payload)
+	body, err := common.Marshal(buildGeeknowGrokBody(req, info.UpstreamModelName, info.OriginModelName))
 	if err != nil {
 		return nil, err
 	}
 	c.Request.Header.Set("Content-Type", "application/json")
 	return bytes.NewReader(body), nil
-}
-
-// Channel 192 is the self-hosted Grok2API deployment. Its JSON schema differs
-// from the Geeknow protocol despite sharing the grok-imagine-video model name.
-func isGrok2API(info *relaycommon.RelayInfo) bool {
-	return info != nil && info.ChannelMeta != nil && info.ChannelMeta.ChannelId == 192
 }
 
 func (a *TaskAdaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
