@@ -432,6 +432,21 @@ export function getLobeHubIcon(iconName, size = 14) {
     return <Avatar size='extra-extra-small'>?</Avatar>;
   }
 
+  if (/^https?:\/\//i.test(String(iconName))) {
+    return (
+      <img
+        src={String(iconName)}
+        alt=''
+        style={{
+          width: size,
+          height: size,
+          objectFit: 'contain',
+          display: 'block',
+        }}
+      />
+    );
+  }
+
   // 解析组件路径与点号链式属性
   const segments = String(iconName).split('.');
   const baseKey = segments[0];
@@ -443,6 +458,9 @@ export function getLobeHubIcon(iconName, size = 14) {
   if (BaseIcon && segments.length > 1 && BaseIcon[segments[1]]) {
     IconComponent = BaseIcon[segments[1]];
     propStartIndex = 2;
+  } else if (BaseIcon && segments.length === 1 && BaseIcon.Color) {
+    IconComponent = BaseIcon.Color;
+    propStartIndex = 1;
   } else {
     IconComponent = LobeIcons[baseKey];
     propStartIndex = 1;

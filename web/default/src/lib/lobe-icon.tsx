@@ -99,6 +99,17 @@ export function getLobeIcon(
     )
   }
 
+  if (/^https?:\/\//i.test(trimmedName)) {
+    return (
+      <img
+        src={trimmedName}
+        alt=''
+        className='block object-contain'
+        style={{ width: size, height: size }}
+      />
+    )
+  }
+
   // Parse component path and chained properties
   const segments = trimmedName.split('.')
   const baseKey = segments[0]
@@ -114,6 +125,9 @@ export function getLobeIcon(
       Record<string, unknown>
     >
     propStartIndex = 2
+  } else if (BaseIcon && segments.length === 1 && BaseIcon.Color) {
+    IconComponent = BaseIcon.Color as React.ComponentType<Record<string, unknown>>
+    propStartIndex = 1
   } else {
     IconComponent = (LobeIcons as Record<string, unknown>)[baseKey] as
       | React.ComponentType<Record<string, unknown>>
