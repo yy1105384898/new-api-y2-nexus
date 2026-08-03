@@ -94,7 +94,7 @@ export function ApiEndpointHints() {
         <ul className='space-y-2'>
           <EndpointBlock
             url={OVERSEAS_API_ENDPOINT}
-            audience={t('Origin direct access')}
+            audience={t('Overseas access')}
             description={t(
               'Direct connection to NewAPI with the same API key and billing as the main site.'
             )}
