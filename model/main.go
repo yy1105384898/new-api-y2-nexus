@@ -254,6 +254,9 @@ func migrateDB() error {
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
 	}
+	if err := migrateChannelMonitorScope(); err != nil {
+		return err
+	}
 
 	err := DB.AutoMigrate(
 		&Channel{},
@@ -285,6 +288,8 @@ func migrateDB() error {
 		&ModelChannelPrefix{},
 		&ModelUiParamRegistry{},
 		&ModelUiParamProfile{},
+		&ChannelMonitor{},
+		&ChannelMonitorResult{},
 	)
 	if err != nil {
 		return err
@@ -301,7 +306,39 @@ func migrateDB() error {
 	return nil
 }
 
+func migrateChannelMonitorScope() error {
+	if !DB.Migrator().HasTable(&ChannelMonitor{}) {
+		return nil
+	}
+	if !DB.Migrator().HasColumn(&ChannelMonitor{}, "scope") {
+		if err := DB.Migrator().AddColumn(&ChannelMonitor{}, "Scope"); err != nil {
+			return err
+		}
+	}
+	if !DB.Migrator().HasColumn(&ChannelMonitor{}, "target") {
+		if err := DB.Migrator().AddColumn(&ChannelMonitor{}, "Target"); err != nil {
+			return err
+		}
+	}
+	if err := DB.Model(&ChannelMonitor{}).
+		Where("scope = ? OR scope IS NULL", "").
+		Update("scope", gorm.Expr("CASE WHEN probe_kind = ? THEN ? ELSE ? END", ChannelMonitorProbeTextActive, ChannelMonitorScopeText, ChannelMonitorScopeMedia)).Error; err != nil {
+		return err
+	}
+	for _, indexName := range []string{"idx_channel_monitors_channel_id", "uni_channel_monitors_channel_id"} {
+		if DB.Migrator().HasIndex(&ChannelMonitor{}, indexName) {
+			if err := DB.Migrator().DropIndex(&ChannelMonitor{}, indexName); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func migrateDBFast() error {
+	if err := migrateChannelMonitorScope(); err != nil {
+		return err
+	}
 
 	var wg sync.WaitGroup
 
@@ -338,6 +375,8 @@ func migrateDBFast() error {
 		{&ModelChannelPrefix{}, "ModelChannelPrefix"},
 		{&ModelUiParamRegistry{}, "ModelUiParamRegistry"},
 		{&ModelUiParamProfile{}, "ModelUiParamProfile"},
+		{&ChannelMonitor{}, "ChannelMonitor"},
+		{&ChannelMonitorResult{}, "ChannelMonitorResult"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))

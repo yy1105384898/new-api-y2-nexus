@@ -2,9 +2,7 @@ package seedanceleonardo
 
 import (
 	"bytes"
-	"fmt"
 	"io"
-	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -12,7 +10,6 @@ import (
 	oaivideo "github.com/QuantumNous/new-api/relay/channel/task/oaivideo/shared"
 	"github.com/QuantumNous/new-api/relay/channel/task/oaivideo/vendors/defaultvideo"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -26,26 +23,10 @@ func (a *TaskAdaptor) GetChannelName() string {
 	return "seedance-leonardo"
 }
 
+// ValidateRequestAndSetAction only normalizes the OpenAI Video request shape.
+// Reference limits, duration, and download-based checks live in leonardo-web2api.
 func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskError {
-	if taskErr := relaycommon.ValidateMultipartDirect(c, info); taskErr != nil {
-		return taskErr
-	}
-	req, err := relaycommon.GetTaskRequest(c)
-	if err != nil {
-		return service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
-	}
-	if info.OriginModelName != mini8sModel {
-		return nil
-	}
-	seconds := req.RequestedDurationSeconds()
-	if seconds != 0 && (seconds < 4 || seconds > 8) {
-		return service.TaskErrorWrapperLocal(
-			fmt.Errorf("duration must be an integer between 4 and 8 seconds for %s", mini8sModel),
-			"invalid_duration",
-			http.StatusBadRequest,
-		)
-	}
-	return nil
+	return relaycommon.ValidateMultipartDirect(c, info)
 }
 
 func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInfo) map[string]float64 {

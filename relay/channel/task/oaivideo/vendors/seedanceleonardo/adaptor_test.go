@@ -12,14 +12,23 @@ import (
 )
 
 func multipartContext(t *testing.T, duration string) *gin.Context {
+	return multipartContextWithFields(t, duration, nil)
+}
+
+func multipartContextWithFields(t *testing.T, duration string, fields map[string][]string) *gin.Context {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
-	_ = writer.WriteField("model", mini8sModel)
+	_ = writer.WriteField("model", "cy-sd4-seedance-2.0")
 	_ = writer.WriteField("prompt", "test")
 	if duration != "" {
 		_ = writer.WriteField("duration", duration)
+	}
+	for key, values := range fields {
+		for _, value := range values {
+			_ = writer.WriteField(key, value)
+		}
 	}
 	if err := writer.Close(); err != nil {
 		t.Fatalf("close multipart writer: %v", err)
@@ -30,23 +39,13 @@ func multipartContext(t *testing.T, duration string) *gin.Context {
 	return c
 }
 
-func TestValidateRequestRejectsMini8sDurationOverEight(t *testing.T) {
-	for _, duration := range []string{"9", "15"} {
-		c := multipartContext(t, duration)
-		info := &relaycommon.RelayInfo{OriginModelName: mini8sModel}
-		if taskErr := (&TaskAdaptor{}).ValidateRequestAndSetAction(c, info); taskErr == nil {
-			t.Fatalf("expected duration %s to be rejected", duration)
-		}
-	}
-}
-
-func TestValidateRequestAcceptsMini8sDurationAtMostEight(t *testing.T) {
-	for _, duration := range []string{"", "4", "8"} {
-		c := multipartContext(t, duration)
-		info := &relaycommon.RelayInfo{OriginModelName: mini8sModel}
-		if taskErr := (&TaskAdaptor{}).ValidateRequestAndSetAction(c, info); taskErr != nil {
-			t.Fatalf("duration %s should be accepted: %v", duration, taskErr)
-		}
+func TestValidateRequestDoesNotEnforceLeonardoReferenceLimits(t *testing.T) {
+	c := multipartContextWithFields(t, "8", map[string][]string{
+		"reference_videos": {"v1", "v2", "v3", "v4"},
+	})
+	info := &relaycommon.RelayInfo{OriginModelName: "cy-sd4-seedance-2.0"}
+	if taskErr := (&TaskAdaptor{}).ValidateRequestAndSetAction(c, info); taskErr != nil {
+		t.Fatalf("expected upstream to own reference limits, got: %+v", taskErr)
 	}
 }
 
@@ -92,6 +91,9 @@ func TestBuildUpstreamBody_UsesNormalizedReferenceImages(t *testing.T) {
 func TestIsRelay(t *testing.T) {
 	if !IsRelay("cy-sd4-seedance-2.0") {
 		t.Fatal("expected leonardo relay")
+	}
+	if !IsRelay("cy-sd4-minimax-h3-2k") {
+		t.Fatal("expected minimax h3 relay")
 	}
 	if IsRelay("cy-sd1-seedance-2.0-720p") {
 		t.Fatal("cy-sd1 must not match leonardo")
