@@ -88,7 +88,7 @@ export function ApiEndpointHints() {
         </p>
         <p className='text-muted-foreground text-[11px] leading-relaxed sm:text-xs'>
           {t(
-            'For servers and integrations outside mainland China. Prefer direct origin for sustained high-volume traffic; use the VIP acceleration node as an alternative.'
+            'For servers and integrations outside mainland China. Use the direct origin for sustained high-volume traffic.'
           )}
         </p>
         <ul className='space-y-2'>
@@ -96,7 +96,7 @@ export function ApiEndpointHints() {
             url={OVERSEAS_API_ENDPOINT}
             audience={t('Origin direct access')}
             description={t(
-              'Direct connection to NewAPI; same API key and billing as the main site. Recommended for overseas batch jobs and sustained high-volume integrations.'
+              'Direct connection to NewAPI with the same API key and billing as the main site.'
             )}
             whenToUse={t(
               'Your workloads run overseas and send batch or sustained heavy traffic — use this as the primary base URL for large-scale integrations.'
